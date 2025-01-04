@@ -4,78 +4,106 @@ import { Repository } from 'typeorm';
 import { Quality } from './entities/quality.entity';
 import { CreateQualityDto } from './dto/create-quality.dto';
 import { UpdateQualityDto } from './dto/update-quality.dto';
-import { AssessQualityDto } from './dto/assess-quality.dto';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+
+export interface QualityTrends {
+  averageGrade: number;
+  gradeHistory: { grade: number; date: Date }[];
+  defectTrends: { defect: string; count: number }[];
+  recommendations: string[];
+}
 
 @Injectable()
 export class QualityService {
   constructor(
     @InjectRepository(Quality)
     private readonly qualityRepository: Repository<Quality>,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   async create(createQualityDto: CreateQualityDto): Promise<Quality> {
     const quality = this.qualityRepository.create(createQualityDto);
-    return this.qualityRepository.save(quality);
+    const savedQuality = await this.qualityRepository.save(quality);
+
+    this.eventEmitter.emit('quality.created', {
+      qualityId: savedQuality.id,
+      grade: savedQuality.grade,
+    });
+
+    return savedQuality;
   }
 
-  async findAll(): Promise<Quality[]> {
+  async findAll() {
     return this.qualityRepository.find();
   }
 
   async findOne(id: string): Promise<Quality> {
-    const quality = await this.qualityRepository.findOne({ where: { id } });
+    const quality = await this.qualityRepository.findOne({
+      where: { id },
+    });
+
     if (!quality) {
       throw new NotFoundException(`Quality with ID ${id} not found`);
     }
-    return quality;
-  }
 
-  async findByProduceType(produceType: string): Promise<Quality[]> {
-    return this.qualityRepository.find({
-      where: { produceType },
-    });
+    return quality;
   }
 
   async update(id: string, updateQualityDto: UpdateQualityDto): Promise<Quality> {
     const quality = await this.findOne(id);
-    Object.assign(quality, updateQualityDto);
-    return this.qualityRepository.save(quality);
+    const previousGrade = quality.grade;
+
+    const updatedQuality = await this.qualityRepository.save({
+      ...quality,
+      ...updateQualityDto,
+    });
+
+    this.eventEmitter.emit('quality.updated', {
+      qualityId: updatedQuality.id,
+      grade: updatedQuality.grade,
+      gradeChanged: previousGrade !== updatedQuality.grade,
+    });
+
+    return updatedQuality;
   }
 
   async remove(id: string): Promise<void> {
     const quality = await this.findOne(id);
     await this.qualityRepository.remove(quality);
+
+    this.eventEmitter.emit('quality.deleted', {
+      qualityId: id,
+    });
   }
 
-  async assessQuality(assessQualityDto: AssessQualityDto): Promise<number> {
-    const quality = await this.findOne(assessQualityDto.qualityId);
-    const params = quality.params;
-    let score = 0;
-    let totalWeight = 0;
+  async getQualityTrends(assessments: Quality[]): Promise<QualityTrends> {
+    const defectCounts = new Map<string, number>();
+    const recommendations = new Set<string>();
+    const gradeHistory: { grade: number; date: Date }[] = [];
 
-    // Calculate quality score based on parameters and their weights
-    for (const [param, value] of Object.entries(assessQualityDto.parameters)) {
-      if (params[param]) {
-        const { weight, maxScore } = params[param];
-        const normalizedValue = Math.min(value, maxScore) / maxScore;
-        score += normalizedValue * weight;
-        totalWeight += weight;
-      }
-    }
+    assessments.forEach(assessment => {
+      gradeHistory.push({
+        grade: assessment.grade,
+        date: assessment.createdAt,
+      });
 
-    // Return normalized score (0-100)
-    return (score / totalWeight) * 100;
-  }
+      assessment.defects.forEach(defect => {
+        defectCounts.set(defect, (defectCounts.get(defect) || 0) + 1);
+      });
 
-  async getQualityParameters(produceType: string): Promise<Record<string, any>> {
-    const quality = await this.qualityRepository.findOne({
-      where: { produceType },
+      assessment.recommendations.forEach(rec => recommendations.add(rec));
     });
 
-    if (!quality) {
-      throw new NotFoundException(`Quality parameters for ${produceType} not found`);
-    }
+    const averageGrade = assessments.reduce((sum, a) => sum + a.grade, 0) / assessments.length;
 
-    return quality.params;
+    return {
+      averageGrade,
+      gradeHistory,
+      defectTrends: Array.from(defectCounts.entries()).map(([defect, count]) => ({
+        defect,
+        count,
+      })),
+      recommendations: Array.from(recommendations),
+    };
   }
 } 

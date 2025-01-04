@@ -1,16 +1,19 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
-import { CustomersModule } from './customers/customers.module';
-import { BuyersModule } from './buyers/buyers.module';
 import { ProduceModule } from './produce/produce.module';
 import { QualityModule } from './quality/quality.module';
-import { OffersModule } from './offers/offers.module';
-import { TransactionsModule } from './transactions/transactions.module';
-import { SupportModule } from './support/support.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { RatingsModule } from './ratings/ratings.module';
+import { SupportModule } from './support/support.module';
+import { TransactionsModule } from './transactions/transactions.module';
+import { OffersModule } from './offers/offers.module';
+import { AdminModule } from './admin/admin.module';
+import { FarmersModule } from './farmers/farmers.module';
+import { BuyersModule } from './buyers/buyers.module';
 
 @Module({
   imports: [
@@ -22,34 +25,31 @@ import { NotificationsModule } from './notifications/notifications.module';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         host: configService.get('DB_HOST'),
-        port: +configService.get('DB_PORT'),
+        port: configService.get('DB_PORT'),
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
-        database: configService.get('DB_DATABASE'),
+        database: configService.get('DB_NAME'),
         autoLoadEntities: true,
-        synchronize: false,
+        synchronize: configService.get('NODE_ENV') !== 'production',
       }),
       inject: [ConfigService],
     }),
-    ThrottlerModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        throttlers: [{
-          ttl: +configService.get('THROTTLE_TTL'),
-          limit: +configService.get('THROTTLE_LIMIT'),
-        }],
-      }),
-      inject: [ConfigService],
-    }),
+    ThrottlerModule.forRoot([{
+      ttl: 60,
+      limit: 10,
+    }]),
+    EventEmitterModule.forRoot(),
     AuthModule,
-    CustomersModule,
+    FarmersModule,
     BuyersModule,
     ProduceModule,
     QualityModule,
-    OffersModule,
-    TransactionsModule,
-    SupportModule,
     NotificationsModule,
+    RatingsModule,
+    SupportModule,
+    TransactionsModule,
+    OffersModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

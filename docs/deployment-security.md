@@ -10,6 +10,16 @@ JWT_EXPIRY=3600
 JWT_REFRESH_EXPIRY=604800
 JWT_ALGORITHM=RS256
 
+# Admin Configuration
+ADMIN_USERS=admin1@company.com,admin2@company.com
+MAX_LOGIN_ATTEMPTS=5
+LOGIN_LOCKOUT_DURATION=900
+PASSWORD_MIN_LENGTH=8
+PASSWORD_REQUIRE_SPECIAL=true
+PASSWORD_REQUIRE_NUMBER=true
+PASSWORD_REQUIRE_UPPERCASE=true
+PASSWORD_REQUIRE_LOWERCASE=true
+
 # OTP Configuration
 OTP_SECRET=your_secure_otp_secret
 OTP_LENGTH=6
@@ -57,6 +67,16 @@ RATE_LIMIT_WINDOW=900000
 RATE_LIMIT_MAX=100
 TRUSTED_PROXIES=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
 \`\`\`
+
+### Admin User Management
+- Admin users are configured through the `ADMIN_USERS` environment variable
+- Specify admin email addresses as a comma-separated list
+- Only users with emails in this list will be granted admin privileges
+- Changes to admin users require application restart
+- Keep this list minimal and regularly audit access
+- Use company-controlled email addresses only
+- Regularly rotate admin credentials
+- Monitor and log all admin actions
 
 ### Docker Configuration
 

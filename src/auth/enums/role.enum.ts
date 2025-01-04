@@ -1,5 +1,8 @@
 export enum Role {
-  ADMIN = 'admin',
-  CUSTOMER = 'customer',
-  BUYER = 'buyer',
+  ADMIN = 'ADMIN',
+  USER = 'USER',
+  FARMER = 'FARMER',
+  BUYER = 'BUYER',
+  INSPECTOR = 'INSPECTOR',
+  QUALITY_INSPECTOR = 'QUALITY_INSPECTOR'
 } 

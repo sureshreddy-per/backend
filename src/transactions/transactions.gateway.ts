@@ -50,10 +50,10 @@ export class TransactionsGateway implements OnGatewayConnection, OnGatewayDiscon
       });
     }
 
-    // Notify the customer who owns the produce
-    const customerSockets = this.userSockets.get(transaction.produce.customerId);
-    if (customerSockets) {
-      customerSockets.forEach(socket => {
+    // Notify the farmer who owns the produce
+    const farmerSockets = this.userSockets.get(transaction.produce.farmerId);
+    if (farmerSockets) {
+      farmerSockets.forEach(socket => {
         socket.emit('newTransactionForProduce', transaction);
       });
     }
@@ -68,10 +68,10 @@ export class TransactionsGateway implements OnGatewayConnection, OnGatewayDiscon
       });
     }
 
-    // Notify the customer
-    const customerSockets = this.userSockets.get(transaction.produce.customerId);
-    if (customerSockets) {
-      customerSockets.forEach(socket => {
+    // Notify the farmer
+    const farmerSockets = this.userSockets.get(transaction.produce.farmerId);
+    if (farmerSockets) {
+      farmerSockets.forEach(socket => {
         socket.emit('transactionStatusUpdated', transaction);
       });
     }

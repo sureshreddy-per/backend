@@ -1,19 +1,12 @@
-import { IsEmail, IsString, IsNotEmpty, IsEnum } from 'class-validator';
+import { IsString, IsEmail } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class LoginDto {
-  @ApiProperty({ example: 'user@example.com' })
+  @ApiProperty({ description: 'User\'s email address' })
   @IsEmail()
-  @IsNotEmpty()
   email: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'User\'s password' })
   @IsString()
-  @IsNotEmpty()
   password: string;
-
-  @ApiProperty({ enum: ['customer', 'buyer'] })
-  @IsEnum(['customer', 'buyer'])
-  @IsNotEmpty()
-  type: 'customer' | 'buyer';
 } 

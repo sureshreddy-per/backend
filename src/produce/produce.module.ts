@@ -4,13 +4,16 @@ import { ProduceService } from './produce.service';
 import { ProduceController } from './produce.controller';
 import { Produce } from './entities/produce.entity';
 import { QualityModule } from '../quality/quality.module';
-import { CustomersModule } from '../customers/customers.module';
+import { AuthModule } from '../auth/auth.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { User } from '../auth/entities/user.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Produce]),
+    TypeOrmModule.forFeature([Produce, User]),
     QualityModule,
-    CustomersModule,
+    AuthModule,
+    EventEmitterModule.forRoot(),
   ],
   providers: [ProduceService],
   controllers: [ProduceController],

@@ -2,72 +2,55 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Support, SupportStatus } from '../support/entities/support.entity';
-import { Customer } from '../customers/entities/customer.entity';
-import { Buyer } from '../buyers/entities/buyer.entity';
+import { User } from '../auth/entities/user.entity';
 
 @Injectable()
 export class AdminService {
   constructor(
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     @InjectRepository(Support)
     private readonly supportRepository: Repository<Support>,
-    @InjectRepository(Customer)
-    private readonly customerRepository: Repository<Customer>,
-    @InjectRepository(Buyer)
-    private readonly buyerRepository: Repository<Buyer>,
   ) {}
 
-  async getDashboardStats() {
-    const [
-      totalCustomers,
-      totalBuyers,
-      openTickets,
-      totalTickets,
-    ] = await Promise.all([
-      this.customerRepository.count(),
-      this.buyerRepository.count(),
-      this.supportRepository.count({
-        where: { status: SupportStatus.OPEN },
-      }),
-      this.supportRepository.count(),
-    ]);
-
-    return {
-      totalCustomers,
-      totalBuyers,
-      openTickets,
-      totalTickets,
-      ticketResolutionRate: totalTickets > 0
-        ? ((totalTickets - openTickets) / totalTickets) * 100
-        : 0,
-    };
+  async getUsers() {
+    return this.userRepository.find();
   }
 
-  async getCustomerStats() {
-    const customers = await this.customerRepository.find();
-    return {
-      total: customers.length,
-      active: customers.filter(c => c.isActive).length,
-      inactive: customers.filter(c => !c.isActive).length,
-    };
+  async getUser(id: string) {
+    return this.userRepository.findOne({ where: { id } });
   }
 
-  async getBuyerStats() {
-    const buyers = await this.buyerRepository.find();
-    return {
-      total: buyers.length,
-      active: buyers.filter(b => b.isActive).length,
-      inactive: buyers.filter(b => !b.isActive).length,
-    };
+  async blockUser(id: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+    user.isBlocked = true;
+    return this.userRepository.save(user);
   }
 
-  async getSupportStats() {
-    const tickets = await this.supportRepository.find();
-    return {
-      total: tickets.length,
-      open: tickets.filter(t => t.status === SupportStatus.OPEN).length,
-      inProgress: tickets.filter(t => t.status === SupportStatus.IN_PROGRESS).length,
-      resolved: tickets.filter(t => t.status === SupportStatus.RESOLVED).length,
-      closed: tickets.filter(t => t.status === SupportStatus.CLOSED).length,
-    };
+  async unblockUser(id: string) {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+    user.isBlocked = false;
+    return this.userRepository.save(user);
+  }
+
+  async getSupportTickets() {
+    return this.supportRepository.find({
+      relations: ['user'],
+    });
+  }
+
+  async updateSupportTicket(id: string, status: SupportStatus) {
+    const ticket = await this.supportRepository.findOne({ where: { id } });
+    if (!ticket) {
+      throw new Error('Support ticket not found');
+    }
+    ticket.status = status;
+    return this.supportRepository.save(ticket);
   }
 } 

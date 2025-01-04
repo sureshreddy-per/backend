@@ -101,7 +101,11 @@ export class TransactionsService {
     transaction.status = status;
 
     if (status === TransactionStatus.COMPLETED) {
-      await this.produceService.updateStatus(transaction.produceId, ProduceStatus.COMPLETED);
+      await this.produceService.updateStatus(
+        transaction.produceId,
+        ProduceStatus.COMPLETED,
+        transaction.produce.farmerId
+      );
     }
 
     const savedTransaction = await this.transactionRepository.save(transaction);

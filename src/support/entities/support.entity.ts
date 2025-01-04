@@ -1,6 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { Customer } from '../../customers/entities/customer.entity';
-import { Buyer } from '../../buyers/entities/buyer.entity';
+import { User } from '../../auth/entities/user.entity';
 
 export enum SupportStatus {
   OPEN = 'OPEN',
@@ -56,19 +55,12 @@ export class Support {
   })
   category: SupportCategory;
 
-  @Column({ type: 'uuid', nullable: true })
-  customerId: string | null;
+  @Column({ type: 'uuid' })
+  userId: string;
 
-  @Column({ type: 'uuid', nullable: true })
-  buyerId: string | null;
-
-  @ManyToOne(() => Customer, { nullable: true })
-  @JoinColumn({ name: 'customerId' })
-  customer: Customer;
-
-  @ManyToOne(() => Buyer, { nullable: true })
-  @JoinColumn({ name: 'buyerId' })
-  buyer: Buyer;
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'userId' })
+  user: User;
 
   @Column('simple-array', { default: [] })
   attachments: string[];
