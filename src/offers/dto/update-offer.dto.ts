@@ -1,14 +1,19 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OfferStatus } from '../enums/offer-status.enum';
+import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { QualityGrade } from '../../produce/enums/quality-grade.enum';
 
 export class UpdateOfferDto {
-  @ApiProperty({ enum: OfferStatus, description: 'New status for the offer' })
-  @IsEnum(OfferStatus)
-  status: OfferStatus;
+  @IsOptional()
+  @IsNumber()
+  pricePerUnit?: number;
 
-  @ApiPropertyOptional({ description: 'Optional message for the status update' })
+  @IsOptional()
+  @IsNumber()
+  quantity?: number;
+
   @IsOptional()
   @IsString()
   message?: string;
+
+  @IsOptional()
+  qualityGrade?: QualityGrade;
 } 

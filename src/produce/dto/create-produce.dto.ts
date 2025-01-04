@@ -1,62 +1,80 @@
-import { IsString, IsNumber, IsOptional, IsArray, IsLatLong, IsEnum, Min, Max, ArrayMaxSize } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsNumber, IsOptional, IsObject, ValidateNested, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
-export enum ProduceType {
-  WHEAT = 'WHEAT',
-  RICE = 'RICE',
-  CORN = 'CORN',
-  SOYBEAN = 'SOYBEAN',
-  COTTON = 'COTTON',
-  OTHER = 'OTHER',
+export class LocationDto {
+  @IsNumber()
+  latitude: number;
+
+  @IsNumber()
+  longitude: number;
+
+  @IsString()
+  address: string;
 }
 
-export enum ProduceUnit {
-  KG = 'KG',
-  TON = 'TON',
+export class StorageConditionsDto {
+  @IsNumber()
+  @IsOptional()
+  temperature?: number;
+
+  @IsNumber()
+  @IsOptional()
+  humidity?: number;
+}
+
+export class MetadataDto {
+  @IsString()
+  @IsOptional()
+  harvestDate?: string;
+
+  @IsString()
+  @IsOptional()
+  expiryDate?: string;
+
+  @ValidateNested()
+  @Type(() => StorageConditionsDto)
+  @IsOptional()
+  storageConditions?: StorageConditionsDto;
+
+  @IsString({ each: true })
+  @IsOptional()
+  certifications?: string[];
+
+  @IsString({ each: true })
+  @IsOptional()
+  images?: string[];
 }
 
 export class CreateProduceDto {
-  @ApiProperty({ enum: ProduceType, description: 'Type of produce' })
-  @IsEnum(ProduceType)
-  type: ProduceType;
+  @IsString()
+  farmerId: string;
 
-  @ApiProperty({ description: 'Quantity of produce' })
+  @IsString()
+  name: string;
+
+  @IsString()
+  description: string;
+
   @IsNumber()
   @Min(0)
   quantity: number;
 
-  @ApiProperty({ enum: ProduceUnit, description: 'Unit of measurement' })
-  @IsEnum(ProduceUnit)
-  unit: ProduceUnit;
+  @IsString()
+  unit: string;
 
-  @ApiProperty({ description: 'Expected price per unit' })
   @IsNumber()
   @Min(0)
-  expectedPrice: number;
+  price: number;
 
-  @ApiProperty({ description: 'Detailed description of the produce' })
   @IsString()
-  description: string;
+  currency: string;
 
-  @ApiProperty({ description: 'Array of photo URLs', type: [String] })
-  @IsArray()
-  @ArrayMaxSize(5)
-  @IsString({ each: true })
-  photos: string[];
+  @ValidateNested()
+  @Type(() => LocationDto)
+  location: LocationDto;
 
-  @ApiPropertyOptional({ description: 'Video URL of the produce' })
+  @ValidateNested()
+  @Type(() => MetadataDto)
   @IsOptional()
-  @IsString()
-  video?: string;
-
-  @ApiProperty({ description: 'Location coordinates (lat,lng)' })
-  @IsLatLong()
-  location: string;
-
-  @ApiPropertyOptional({ description: 'Maximum distance limit for buyers in kilometers' })
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  @Max(1000)
-  areaLimitKm?: number;
+  metadata?: MetadataDto;
 } 

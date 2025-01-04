@@ -1,43 +1,54 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Produce } from '../../produce/entities/produce.entity';
+import { Transaction } from '../../transactions/entities/transaction.entity';
 
-@Entity('farmers')
+@Entity()
 export class Farmer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'user_id' })
+  @Column()
   userId: string;
 
   @Column()
   name: string;
 
-  @Column({ unique: true })
-  email: string;
+  @Column()
+  phoneNumber: string;
 
   @Column()
-  phone: string;
+  email: string;
 
-  @Column({ nullable: true })
-  address: string;
-
-  @Column({ type: 'jsonb', nullable: true })
-  metadata: {
-    farmName?: string;
-    farmSize?: number;
-    farmLocation?: {
-      latitude: number;
-      longitude: number;
-    };
-    certifications?: string[];
+  @Column('json')
+  location: {
+    lat: number;
+    lng: number;
   };
 
-  @OneToMany(() => Produce, produce => produce.farmer)
-  produces: Produce[];
+  @Column()
+  farmSize: number;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @Column()
+  farmSizeUnit: string;
+
+  @Column('decimal', { precision: 3, scale: 2, default: 0 })
+  rating: number;
+
+  @Column({ default: 0 })
+  totalRatings: number;
+
+  @Column({ default: true })
+  isActive: boolean;
+
+  @OneToMany(() => Produce, produce => produce.farmer)
+  produce: Produce[];
+
+  @OneToMany(() => Transaction, transaction => transaction.farmer)
+  transactions: Transaction[];
+
+  @Column()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @Column()
   updatedAt: Date;
 } 

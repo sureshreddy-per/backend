@@ -1,0 +1,10 @@
+export enum ProduceType {
+  TOMATOES = 'TOMATOES',
+  POTATOES = 'POTATOES',
+  ONIONS = 'ONIONS',
+  CARROTS = 'CARROTS',
+  CABBAGE = 'CABBAGE',
+  BEANS = 'BEANS',
+  CORN = 'CORN',
+  PEAS = 'PEAS'
+} 

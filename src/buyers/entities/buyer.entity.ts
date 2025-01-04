@@ -1,7 +1,7 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { BuyerPrice } from './buyer-price.entity';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
+import { Transaction } from '../../transactions/entities/transaction.entity';
 
-@Entity('buyers')
+@Entity()
 export class Buyer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -12,24 +12,39 @@ export class Buyer {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
-  description: string;
+  @Column()
+  email: string;
 
-  @Column('decimal', { precision: 10, scale: 6 })
-  lat: number;
+  @Column()
+  phone: string;
 
-  @Column('decimal', { precision: 10, scale: 6 })
-  lng: number;
+  @Column('json')
+  location: {
+    lat: number;
+    lng: number;
+  };
+
+  @Column('json')
+  businessDetails: {
+    type: string;
+    license: string;
+  };
 
   @Column({ default: true })
   isActive: boolean;
 
-  @OneToMany(() => BuyerPrice, price => price.buyer)
-  prices: BuyerPrice[];
+  @Column('decimal', { precision: 3, scale: 2, default: 0 })
+  rating: number;
 
-  @CreateDateColumn()
+  @Column({ default: 0 })
+  totalRatings: number;
+
+  @OneToMany(() => Transaction, transaction => transaction.buyer)
+  transactions: Transaction[];
+
+  @Column()
   createdAt: Date;
 
-  @UpdateDateColumn()
+  @Column()
   updatedAt: Date;
 } 

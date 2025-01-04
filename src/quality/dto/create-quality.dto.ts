@@ -1,87 +1,29 @@
-import { IsString, IsNumber, IsOptional, IsObject, IsArray } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsUUID, IsNumber, IsObject } from 'class-validator';
+
+export interface QualityMetadata {
+  finalPrice?: number;
+  priceMultiplier?: number;
+  finalizedAt?: Date;
+  notes?: string;
+}
+
+export interface QualityCriteria {
+  freshness: number;
+  cleanliness: number;
+  packaging: number;
+  consistency: number;
+}
 
 export class CreateQualityDto {
-  @IsString()
-  name: string;
+  @IsUUID()
+  produceId: string;
 
-  @IsString()
-  description: string;
-
-  @IsNumber()
-  grade: number;
-
-  @IsNumber()
-  confidence: number;
-
-  @IsArray()
-  @IsString({ each: true })
-  defects: string[];
-
-  @IsArray()
-  @IsString({ each: true })
-  recommendations: string[];
-
-  @IsOptional()
   @IsObject()
-  criteria?: {
-    appearance?: {
-      color?: string[];
-      size?: {
-        min?: number;
-        max?: number;
-        unit?: string;
-      };
-      shape?: string[];
-      texture?: string[];
-    };
-    defects?: {
-      allowedTypes?: string[];
-      maxPercentage?: number;
-    };
-    composition?: {
-      moisture?: {
-        min?: number;
-        max?: number;
-      };
-      sugar?: {
-        min?: number;
-        max?: number;
-      };
-      [key: string]: {
-        min?: number;
-        max?: number;
-      };
-    };
-  };
+  criteria: QualityCriteria;
 
-  @IsOptional()
-  @IsObject()
-  metadata?: {
-    marketValue?: {
-      min: number;
-      max: number;
-      currency: string;
-    };
-    shelfLife?: {
-      duration: number;
-      unit: string;
-    };
-    storageRequirements?: {
-      temperature?: {
-        min: number;
-        max: number;
-        unit: string;
-      };
-      humidity?: {
-        min: number;
-        max: number;
-        unit: string;
-      };
-    };
-  };
-
-  @IsOptional()
   @IsString()
-  rawAnalysis?: string;
+  assessedBy: string;
+
+  @IsObject()
+  metadata?: QualityMetadata;
 } 

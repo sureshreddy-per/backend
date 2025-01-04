@@ -1,130 +1,92 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Quality } from './entities/quality.entity';
+import { QualityGrade } from '../produce/enums/quality-grade.enum';
 import { CreateQualityDto } from './dto/create-quality.dto';
-import { UpdateQualityDto } from './dto/update-quality.dto';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-
-export interface QualityTrends {
-  averageGrade: number;
-  gradeHistory: { grade: number; date: Date }[];
-  defectTrends: { defect: string; count: number }[];
-  recommendations: string[];
-}
 
 @Injectable()
 export class QualityService {
   constructor(
     @InjectRepository(Quality)
-    private readonly qualityRepository: Repository<Quality>,
-    private readonly eventEmitter: EventEmitter2,
+    private readonly qualityRepository: Repository<Quality>
   ) {}
 
-  async create(createQualityDto: CreateQualityDto): Promise<Quality> {
-    const quality = this.qualityRepository.create(createQualityDto);
-    const savedQuality = await this.qualityRepository.save(quality);
-
-    this.eventEmitter.emit('quality.created', {
-      qualityId: savedQuality.id,
-      grade: savedQuality.grade,
+  async create(createQualityDto: CreateQualityDto) {
+    const quality = new Quality();
+    Object.assign(quality, {
+      ...createQualityDto,
+      grade: this.calculateQualityGrade(
+        Object.values(createQualityDto.criteria).reduce((a, b) => a + b, 0) / 4
+      ),
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
 
-    return savedQuality;
+    return this.qualityRepository.save(quality);
   }
 
   async findAll() {
-    return this.qualityRepository.find();
-  }
-
-  async findOne(id: string): Promise<Quality> {
-    const quality = await this.qualityRepository.findOne({
-      where: { id },
+    const [items, total] = await this.qualityRepository.findAndCount({
+      relations: ['produce']
     });
-
-    if (!quality) {
-      throw new NotFoundException(`Quality with ID ${id} not found`);
-    }
-
-    return quality;
-  }
-
-  async update(id: string, updateQualityDto: UpdateQualityDto): Promise<Quality> {
-    const quality = await this.findOne(id);
-    const previousGrade = quality.grade;
-
-    const updatedQuality = await this.qualityRepository.save({
-      ...quality,
-      ...updateQualityDto,
-    });
-
-    this.eventEmitter.emit('quality.updated', {
-      qualityId: updatedQuality.id,
-      grade: updatedQuality.grade,
-      gradeChanged: previousGrade !== updatedQuality.grade,
-    });
-
-    return updatedQuality;
-  }
-
-  async remove(id: string): Promise<void> {
-    const quality = await this.findOne(id);
-    await this.qualityRepository.remove(quality);
-
-    this.eventEmitter.emit('quality.deleted', {
-      qualityId: id,
-    });
-  }
-
-  async getQualityTrends(assessments: Quality[]): Promise<QualityTrends> {
-    const defectCounts = new Map<string, number>();
-    const recommendations = new Set<string>();
-    const gradeHistory: { grade: number; date: Date }[] = [];
-
-    assessments.forEach(assessment => {
-      gradeHistory.push({
-        grade: assessment.grade,
-        date: assessment.createdAt,
-      });
-
-      assessment.defects.forEach(defect => {
-        defectCounts.set(defect, (defectCounts.get(defect) || 0) + 1);
-      });
-
-      assessment.recommendations.forEach(rec => recommendations.add(rec));
-    });
-
-    const averageGrade = assessments.reduce((sum, a) => sum + a.grade, 0) / assessments.length;
-
     return {
-      averageGrade,
-      gradeHistory,
-      defectTrends: Array.from(defectCounts.entries()).map(([defect, count]) => ({
-        defect,
-        count,
-      })),
-      recommendations: Array.from(recommendations),
+      items,
+      meta: {
+        total
+      }
     };
   }
 
-  async finalizeQualityAssessment(id: string, finalPrice: number): Promise<Quality> {
+  async findOne(id: string) {
+    return this.qualityRepository.findOne({
+      where: { id },
+      relations: ['produce']
+    });
+  }
+
+  async finalizeQualityAssessment(id: string, finalPrice: number) {
     const quality = await this.findOne(id);
-    
-    // Update quality record to mark it as finalized
-    const updatedQuality = await this.qualityRepository.save({
-      ...quality,
-      isFinalized: true,
-      finalizedAt: new Date(),
+    if (!quality) return null;
+
+    const grade = this.calculateQualityGrade(
+      Object.values(quality.criteria).reduce((a, b) => a + b, 0) / 4
+    );
+
+    const priceMultiplier = this.calculatePriceMultiplier(grade);
+    const adjustedPrice = finalPrice * priceMultiplier;
+
+    Object.assign(quality, {
+      grade,
+      metadata: {
+        ...quality.metadata,
+        finalPrice: adjustedPrice,
+        priceMultiplier,
+        finalizedAt: new Date()
+      },
+      updatedAt: new Date()
     });
 
-    // Emit the quality.finalized event
-    this.eventEmitter.emit('quality.finalized', {
-      produceId: quality.produceId,
-      qualityId: quality.id,
-      grade: quality.grade,
-      finalPrice: finalPrice
-    });
+    return this.qualityRepository.save(quality);
+  }
 
-    return updatedQuality;
+  private calculateQualityGrade(averageSeverity: number): QualityGrade {
+    if (averageSeverity <= 2) return QualityGrade.A;
+    if (averageSeverity <= 4) return QualityGrade.B;
+    if (averageSeverity <= 7) return QualityGrade.C;
+    return QualityGrade.D;
+  }
+
+  private calculatePriceMultiplier(grade: QualityGrade): number {
+    switch (grade) {
+      case QualityGrade.A:
+        return 1.0;
+      case QualityGrade.B:
+        return 0.8;
+      case QualityGrade.C:
+        return 0.6;
+      default:
+        return 0.4;
+    }
   }
 } 

@@ -16,107 +16,133 @@
 
 ## Auth Service
 
-### Register a New User
+### Register User
 ```http
 POST /auth/register
 Content-Type: application/json
 
 {
+  "email": "john.doe@example.com",
+  "password": "StrongP@ss123",
   "name": "John Doe",
-  "email": "john@example.com",
   "phone": "+1234567890",
-  "password": "securePassword123",
-  "role": "FARMER"
+  "isFarmer": true,
+  "isBuyer": false
 }
 
 Response (201 Created):
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "John Doe",
-  "email": "john@example.com",
-  "phone": "+1234567890",
-  "role": "FARMER",
-  "createdAt": "2024-01-20T12:00:00Z"
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "john.doe@example.com",
+    "name": "John Doe",
+    "phone": "+1234567890",
+    "isFarmer": true,
+    "isBuyer": false,
+    "verificationStatus": "PENDING",
+    "isBlocked": false,
+    "createdAt": "2024-01-20T12:00:00Z",
+    "updatedAt": "2024-01-20T12:00:00Z"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
-### User Login
+### Login
 ```http
 POST /auth/login
 Content-Type: application/json
 
 {
-  "email": "john@example.com",
-  "password": "securePassword123"
+  "email": "john.doe@example.com",
+  "password": "StrongP@ss123"
 }
 
 Response (200 OK):
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
+    "email": "john.doe@example.com",
     "name": "John Doe",
-    "email": "john@example.com",
-    "role": "FARMER"
-  }
+    "phone": "+1234567890",
+    "isFarmer": true,
+    "isBuyer": false,
+    "verificationStatus": "VERIFIED",
+    "isBlocked": false,
+    "lastLoginAt": "2024-01-20T12:30:00Z",
+    "createdAt": "2024-01-20T12:00:00Z",
+    "updatedAt": "2024-01-20T12:30:00Z"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 }
 ```
 
-### Get User Profile
+### Validate User
 ```http
-GET /auth/profile
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /auth/validate
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "john.doe@example.com",
   "name": "John Doe",
-  "email": "john@example.com",
   "phone": "+1234567890",
-  "role": "FARMER",
+  "isFarmer": true,
+  "isBuyer": false,
+  "verificationStatus": "VERIFIED",
+  "isBlocked": false,
+  "lastLoginAt": "2024-01-20T12:30:00Z",
   "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z"
+  "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
-### Reset Password Request
+### Block User
 ```http
-POST /auth/reset-password-request
+POST /auth/block/:userId
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "email": "john@example.com"
+  "reason": "Violation of terms of service"
 }
 
 Response (200 OK):
 {
-  "message": "Password reset instructions sent to email",
-  "requestId": "ff0e8400-e29b-41d4-a716-446655440000"
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "john.doe@example.com",
+  "name": "John Doe",
+  "isBlocked": true,
+  "blockReason": "Violation of terms of service",
+  "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
-### Reset Password
+### Unblock User
 ```http
-POST /auth/reset-password
-Content-Type: application/json
-
-{
-  "token": "reset-token-123",
-  "newPassword": "newSecurePassword123"
-}
+POST /auth/unblock/:userId
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "message": "Password reset successful"
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "john.doe@example.com",
+  "name": "John Doe",
+  "isBlocked": false,
+  "blockReason": null,
+  "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
+
+> **Note**: The password must be at least 8 characters long and contain uppercase, lowercase, number and special character. After 5 failed login attempts, the account will be temporarily locked for 15 minutes.
 
 ## Farmers Service
 
 ### Create Farmer Profile
 ```http
 POST /farmers
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
@@ -145,14 +171,18 @@ Response (201 Created):
     "size": "50 acres",
     "crops": ["tomatoes", "potatoes", "onions"]
   },
-  "createdAt": "2024-01-20T12:00:00Z"
+  "rating": 0,
+  "totalRatings": 0,
+  "isActive": true,
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z"
 }
 ```
 
 ### Get All Farmers
 ```http
-GET /farmers?page=1&limit=10
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /farmers
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
@@ -164,22 +194,24 @@ Response (200 OK):
         "lat": 12.9716,
         "lng": 77.5946
       },
-      "rating": 4.5
+      "rating": 4.5,
+      "produceCount": 5,
+      "produce": [
+        {
+          "id": "770e8400-e29b-41d4-a716-446655440000",
+          "type": "TOMATOES",
+          "status": "AVAILABLE"
+        }
+      ]
     }
-  ],
-  "meta": {
-    "total": 100,
-    "page": 1,
-    "limit": 10,
-    "hasNext": true
-  }
+  ]
 }
 ```
 
 ### Get Farmer Profile
 ```http
 GET /farmers/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
@@ -195,8 +227,73 @@ Response (200 OK):
     "crops": ["tomatoes", "potatoes", "onions"]
   },
   "rating": 4.5,
+  "totalRatings": 10,
+  "isActive": true,
+  "produceCount": 5,
+  "produce": [
+    {
+      "id": "770e8400-e29b-41d4-a716-446655440000",
+      "type": "TOMATOES",
+      "status": "AVAILABLE"
+    }
+  ],
   "createdAt": "2024-01-20T12:00:00Z",
   "updatedAt": "2024-01-20T12:00:00Z"
+}
+```
+
+### Update Farmer Profile
+```http
+PATCH /farmers/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "phone": "+1234567891",
+  "farmDetails": {
+    "size": "60 acres",
+    "crops": ["tomatoes", "potatoes", "onions", "carrots"]
+  }
+}
+
+Response (200 OK):
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "phone": "+1234567891",
+  "farmDetails": {
+    "size": "60 acres",
+    "crops": ["tomatoes", "potatoes", "onions", "carrots"]
+  },
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Get Farmer's Produce History
+```http
+GET /farmers/:id/produce-history?startDate=2024-01-01&endDate=2024-01-31
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "transactions": [
+    {
+      "id": "990e8400-e29b-41d4-a716-446655440000",
+      "quantity": 500,
+      "pricePerUnit": 25.50,
+      "status": "COMPLETED",
+      "createdAt": "2024-01-15T12:00:00Z",
+      "buyer": {
+        "id": "660e8400-e29b-41d4-a716-446655440000",
+        "name": "Jane Smith",
+        "rating": 4.8
+      }
+    }
+  ],
+  "meta": {
+    "total": 1,
+    "totalValue": 12750,
+    "averagePrice": 25.50
+  }
 }
 ```
 
@@ -363,54 +460,70 @@ Response (200 OK):
 ### Create Produce Listing
 ```http
 POST /produce
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
+  "farmerId": "550e8400-e29b-41d4-a716-446655440000",
   "type": "TOMATOES",
-  "quantity": 1000,
-  "unit": "KG",
+  "quantity": 500,
   "price": 25.50,
+  "location": {
+    "lat": 12.9716,
+    "lng": 77.5946
+  },
   "harvestDate": "2024-01-15",
-  "description": "Fresh organic tomatoes",
-  "images": ["image1.jpg", "image2.jpg"]
+  "description": "Fresh, ripe tomatoes harvested from organic farm"
 }
 
 Response (201 Created):
 {
   "id": "770e8400-e29b-41d4-a716-446655440000",
+  "farmerId": "550e8400-e29b-41d4-a716-446655440000",
   "type": "TOMATOES",
-  "quantity": 1000,
-  "unit": "KG",
+  "quantity": 500,
   "price": 25.50,
+  "location": {
+    "lat": 12.9716,
+    "lng": 77.5946
+  },
   "harvestDate": "2024-01-15",
-  "description": "Fresh organic tomatoes",
-  "images": ["image1.jpg", "image2.jpg"],
+  "description": "Fresh, ripe tomatoes harvested from organic farm",
   "status": "PENDING",
-  "createdAt": "2024-01-20T12:00:00Z"
+  "qualityGrade": "PENDING",
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z"
 }
 ```
 
 ### Get All Produce
 ```http
-GET /produce?page=1&limit=10&type=TOMATOES&status=AVAILABLE
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /produce?page=1&limit=10
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "data": [
+  "items": [
     {
       "id": "770e8400-e29b-41d4-a716-446655440000",
       "type": "TOMATOES",
-      "quantity": 1000,
-      "unit": "KG",
+      "quantity": 500,
       "price": 25.50,
+      "location": {
+        "lat": 12.9716,
+        "lng": 77.5946
+      },
+      "harvestDate": "2024-01-15",
+      "description": "Fresh, ripe tomatoes harvested from organic farm",
       "status": "AVAILABLE",
+      "qualityGrade": "A",
       "farmer": {
         "id": "550e8400-e29b-41d4-a716-446655440000",
         "name": "John Doe",
         "rating": 4.5
-      }
+      },
+      "createdAt": "2024-01-20T12:00:00Z",
+      "updatedAt": "2024-01-20T12:30:00Z"
     }
   ],
   "meta": {
@@ -422,21 +535,93 @@ Response (200 OK):
 }
 ```
 
-### Update Produce Status
+### Get Produce Details
 ```http
-PATCH /produce/:id/status
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /produce/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "id": "770e8400-e29b-41d4-a716-446655440000",
+  "type": "TOMATOES",
+  "quantity": 500,
+  "price": 25.50,
+  "location": {
+    "lat": 12.9716,
+    "lng": 77.5946
+  },
+  "harvestDate": "2024-01-15",
+  "description": "Fresh, ripe tomatoes harvested from organic farm",
+  "status": "AVAILABLE",
+  "qualityGrade": "A",
+  "farmer": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "John Doe",
+    "rating": 4.5,
+    "phone": "+1234567890"
+  },
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Update Produce
+```http
+PATCH /produce/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "status": "SOLD"
+  "price": 27.50,
+  "quantity": 450,
+  "description": "Updated description for fresh tomatoes"
 }
 
 Response (200 OK):
 {
   "id": "770e8400-e29b-41d4-a716-446655440000",
-  "status": "SOLD",
+  "price": 27.50,
+  "quantity": 450,
+  "description": "Updated description for fresh tomatoes",
   "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Delete Produce
+```http
+DELETE /produce/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (204 No Content)
+```
+
+### Find Nearby Produce
+```http
+GET /produce/nearby?lat=12.9716&lng=77.5946&radius=10
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "items": [
+    {
+      "id": "770e8400-e29b-41d4-a716-446655440000",
+      "type": "TOMATOES",
+      "quantity": 500,
+      "price": 25.50,
+      "location": {
+        "lat": 12.9720,
+        "lng": 77.5950
+      },
+      "status": "AVAILABLE",
+      "qualityGrade": "A",
+      "farmer": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "name": "John Doe",
+        "rating": 4.5
+      },
+      "distance": 0.5
+    }
+  ]
 }
 ```
 
@@ -450,8 +635,9 @@ Content-Type: application/json
 
 {
   "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "price": 23.50,
+  "quotedPrice": 23.50,
   "quantity": 500,
+  "qualityGrade": "A",
   "message": "Interested in buying half the quantity"
 }
 
@@ -459,116 +645,150 @@ Response (201 Created):
 {
   "id": "880e8400-e29b-41d4-a716-446655440000",
   "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "price": 23.50,
+  "buyerId": "550e8400-e29b-41d4-a716-446655440000",
+  "pricePerUnit": 23.50,
   "quantity": 500,
   "status": "PENDING",
+  "metadata": {
+    "qualityGrade": "A",
+    "autoGeneratedAt": null,
+    "priceHistory": [],
+    "lastPriceUpdate": null
+  },
   "message": "Interested in buying half the quantity",
   "createdAt": "2024-01-20T12:00:00Z"
 }
 ```
 
-### Get Offers for Produce
+### Update Offer Price
 ```http
-GET /offers/produce/:produceId
+PUT /offers/:id/price
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "newPrice": 24.50,
+  "overrideReason": "Market price adjustment"
+}
 
 Response (200 OK):
 {
-  "data": [
-    {
-      "id": "880e8400-e29b-41d4-a716-446655440000",
-      "price": 23.50,
-      "quantity": 500,
-      "status": "PENDING",
-      "buyer": {
-        "id": "660e8400-e29b-41d4-a716-446655440000",
-        "name": "Jane Smith",
-        "rating": 4.8
-      },
-      "createdAt": "2024-01-20T12:00:00Z"
+  "id": "880e8400-e29b-41d4-a716-446655440000",
+  "pricePerUnit": 24.50,
+  "metadata": {
+    "priceHistory": [
+      {
+        "oldPrice": 23.50,
+        "newPrice": 24.50,
+        "timestamp": "2024-01-20T12:30:00Z",
+        "reason": "Market price adjustment"
+      }
+    ],
+    "lastPriceUpdate": {
+      "oldPrice": 23.50,
+      "newPrice": 24.50,
+      "timestamp": "2024-01-20T12:30:00Z",
+      "reason": "Market price adjustment"
     }
-  ],
-  "meta": {
-    "total": 5
-  }
+  },
+  "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
-### Accept/Reject Offer
+### Accept Offer
 ```http
-PATCH /offers/:id/status
+POST /offers/:id/accept
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "status": "ACCEPTED",
-  "message": "Offer accepted, please proceed with payment"
+  "farmerId": "550e8400-e29b-41d4-a716-446655440000"
 }
 
 Response (200 OK):
 {
   "id": "880e8400-e29b-41d4-a716-446655440000",
   "status": "ACCEPTED",
-  "message": "Offer accepted, please proceed with payment",
+  "acceptedAt": "2024-01-20T12:30:00Z",
   "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
-### Get Auto-Generated Offers
+### Reject Offer
 ```http
-GET /offers/auto-generated?produceId=770e8400-e29b-41d4-a716-446655440000
+POST /offers/:id/reject
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "farmerId": "550e8400-e29b-41d4-a716-446655440000",
+  "reason": "Price too low"
+}
+
+Response (200 OK):
+{
+  "id": "880e8400-e29b-41d4-a716-446655440000",
+  "status": "REJECTED",
+  "rejectedAt": "2024-01-20T12:30:00Z",
+  "rejectionReason": "Price too low",
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Cancel Offer
+```http
+POST /offers/:id/cancel
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "buyerId": "660e8400-e29b-41d4-a716-446655440000",
+  "reason": "Found better price elsewhere"
+}
+
+Response (200 OK):
+{
+  "id": "880e8400-e29b-41d4-a716-446655440000",
+  "status": "CANCELLED",
+  "cancelledAt": "2024-01-20T12:30:00Z",
+  "cancellationReason": "Found better price elsewhere",
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Get Buyer's Offers
+```http
+GET /offers/buyer/:buyerId?page=1&limit=10
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "data": [
+  "items": [
     {
-      "id": "880e8400-e29b-41d4-a716-446655440001",
+      "id": "880e8400-e29b-41d4-a716-446655440000",
       "produceId": "770e8400-e29b-41d4-a716-446655440000",
-      "buyerId": "660e8400-e29b-41d4-a716-446655440000",
-      "pricePerUnit": 25.50,
-      "quantity": 1000,
-      "status": "AUTO_GENERATED",
-      "isAutoGenerated": true,
-      "buyer": {
-        "id": "660e8400-e29b-41d4-a716-446655440000",
-        "name": "Jane Smith",
-        "rating": 4.8
+      "pricePerUnit": 23.50,
+      "quantity": 500,
+      "status": "PENDING",
+      "produce": {
+        "id": "770e8400-e29b-41d4-a716-446655440000",
+        "type": "TOMATOES",
+        "farmer": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "John Doe"
+        }
       },
       "createdAt": "2024-01-20T12:00:00Z"
     }
   ],
   "meta": {
-    "total": 5,
-    "nearbyBuyers": 8,
-    "averagePrice": 24.75
+    "total": 25,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 3,
+    "hasNext": true,
+    "hasPrevious": false
   }
-}
-```
-
-### Override Auto-Generated Offer
-```http
-PATCH /offers/:offerId/override
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "pricePerUnit": 24.00,
-  "quantity": 800,
-  "message": "Adjusting price and quantity based on market conditions"
-}
-
-Response (200 OK):
-{
-  "id": "880e8400-e29b-41d4-a716-446655440001",
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "pricePerUnit": 24.00,
-  "quantity": 800,
-  "status": "PENDING",
-  "isAutoGenerated": true,
-  "overriddenAt": "2024-01-20T12:30:00Z",
-  "message": "Adjusting price and quantity based on market conditions",
-  "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
@@ -577,102 +797,308 @@ Response (200 OK):
 ### Create Transaction
 ```http
 POST /transactions
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "offerId": "880e8400-e29b-41d4-a716-446655440000",
-  "paymentMethod": "BANK_TRANSFER",
-  "paymentDetails": {
-    "bankName": "Example Bank",
-    "transactionId": "TXN123456"
-  }
+  "produceId": "770e8400-e29b-41d4-a716-446655440000",
+  "quantity": 100,
+  "notes": "Urgent delivery needed"
 }
 
 Response (201 Created):
 {
   "id": "990e8400-e29b-41d4-a716-446655440000",
-  "offerId": "880e8400-e29b-41d4-a716-446655440000",
-  "amount": 11750.00,
+  "produceId": "770e8400-e29b-41d4-a716-446655440000",
+  "buyerId": "660e8400-e29b-41d4-a716-446655440000",
+  "quantity": 100,
   "status": "PENDING",
-  "paymentMethod": "BANK_TRANSFER",
-  "paymentDetails": {
-    "bankName": "Example Bank",
-    "transactionId": "TXN123456"
+  "metadata": {
+    "priceAtTransaction": 25.50,
+    "qualityGrade": "A",
+    "notes": "Urgent delivery needed"
   },
-  "createdAt": "2024-01-20T12:00:00Z"
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z",
+  "produce": {
+    "id": "770e8400-e29b-41d4-a716-446655440000",
+    "type": "TOMATOES",
+    "quantity": 500,
+    "price": 25.50,
+    "farmer": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "John Doe"
+    }
+  }
+}
+```
+
+### Get All Transactions
+```http
+GET /transactions?page=1&limit=10
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "items": [
+    {
+      "id": "990e8400-e29b-41d4-a716-446655440000",
+      "quantity": 100,
+      "status": "PENDING",
+      "metadata": {
+        "priceAtTransaction": 25.50,
+        "qualityGrade": "A",
+        "notes": "Urgent delivery needed"
+      },
+      "createdAt": "2024-01-20T12:00:00Z",
+      "produce": {
+        "id": "770e8400-e29b-41d4-a716-446655440000",
+        "type": "TOMATOES",
+        "farmer": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "John Doe"
+        }
+      }
+    }
+  ],
+  "meta": {
+    "total": 100,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 10,
+    "hasNext": true,
+    "hasPrevious": false
+  }
 }
 ```
 
 ### Get Transaction Details
 ```http
 GET /transactions/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
   "id": "990e8400-e29b-41d4-a716-446655440000",
-  "offer": {
-    "id": "880e8400-e29b-41d4-a716-446655440000",
-    "price": 23.50,
-    "quantity": 500
-  },
-  "amount": 11750.00,
-  "status": "COMPLETED",
-  "paymentMethod": "BANK_TRANSFER",
-  "paymentDetails": {
-    "bankName": "Example Bank",
-    "transactionId": "TXN123456"
+  "produceId": "770e8400-e29b-41d4-a716-446655440000",
+  "buyerId": "660e8400-e29b-41d4-a716-446655440000",
+  "quantity": 100,
+  "status": "PENDING",
+  "metadata": {
+    "priceAtTransaction": 25.50,
+    "qualityGrade": "A",
+    "notes": "Urgent delivery needed"
   },
   "createdAt": "2024-01-20T12:00:00Z",
-  "completedAt": "2024-01-20T12:30:00Z"
+  "updatedAt": "2024-01-20T12:00:00Z",
+  "buyer": {
+    "id": "660e8400-e29b-41d4-a716-446655440000",
+    "name": "Jane Smith"
+  },
+  "produce": {
+    "id": "770e8400-e29b-41d4-a716-446655440000",
+    "type": "TOMATOES",
+    "quantity": 500,
+    "price": 25.50,
+    "farmer": {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "John Doe"
+    }
+  }
+}
+```
+
+### Update Transaction
+```http
+PATCH /transactions/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "quantity": 150,
+  "notes": "Updated delivery instructions"
+}
+
+Response (200 OK):
+{
+  "id": "990e8400-e29b-41d4-a716-446655440000",
+  "quantity": 150,
+  "metadata": {
+    "priceAtTransaction": 25.50,
+    "qualityGrade": "A",
+    "notes": "Updated delivery instructions"
+  },
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Cancel Transaction
+```http
+POST /transactions/:id/cancel
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "reason": "Changed delivery requirements"
+}
+
+Response (200 OK):
+{
+  "id": "990e8400-e29b-41d4-a716-446655440000",
+  "status": "CANCELLED",
+  "cancellationReason": "Changed delivery requirements",
+  "cancelledAt": "2024-01-20T12:30:00Z",
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Complete Transaction
+```http
+POST /transactions/:id/complete
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "id": "990e8400-e29b-41d4-a716-446655440000",
+  "status": "COMPLETED",
+  "completedAt": "2024-01-20T12:30:00Z",
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Get Buyer's Transactions
+```http
+GET /transactions/buyer/:buyerId?page=1&limit=10
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "items": [
+    {
+      "id": "990e8400-e29b-41d4-a716-446655440000",
+      "quantity": 100,
+      "status": "PENDING",
+      "metadata": {
+        "priceAtTransaction": 25.50,
+        "qualityGrade": "A",
+        "notes": "Urgent delivery needed"
+      },
+      "createdAt": "2024-01-20T12:00:00Z",
+      "produce": {
+        "id": "770e8400-e29b-41d4-a716-446655440000",
+        "type": "TOMATOES",
+        "farmer": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "John Doe"
+        }
+      }
+    }
+  ],
+  "meta": {
+    "total": 50,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 5,
+    "hasNext": true,
+    "hasPrevious": false
+  }
 }
 ```
 
 ## Quality Service
 
-### Submit Quality Assessment
+### Create Quality Assessment
 ```http
-POST /quality/assessments
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+POST /quality
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
   "produceId": "770e8400-e29b-41d4-a716-446655440000",
   "criteria": {
-    "freshness": 5,
-    "cleanliness": 4,
-    "packaging": 5,
-    "consistency": 4
+    "appearance": 2,
+    "size": 1,
+    "freshness": 2,
+    "damage": 1
   },
-  "notes": "Excellent quality produce"
+  "notes": "Good quality produce with minor blemishes"
 }
 
 Response (201 Created):
 {
   "id": "aa0e8400-e29b-41d4-a716-446655440000",
   "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "overallGrade": "A",
   "criteria": {
-    "freshness": 5,
-    "cleanliness": 4,
-    "packaging": 5,
-    "consistency": 4
+    "appearance": 2,
+    "size": 1,
+    "freshness": 2,
+    "damage": 1
   },
-  "notes": "Excellent quality produce",
-  "assessedBy": "QUALITY_INSPECTOR",
-  "createdAt": "2024-01-20T12:00:00Z"
+  "grade": "A",
+  "notes": "Good quality produce with minor blemishes",
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z"
 }
 ```
 
-### Get Quality Assessment
+### Get All Quality Assessments
 ```http
-GET /quality/assessments/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /quality
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "items": [
+    {
+      "id": "aa0e8400-e29b-41d4-a716-446655440000",
+      "criteria": {
+        "appearance": 2,
+        "size": 1,
+        "freshness": 2,
+        "damage": 1
+      },
+      "grade": "A",
+      "notes": "Good quality produce with minor blemishes",
+      "createdAt": "2024-01-20T12:00:00Z",
+      "produce": {
+        "id": "770e8400-e29b-41d4-a716-446655440000",
+        "type": "TOMATOES",
+        "farmer": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "John Doe"
+        }
+      }
+    }
+  ],
+  "meta": {
+    "total": 1
+  }
+}
+```
+
+### Get Quality Assessment Details
+```http
+GET /quality/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
   "id": "aa0e8400-e29b-41d4-a716-446655440000",
+  "criteria": {
+    "appearance": 2,
+    "size": 1,
+    "freshness": 2,
+    "damage": 1
+  },
+  "grade": "A",
+  "notes": "Good quality produce with minor blemishes",
+  "metadata": {
+    "finalPrice": 25.50,
+    "priceMultiplier": 1.0,
+    "finalizedAt": "2024-01-20T12:30:00Z"
+  },
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:30:00Z",
   "produce": {
     "id": "770e8400-e29b-41d4-a716-446655440000",
     "type": "TOMATOES",
@@ -680,20 +1106,30 @@ Response (200 OK):
       "id": "550e8400-e29b-41d4-a716-446655440000",
       "name": "John Doe"
     }
+  }
+}
+```
+
+### Finalize Quality Assessment
+```http
+POST /quality/:id/finalize
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "finalPrice": 25.50
+}
+
+Response (200 OK):
+{
+  "id": "aa0e8400-e29b-41d4-a716-446655440000",
+  "grade": "A",
+  "metadata": {
+    "finalPrice": 25.50,
+    "priceMultiplier": 1.0,
+    "finalizedAt": "2024-01-20T12:30:00Z"
   },
-  "overallGrade": "A",
-  "criteria": {
-    "freshness": 5,
-    "cleanliness": 4,
-    "packaging": 5,
-    "consistency": 4
-  },
-  "notes": "Excellent quality produce",
-  "assessedBy": {
-    "id": "bb0e8400-e29b-41d4-a716-446655440000",
-    "name": "Quality Inspector 1"
-  },
-  "createdAt": "2024-01-20T12:00:00Z"
+  "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
@@ -759,145 +1195,241 @@ Response (200 OK):
 
 ## Ratings Service
 
-### Submit Rating
+### Create Rating
 ```http
 POST /ratings
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "targetId": "550e8400-e29b-41d4-a716-446655440000",
-  "targetType": "FARMER",
-  "rating": 5,
-  "review": "Excellent quality produce and professional service"
+  "offerId": "880e8400-e29b-41d4-a716-446655440000",
+  "rating": 4.5,
+  "comment": "Great quality produce and excellent service"
 }
 
 Response (201 Created):
 {
-  "id": "ee0e8400-e29b-41d4-a716-446655440000",
-  "targetId": "550e8400-e29b-41d4-a716-446655440000",
-  "targetType": "FARMER",
-  "rating": 5,
-  "review": "Excellent quality produce and professional service",
-  "createdAt": "2024-01-20T12:00:00Z"
+  "id": "cc0e8400-e29b-41d4-a716-446655440000",
+  "offerId": "880e8400-e29b-41d4-a716-446655440000",
+  "rating": 4.5,
+  "comment": "Great quality produce and excellent service",
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z"
 }
 ```
 
-### Get Ratings
+### Get All Ratings
 ```http
-GET /ratings?targetId=550e8400-e29b-41d4-a716-446655440000&targetType=FARMER
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /ratings
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "data": [
+  "items": [
     {
-      "id": "ee0e8400-e29b-41d4-a716-446655440000",
-      "rating": 5,
-      "review": "Excellent quality produce and professional service",
-      "reviewer": {
-        "id": "660e8400-e29b-41d4-a716-446655440000",
-        "name": "Jane Smith"
-      },
-      "createdAt": "2024-01-20T12:00:00Z"
+      "id": "cc0e8400-e29b-41d4-a716-446655440000",
+      "rating": 4.5,
+      "comment": "Great quality produce and excellent service",
+      "createdAt": "2024-01-20T12:00:00Z",
+      "offer": {
+        "id": "880e8400-e29b-41d4-a716-446655440000",
+        "status": "COMPLETED",
+        "buyer": {
+          "id": "660e8400-e29b-41d4-a716-446655440000",
+          "name": "Jane Smith"
+        },
+        "produce": {
+          "id": "770e8400-e29b-41d4-a716-446655440000",
+          "type": "TOMATOES",
+          "farmer": {
+            "id": "550e8400-e29b-41d4-a716-446655440000",
+            "name": "John Doe"
+          }
+        }
+      }
     }
-  ],
-  "meta": {
-    "total": 10,
-    "averageRating": 4.5
+  ]
+}
+```
+
+### Get Rating Details
+```http
+GET /ratings/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "id": "cc0e8400-e29b-41d4-a716-446655440000",
+  "rating": 4.5,
+  "comment": "Great quality produce and excellent service",
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z",
+  "offer": {
+    "id": "880e8400-e29b-41d4-a716-446655440000",
+    "status": "COMPLETED",
+    "buyer": {
+      "id": "660e8400-e29b-41d4-a716-446655440000",
+      "name": "Jane Smith"
+    },
+    "produce": {
+      "id": "770e8400-e29b-41d4-a716-446655440000",
+      "type": "TOMATOES",
+      "farmer": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "name": "John Doe"
+      }
+    }
   }
 }
 ```
+
+> **Note**: Ratings can only be created for completed offers.
 
 ## Support Service
 
 ### Create Support Ticket
 ```http
-POST /support/tickets
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+POST /support
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "subject": "Payment Issue",
-  "description": "Unable to complete payment for transaction ID: TXN123456",
+  "subject": "Issue with produce delivery",
+  "description": "The produce quality does not match the listing description",
   "priority": "HIGH",
-  "category": "PAYMENT"
+  "category": "QUALITY_ISSUE"
 }
 
 Response (201 Created):
 {
-  "id": "ff0e8400-e29b-41d4-a716-446655440000",
-  "ticketNumber": "TKT-2024-001",
-  "subject": "Payment Issue",
-  "description": "Unable to complete payment for transaction ID: TXN123456",
+  "id": "ee0e8400-e29b-41d4-a716-446655440000",
+  "subject": "Issue with produce delivery",
+  "description": "The produce quality does not match the listing description",
   "priority": "HIGH",
-  "category": "PAYMENT",
+  "category": "QUALITY_ISSUE",
   "status": "OPEN",
-  "createdAt": "2024-01-20T12:00:00Z"
+  "userId": "550e8400-e29b-41d4-a716-446655440000",
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z"
 }
 ```
 
-### Get Support Ticket
+### Get All Support Tickets
 ```http
-GET /support/tickets/:id
+GET /support
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "id": "ff0e8400-e29b-41d4-a716-446655440000",
-  "ticketNumber": "TKT-2024-001",
-  "subject": "Payment Issue",
-  "description": "Unable to complete payment for transaction ID: TXN123456",
-  "priority": "HIGH",
-  "category": "PAYMENT",
-  "status": "IN_PROGRESS",
-  "assignedTo": {
-    "id": "gg0e8400-e29b-41d4-a716-446655440000",
-    "name": "Support Agent 1"
-  },
-  "messages": [
+  "items": [
     {
-      "id": "hh0e8400-e29b-41d4-a716-446655440000",
-      "message": "We are looking into the payment issue",
-      "sender": "SUPPORT",
-      "createdAt": "2024-01-20T12:30:00Z"
+      "id": "ee0e8400-e29b-41d4-a716-446655440000",
+      "subject": "Issue with produce delivery",
+      "description": "The produce quality does not match the listing description",
+      "priority": "HIGH",
+      "category": "QUALITY_ISSUE",
+      "status": "OPEN",
+      "user": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "name": "John Doe",
+        "email": "john.doe@example.com"
+      },
+      "createdAt": "2024-01-20T12:00:00Z",
+      "updatedAt": "2024-01-20T12:00:00Z"
     }
-  ],
+  ]
+}
+```
+
+### Get Support Ticket Details
+```http
+GET /support/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "id": "ee0e8400-e29b-41d4-a716-446655440000",
+  "subject": "Issue with produce delivery",
+  "description": "The produce quality does not match the listing description",
+  "priority": "HIGH",
+  "category": "QUALITY_ISSUE",
+  "status": "OPEN",
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "John Doe",
+    "email": "john.doe@example.com"
+  },
   "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z"
+}
+```
+
+### Update Support Ticket
+```http
+PATCH /support/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "status": "IN_PROGRESS",
+  "priority": "MEDIUM"
+}
+
+Response (200 OK):
+{
+  "id": "ee0e8400-e29b-41d4-a716-446655440000",
+  "status": "IN_PROGRESS",
+  "priority": "MEDIUM",
   "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
+### Delete Support Ticket
+```http
+DELETE /support/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (204 No Content)
+```
+
 ## Admin Service
 
-### Get System Statistics
+### Get All Users
 ```http
-GET /admin/statistics
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /admin/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "users": {
-    "total": 1000,
-    "farmers": 600,
-    "buyers": 400,
-    "activeToday": 150
-  },
-  "transactions": {
-    "total": 500,
-    "completed": 450,
-    "pending": 50,
-    "totalValue": 1000000
-  },
-  "produce": {
-    "total": 200,
-    "available": 150,
-    "sold": 50
-  },
-  "support": {
-    "openTickets": 20,
-    "resolvedToday": 15
-  }
+  "items": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "email": "john.doe@example.com",
+      "name": "John Doe",
+      "isFarmer": true,
+      "isBuyer": false,
+      "isBlocked": false,
+      "createdAt": "2024-01-20T12:00:00Z"
+    }
+  ]
+}
+```
+
+### Get User Details
+```http
+GET /admin/users/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "email": "john.doe@example.com",
+  "name": "John Doe",
+  "isFarmer": true,
+  "isBuyer": false,
+  "isBlocked": false,
+  "createdAt": "2024-01-20T12:00:00Z",
+  "updatedAt": "2024-01-20T12:00:00Z"
 }
 ```
 
@@ -905,479 +1437,148 @@ Response (200 OK):
 ```http
 POST /admin/users/:id/block
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "reason": "Violation of terms of service",
-  "duration": "PERMANENT"
-}
 
 Response (200 OK):
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "BLOCKED",
-  "blockReason": "Violation of terms of service",
-  "blockDuration": "PERMANENT",
-  "blockedAt": "2024-01-20T12:00:00Z"
+  "isBlocked": true,
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Unblock User
+```http
+POST /admin/users/:id/unblock
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "isBlocked": false,
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+### Get Support Tickets
+```http
+GET /admin/support
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "items": [
+    {
+      "id": "ee0e8400-e29b-41d4-a716-446655440000",
+      "subject": "Issue with produce delivery",
+      "description": "The produce quality does not match the listing description",
+      "priority": "HIGH",
+      "category": "QUALITY_ISSUE",
+      "status": "OPEN",
+      "user": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "name": "John Doe",
+        "email": "john.doe@example.com"
+      },
+      "createdAt": "2024-01-20T12:00:00Z",
+      "updatedAt": "2024-01-20T12:00:00Z"
+    }
+  ]
+}
+```
+
+### Update Support Ticket Status
+```http
+PATCH /admin/support/:id
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "status": "IN_PROGRESS"
+}
+
+Response (200 OK):
+{
+  "id": "ee0e8400-e29b-41d4-a716-446655440000",
+  "status": "IN_PROGRESS",
+  "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
 ## Notifications Service
 
-### Send Notification
-```http
-POST /notifications
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "userId": "550e8400-e29b-41d4-a716-446655440000",
-  "type": "OFFER_RECEIVED",
-  "title": "New Offer Received",
-  "message": "You have received a new offer for your tomatoes listing",
-  "data": {
-    "offerId": "880e8400-e29b-41d4-a716-446655440000"
-  }
-}
-
-Response (201 Created):
-{
-  "id": "ii0e8400-e29b-41d4-a716-446655440000",
-  "userId": "550e8400-e29b-41d4-a716-446655440000",
-  "type": "OFFER_RECEIVED",
-  "title": "New Offer Received",
-  "message": "You have received a new offer for your tomatoes listing",
-  "data": {
-    "offerId": "880e8400-e29b-41d4-a716-446655440000"
-  },
-  "status": "SENT",
-  "createdAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Get User Notifications
+### Get User's Notifications
 ```http
 GET /notifications?page=1&limit=10
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "data": [
+  "notifications": [
     {
-      "id": "ii0e8400-e29b-41d4-a716-446655440000",
-      "type": "OFFER_RECEIVED",
-      "title": "New Offer Received",
-      "message": "You have received a new offer for your tomatoes listing",
-      "data": {
-        "offerId": "880e8400-e29b-41d4-a716-446655440000"
-      },
-      "read": false,
-      "createdAt": "2024-01-20T12:00:00Z"
-    }
-  ],
-  "meta": {
-    "total": 50,
-    "unread": 10,
-    "page": 1,
-    "limit": 10,
-    "hasNext": true
-  }
-}
-```
-
-### Auto-Offer Notifications Example
-```http
-GET /notifications?type=OFFER_CREATED&isAutoGenerated=true
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "data": [
-    {
-      "id": "ii0e8400-e29b-41d4-a716-446655440001",
+      "id": "dd0e8400-e29b-41d4-a716-446655440000",
       "type": "OFFER_CREATED",
-      "title": "Multiple Auto-Generated Offers Received",
-      "message": "Your Tomatoes (Grade: A) has received 5 offers from buyers in your area:\n\nBuyer Co: $25.00 per kg\nFresh Foods Inc: $24.50 per kg\nLocal Market: $26.00 per kg\n...",
+      "title": "New Offer Received",
+      "message": "You have received a new offer on your produce listing.",
+      "status": "SENT",
       "metadata": {
+        "offerId": "880e8400-e29b-41d4-a716-446655440000",
         "produceId": "770e8400-e29b-41d4-a716-446655440000",
-        "offerIds": [
-          "880e8400-e29b-41d4-a716-446655440001",
-          "880e8400-e29b-41d4-a716-446655440002"
-        ],
-        "totalOffers": 5,
-        "averagePrice": 25.10
+        "buyerId": "660e8400-e29b-41d4-a716-446655440000"
       },
-      "read": false,
-      "createdAt": "2024-01-20T12:00:00Z"
-    }
-  ],
-  "meta": {
-    "total": 10,
-    "unread": 3,
-    "page": 1,
-    "limit": 10,
-    "hasNext": false
-  }
-}
-```
-
-### Auto-Offer Expiry Rules
-```http
-GET /offers/auto-generated/rules
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "expiryRules": {
-    "priceChangeExpiry": true,
-    "defaultExpiryHours": 24,
-    "graceMinutes": 15,
-    "maxActiveOffersPerProduce": 10
-  },
-  "concurrencyRules": {
-    "maxSimultaneousOffers": 3,
-    "priorityOrder": ["rating", "distance", "historicalTransactions"]
-  }
-}
-```
-
-### Update Auto-Offer Rules
-```http
-PATCH /offers/auto-generated/rules
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "expiryRules": {
-    "priceChangeExpiry": true,
-    "defaultExpiryHours": 48,
-    "graceMinutes": 30
-  }
-}
-
-Response (200 OK):
-{
-  "message": "Auto-offer rules updated successfully",
-  "updatedAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Get Expired Auto-Offers
-```http
-GET /offers/auto-generated/expired
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "data": [
-    {
-      "id": "880e8400-e29b-41d4-a716-446655440001",
-      "produceId": "770e8400-e29b-41d4-a716-446655440000",
-      "status": "EXPIRED",
-      "expiryReason": "PRICE_CHANGED",
-      "originalPrice": 25.50,
-      "newPrice": 26.00,
-      "expiredAt": "2024-01-20T14:30:00Z",
-      "buyer": {
-        "id": "660e8400-e29b-41d4-a716-446655440000",
-        "name": "Jane Smith"
-      }
-    }
-  ],
-  "meta": {
-    "total": 3,
-    "expiryReasons": {
-      "PRICE_CHANGED": 2,
-      "TIME_EXPIRED": 1
-    }
-  }
-}
-```
-
-### Get Auto-Offer Queue Status
-```http
-GET /offers/auto-generated/queue/:produceId
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "activeOffers": 3,
-  "queuedOffers": 2,
-  "maxAllowed": 10,
-  "buyers": {
-    "active": [
-      {
-        "id": "660e8400-e29b-41d4-a716-446655440000",
-        "name": "Jane Smith",
-        "priority": 85,
-        "offerStatus": "PENDING",
-        "queuePosition": 1
-      }
-    ],
-    "queued": [
-      {
-        "id": "660e8400-e29b-41d4-a716-446655440002",
-        "name": "Bob's Market",
-        "priority": 75,
-        "queuePosition": 4
-      }
-    ]
-  },
-  "lastProcessed": "2024-01-20T12:00:00Z",
-  "nextProcessing": "2024-01-20T12:15:00Z"
-}
-```
-
-### Handle Price Change Impact
-```http
-POST /buyers/:buyerId/prices/change-impact
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "qualityGrade": "A",
-  "oldPrice": 25.50,
-  "newPrice": 26.00,
-  "effectiveDate": "2024-02-01"
-}
-
-Response (200 OK):
-{
-  "impactedOffers": {
-    "total": 5,
-    "autoExpired": 3,
-    "requiresAction": 2
-  },
-  "notifications": {
-    "farmers": 4,
-    "sent": true
-  },
-  "newOffers": {
-    "queued": 3,
-    "processing": true
-  },
-  "transitionPeriod": {
-    "start": "2024-02-01T00:00:00Z",
-    "end": "2024-02-01T00:15:00Z"
-  }
-}
-```
-
-### Get Price Change History
-```http
-GET /buyers/:buyerId/prices/history?grade=A
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "data": [
-    {
-      "id": "660e8400-e29b-41d4-a716-446655440001",
-      "qualityGrade": "A",
-      "oldPrice": 25.50,
-      "newPrice": 26.00,
-      "effectiveDate": "2024-02-01",
-      "impact": {
-        "offersAffected": 5,
-        "autoExpired": 3,
-        "newOffersGenerated": 3
-      },
-      "createdAt": "2024-01-20T12:00:00Z"
-    }
-  ],
-  "meta": {
-    "total": 10,
-    "page": 1,
-    "limit": 10
-  }
-}
-```
-
-## Buyer Prices API
-
-### Set Daily Price
-```http
-POST /buyer-prices
-Authorization: Bearer <token>
-
-{
-  "buyerId": "550e8400-e29b-41d4-a716-446655440000",
-  "qualityGrade": "A",
-  "pricePerUnit": 25.50,
-  "effectiveDate": "2024-02-01"
-}
-
-Response (201):
-{
-  "id": "7b8e8400-e29b-41d4-a716-446655441111",
-  "buyerId": "550e8400-e29b-41d4-a716-446655440000",
-  "qualityGrade": "A",
-  "pricePerUnit": 25.50,
-  "effectiveDate": "2024-02-01",
-  "isActive": true,
-  "createdAt": "2024-01-31T15:00:00Z",
-  "updatedAt": "2024-01-31T15:00:00Z"
-}
-```
-
-### Update Price
-```http
-PATCH /buyer-prices/7b8e8400-e29b-41d4-a716-446655441111
-Authorization: Bearer <token>
-
-{
-  "pricePerUnit": 26.00,
-  "effectiveDate": "2024-02-01"
-}
-
-Response (200):
-{
-  "id": "7b8e8400-e29b-41d4-a716-446655441111",
-  "pricePerUnit": 26.00,
-  "effectiveDate": "2024-02-01",
-  "isActive": true,
-  "updatedAt": "2024-01-31T16:00:00Z"
-}
-```
-
-### Get Current Prices
-```http
-GET /buyer-prices/550e8400-e29b-41d4-a716-446655440000/current?grade=A
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "prices": [
-    {
-      "id": "7b8e8400-e29b-41d4-a716-446655441111",
-      "qualityGrade": "A",
-      "pricePerUnit": 26.00,
-      "effectiveDate": "2024-02-01",
-      "isActive": true
-    }
-  ]
-}
-```
-
-### Get Price History
-```http
-GET /buyer-prices/550e8400-e29b-41d4-a716-446655440000/history?grade=A&startDate=2024-01-01&endDate=2024-02-01
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "history": [
-    {
-      "id": "7b8e8400-e29b-41d4-a716-446655441111",
-      "qualityGrade": "A",
-      "pricePerUnit": 26.00,
-      "effectiveDate": "2024-02-01",
-      "isActive": true
+      "createdAt": "2024-01-20T12:00:00Z",
+      "sentAt": "2024-01-20T12:00:01Z",
+      "readAt": null
     },
     {
-      "id": "7b8e8400-e29b-41d4-a716-446655442222",
-      "qualityGrade": "A",
-      "pricePerUnit": 24.50,
-      "effectiveDate": "2024-01-15",
-      "isActive": false
-    }
-  ]
-}
-```
-
-## Auto-Generated Offers API
-
-### Get Auto-Generated Offers
-```http
-GET /offers/auto-generated?produceId=660e8400-e29b-41d4-a716-446655440000
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "offers": [
-    {
-      "id": "8b8e8400-e29b-41d4-a716-446655441111",
-      "produceId": "660e8400-e29b-41d4-a716-446655440000",
-      "buyerId": "550e8400-e29b-41d4-a716-446655440000",
-      "pricePerUnit": 26.00,
-      "quantity": 1000,
-      "status": "AUTO_GENERATED",
-      "isAutoGenerated": true,
-      "createdAt": "2024-02-01T10:00:00Z"
-    }
-  ]
-}
-```
-
-### Override Auto-Generated Offer
-```http
-PATCH /offers/8b8e8400-e29b-41d4-a716-446655441111/override
-Authorization: Bearer <token>
-
-{
-  "pricePerUnit": 25.00,
-  "quantity": 800,
-  "message": "Adjusting based on market conditions"
-}
-
-Response (200):
-{
-  "id": "8b8e8400-e29b-41d4-a716-446655441111",
-  "pricePerUnit": 25.00,
-  "quantity": 800,
-  "status": "PENDING",
-  "message": "Adjusting based on market conditions",
-  "overriddenAt": "2024-02-01T11:00:00Z"
-}
-```
-
-### Get Queue Status
-```http
-GET /offers/auto-generated/queue/660e8400-e29b-41d4-a716-446655440000
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "produceId": "660e8400-e29b-41d4-a716-446655440000",
-  "activeOffers": 2,
-  "queuedOffers": 3,
-  "buyers": {
-    "queued": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "name": "Buyer A",
-        "queuePosition": 1
+      "id": "dd0e8400-e29b-41d4-a716-446655440001",
+      "type": "RATING_RECEIVED",
+      "title": "New Rating Received",
+      "message": "You have received a new rating.",
+      "status": "READ",
+      "metadata": {
+        "ratingId": "cc0e8400-e29b-41d4-a716-446655440000"
       },
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440001",
-        "name": "Buyer B",
-        "queuePosition": 2
-      }
-    ]
-  }
-}
-```
-
-### Get Expired Auto-Offers
-```http
-GET /offers/auto-generated/expired?buyerId=550e8400-e29b-41d4-a716-446655440000
-Authorization: Bearer <token>
-
-Response (200):
-{
-  "offers": [
-    {
-      "id": "8b8e8400-e29b-41d4-a716-446655442222",
-      "produceId": "660e8400-e29b-41d4-a716-446655440000",
-      "buyerId": "550e8400-e29b-41d4-a716-446655440000",
-      "pricePerUnit": 24.50,
-      "quantity": 1000,
-      "status": "EXPIRED",
-      "isAutoGenerated": true,
-      "expirationReason": "PRICE_CHANGE",
-      "expiredAt": "2024-02-01T09:00:00Z"
+      "createdAt": "2024-01-19T15:00:00Z",
+      "sentAt": "2024-01-19T15:00:01Z",
+      "readAt": "2024-01-19T15:05:00Z"
     }
-  ]
+  ],
+  "total": 25,
+  "page": 1,
+  "totalPages": 3
 }
 ```
+
+### Get Unread Notifications Count
+```http
+GET /notifications/unread/count
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "count": 5
+}
+```
+
+### Mark Notification as Read
+```http
+POST /notifications/:id/read
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "id": "dd0e8400-e29b-41d4-a716-446655440000",
+  "status": "READ",
+  "readAt": "2024-01-20T12:30:00Z",
+  "updatedAt": "2024-01-20T12:30:00Z"
+}
+```
+
+> **Note**: Notifications are automatically created for various events:
+> - New offer received
+> - Offer updated
+> - Offer accepted
+> - Offer rejected
+> - New rating received
+> - Quality grade updated
+> - Price updated

@@ -92,6 +92,12 @@ export class User {
     profilePicture?: string;
   };
 
+  @Column({ default: 0 })
+  loginAttempts: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastLoginAttempt: Date;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

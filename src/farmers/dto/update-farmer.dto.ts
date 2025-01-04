@@ -1,23 +1,4 @@
-import { IsString, IsOptional, IsObject } from 'class-validator';
+import { PartialType } from '@nestjs/swagger';
+import { CreateFarmerDto } from './create-farmer.dto';
 
-export class UpdateFarmerDto {
-  @IsOptional()
-  @IsString()
-  name?: string;
-
-  @IsOptional()
-  @IsString()
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  phone?: string;
-
-  @IsOptional()
-  @IsString()
-  address?: string;
-
-  @IsOptional()
-  @IsObject()
-  metadata?: Record<string, any>;
-} 
+export class UpdateFarmerDto extends PartialType(CreateFarmerDto) {} 

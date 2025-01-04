@@ -1,265 +1,99 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Produce, ProduceStatus, VerifiedStatus } from './entities/produce.entity';
-import { User } from '../auth/entities/user.entity';
+import { Produce } from './entities/produce.entity';
 import { CreateProduceDto } from './dto/create-produce.dto';
 import { UpdateProduceDto } from './dto/update-produce.dto';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { QualityGrade } from './enums/quality-grade.enum';
+import { ProduceStatus } from './enums/produce-status.enum';
 
 @Injectable()
 export class ProduceService {
   constructor(
     @InjectRepository(Produce)
-    private readonly produceRepository: Repository<Produce>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    private readonly eventEmitter: EventEmitter2,
+    private readonly produceRepository: Repository<Produce>
   ) {}
 
-  async create(createProduceDto: CreateProduceDto, userId: string): Promise<Produce> {
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    if (!user.isFarmer) {
-      throw new BadRequestException('Only farmers can create produce listings');
-    }
-
-    // Create a new produce instance with the provided data
+  async create(createProduceDto: CreateProduceDto) {
     const produce = new Produce();
     Object.assign(produce, {
       ...createProduceDto,
-      farmerId: userId,
       status: ProduceStatus.PENDING,
-      verifiedStatus: VerifiedStatus.NONE,
+      qualityGrade: QualityGrade.PENDING,
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
 
-    // Save the produce instance
-    const savedProduce = await this.produceRepository.save(produce);
-
-    // Emit produce created event
-    this.eventEmitter.emit('produce.created', {
-      produceId: savedProduce.id,
-      farmerId: savedProduce.farmerId,
-      type: savedProduce.type,
-    });
-
-    return savedProduce;
+    return this.produceRepository.save(produce);
   }
 
-  async findAll(page = 1, limit = 10, filters?: {
-    type?: string;
-    status?: ProduceStatus;
-    verifiedStatus?: VerifiedStatus;
-    minQuantity?: number;
-    maxQuantity?: number;
-    location?: { lat: number; lng: number; radius: number };
-  }) {
-    const query = this.produceRepository.createQueryBuilder('produce')
-      .leftJoinAndSelect('produce.user', 'user')
-      .leftJoinAndSelect('produce.quality', 'quality');
-
-    if (filters) {
-      if (filters.type) {
-        query.andWhere('produce.type = :type', { type: filters.type });
-      }
-      if (filters.status) {
-        query.andWhere('produce.status = :status', { status: filters.status });
-      }
-      if (filters.verifiedStatus) {
-        query.andWhere('produce.verifiedStatus = :verifiedStatus', { verifiedStatus: filters.verifiedStatus });
-      }
-      if (filters.minQuantity) {
-        query.andWhere('produce.quantity >= :minQuantity', { minQuantity: filters.minQuantity });
-      }
-      if (filters.maxQuantity) {
-        query.andWhere('produce.quantity <= :maxQuantity', { maxQuantity: filters.maxQuantity });
-      }
-      if (filters.location) {
-        query.andWhere(
-          'ST_DWithin(ST_SetSRID(ST_MakePoint(produce.lng, produce.lat), 4326)::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)',
-          {
-            lat: filters.location.lat,
-            lng: filters.location.lng,
-            radius: filters.location.radius * 1000, // Convert km to meters
-          }
-        );
-      }
-    }
-
-    const [produces, total] = await query
-      .skip((page - 1) * limit)
-      .take(limit)
-      .orderBy('produce.createdAt', 'DESC')
-      .getManyAndCount();
-
-    return {
-      produces,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
-    };
-  }
-
-  async findOne(id: string): Promise<Produce> {
-    const produce = await this.produceRepository.findOne({
-      where: { id },
-      relations: ['user', 'quality'],
-    });
-
-    if (!produce) {
-      throw new NotFoundException('Produce not found');
-    }
-
-    return produce;
-  }
-
-  async update(id: string, updateProduceDto: UpdateProduceDto, userId: string): Promise<Produce> {
-    const produce = await this.findOne(id);
-
-    if (produce.farmerId !== userId) {
-      throw new BadRequestException('You can only update your own produce listings');
-    }
-
-    if (produce.status !== ProduceStatus.PENDING) {
-      throw new BadRequestException('Can only update pending produce listings');
-    }
-
-    // Update the produce instance with the new data
-    Object.assign(produce, updateProduceDto);
-    
-    // Save the updated produce
-    const savedProduce = await this.produceRepository.save(produce);
-
-    // Emit produce updated event
-    this.eventEmitter.emit('produce.updated', {
-      produceId: savedProduce.id,
-      farmerId: savedProduce.farmerId,
-      type: savedProduce.type,
-    });
-
-    return savedProduce;
-  }
-
-  async updateStatus(id: string, status: ProduceStatus, userId: string): Promise<Produce> {
-    const produce = await this.findOne(id);
-
-    if (produce.farmerId !== userId) {
-      throw new BadRequestException('You can only update your own produce listings');
-    }
-
-    // Update the status
-    produce.status = status;
-    
-    // Save the updated produce
-    const savedProduce = await this.produceRepository.save(produce);
-
-    // Emit produce status updated event
-    this.eventEmitter.emit('produce.status.updated', {
-      produceId: savedProduce.id,
-      farmerId: savedProduce.farmerId,
-      status: savedProduce.status,
-    });
-
-    return savedProduce;
-  }
-
-  async findByUser(userId: string, page = 1, limit = 10) {
-    const [produces, total] = await this.produceRepository.findAndCount({
-      where: { farmerId: userId },
+  async findAll(page = 1, limit = 10) {
+    const [items, total] = await this.produceRepository.findAndCount({
       skip: (page - 1) * limit,
       take: limit,
-      relations: ['quality'],
-      order: { createdAt: 'DESC' },
+      relations: ['farmer']
     });
 
     return {
-      produces,
-      total,
-      page,
-      totalPages: Math.ceil(total / limit),
+      items,
+      meta: {
+        total,
+        page,
+        limit,
+        hasNext: total > page * limit
+      }
     };
   }
 
-  async updateQualityGrade(id: string, qualityId: string, verifiedStatus: VerifiedStatus, userId: string): Promise<Produce> {
+  async findOne(id: string) {
+    return this.produceRepository.findOne({
+      where: { id },
+      relations: ['farmer']
+    });
+  }
+
+  async update(id: string, updateProduceDto: UpdateProduceDto) {
     const produce = await this.findOne(id);
-    
-    // Get the user to check their role
-    const user = await this.userRepository.findOne({
-      where: { id: userId },
+    if (!produce) return null;
+
+    Object.assign(produce, {
+      ...updateProduceDto,
+      updatedAt: new Date()
     });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Only allow admins and quality inspectors to update quality grades
-    if (!user.isAdmin && !user.isQualityInspector) {
-      throw new ForbiddenException('Only admins and quality inspectors can update quality grades');
-    }
-
-    // Update the quality grade
-    produce.qualityId = qualityId;
-    produce.verifiedStatus = verifiedStatus;
-    produce.status = ProduceStatus.ASSESSED;
-
-    // Save the updated produce
-    const savedProduce = await this.produceRepository.save(produce);
-
-    // Emit produce quality updated event
-    this.eventEmitter.emit('produce.quality.updated', {
-      produceId: savedProduce.id,
-      farmerId: savedProduce.farmerId,
-      qualityId: savedProduce.qualityId,
-      verifiedStatus: savedProduce.verifiedStatus,
-      updatedBy: userId,
-    });
-
-    return savedProduce;
+    return this.produceRepository.save(produce);
   }
 
-  async findByGrade(grade: string): Promise<Produce[]> {
-    return this.produceRepository.find({
-      where: {
-        qualityGrade: grade,
-        status: ProduceStatus.LISTED, // Only return active listings
-      },
-      relations: ['quality'],
-    });
+  async remove(id: string) {
+    const produce = await this.findOne(id);
+    if (produce) {
+      await this.produceRepository.remove(produce);
+    }
   }
 
-  async findByGradeAndLocation(grade: string, lat: number, lng: number, radiusKm: number): Promise<Produce[]> {
-    return this.produceRepository
+  async findNearby(lat: number, lng: number, radiusInKm: number) {
+    // Using Haversine formula to calculate distance
+    const earthRadiusKm = 6371;
+    const query = this.produceRepository
       .createQueryBuilder('produce')
-      .where('produce.qualityGrade = :grade', { grade })
-      .andWhere('produce.status = :status', { status: ProduceStatus.LISTED })
-      .andWhere(
-        'ST_DWithin(ST_SetSRID(ST_MakePoint(produce.lng, produce.lat), 4326)::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)',
-        {
-          lat,
-          lng,
-          radius: radiusKm * 1000, // Convert km to meters
-        }
-      )
-      .getMany();
-  }
+      .where('produce.status = :status', { status: ProduceStatus.AVAILABLE })
+      .andWhere(`
+        ${earthRadiusKm} * 2 * ASIN(SQRT(
+          POWER(SIN((:lat - produce.location->>'lat') * PI() / 180 / 2), 2) +
+          COS(:lat * PI() / 180) * COS((produce.location->>'lat') * PI() / 180) *
+          POWER(SIN((:lng - produce.location->>'lng') * PI() / 180 / 2), 2)
+        )) <= :radius
+      `)
+      .setParameters({ lat, lng, radius: radiusInKm })
+      .orderBy(
+        `${earthRadiusKm} * 2 * ASIN(SQRT(
+          POWER(SIN((:lat - produce.location->>'lat') * PI() / 180 / 2), 2) +
+          COS(:lat * PI() / 180) * COS((produce.location->>'lat') * PI() / 180) *
+          POWER(SIN((:lng - produce.location->>'lng') * PI() / 180 / 2), 2)
+        ))`,
+        'ASC'
+      );
 
-  async findAvailableByGrade(qualityGrade: string): Promise<Produce[]> {
-    return this.produceRepository.find({
-      where: {
-        qualityGrade,
-        status: ProduceStatus.PENDING,
-        isActive: true,
-      },
-      relations: ['quality'],
-      order: {
-        createdAt: 'DESC'
-      }
-    });
+    return query.getMany();
   }
 } 
