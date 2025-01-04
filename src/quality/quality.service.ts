@@ -106,4 +106,25 @@ export class QualityService {
       recommendations: Array.from(recommendations),
     };
   }
+
+  async finalizeQualityAssessment(id: string, finalPrice: number): Promise<Quality> {
+    const quality = await this.findOne(id);
+    
+    // Update quality record to mark it as finalized
+    const updatedQuality = await this.qualityRepository.save({
+      ...quality,
+      isFinalized: true,
+      finalizedAt: new Date(),
+    });
+
+    // Emit the quality.finalized event
+    this.eventEmitter.emit('quality.finalized', {
+      produceId: quality.produceId,
+      qualityId: quality.id,
+      grade: quality.grade,
+      finalPrice: finalPrice
+    });
+
+    return updatedQuality;
+  }
 } 

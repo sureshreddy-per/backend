@@ -1,50 +1,35 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { User } from '../../auth/entities/user.entity';
-import { Transaction } from '../../transactions/entities/transaction.entity';
-import { Offer } from '../../offers/entities/offer.entity';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { BuyerPrice } from './buyer-price.entity';
 
 @Entity('buyers')
 export class Buyer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'user_id' })
+  @Column()
   userId: string;
 
-  @OneToOne(() => User)
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @Column()
+  name: string;
 
-  @Column({ type: 'jsonb', nullable: true })
-  businessDetails: {
-    companyName?: string;
-    registrationNumber?: string;
-    taxId?: string;
-    businessType?: string;
-    yearEstablished?: number;
-  };
+  @Column({ nullable: true })
+  description: string;
 
-  @Column({ type: 'jsonb', nullable: true })
-  preferences: {
-    preferredCategories?: string[];
-    preferredLocations?: string[];
-    maxDistance?: number;
-    priceRange?: {
-      min: number;
-      max: number;
-      currency: string;
-    };
-  };
+  @Column('decimal', { precision: 10, scale: 6 })
+  lat: number;
 
-  @OneToMany(() => Transaction, transaction => transaction.buyerId)
-  transactions: Transaction[];
+  @Column('decimal', { precision: 10, scale: 6 })
+  lng: number;
 
-  @OneToMany(() => Offer, offer => offer.buyerId)
-  offers: Offer[];
+  @Column({ default: true })
+  isActive: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @OneToMany(() => BuyerPrice, price => price.buyer)
+  prices: BuyerPrice[];
+
+  @CreateDateColumn()
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updatedAt: Date;
 } 

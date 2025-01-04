@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Put } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -86,5 +86,42 @@ export class QualityController {
   })
   async findOne(@Param('id') id: string): Promise<Quality> {
     return this.qualityService.findOne(id);
+  }
+
+  @Put(':id/finalize')
+  @Roles(Role.ADMIN, Role.QUALITY_INSPECTOR)
+  @ApiOperation({
+    summary: 'Finalize quality assessment',
+    description: 'Finalizes a quality assessment and triggers offer updates. Only accessible by administrators and quality inspectors.'
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Quality assessment ID to finalize'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        finalPrice: {
+          type: 'number',
+          description: 'The final price determined based on quality assessment'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'The quality assessment has been finalized',
+    type: Quality 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Quality assessment not found' 
+  })
+  async finalize(
+    @Param('id') id: string,
+    @Body('finalPrice') finalPrice: number
+  ): Promise<Quality> {
+    return this.qualityService.finalizeQualityAssessment(id, finalPrice);
   }
 } 

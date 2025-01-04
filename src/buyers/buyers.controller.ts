@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, UseGuards, Request, Query, ForbiddenException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { BuyersService } from './buyers.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -6,6 +6,9 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { Buyer } from './entities/buyer.entity';
+import { CreateBuyerPriceDto } from './dto/create-buyer-price.dto';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { User } from '../auth/entities/user.entity';
 
 @ApiTags('Buyers')
 @ApiBearerAuth()
@@ -13,6 +16,13 @@ import { Buyer } from './entities/buyer.entity';
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BuyersController {
   constructor(private readonly buyersService: BuyersService) {}
+
+  private async verifyBuyerOwnership(buyerId: string, userId: string) {
+    const buyer = await this.buyersService.findOne(buyerId);
+    if (!buyer || buyer.userId !== userId) {
+      throw new ForbiddenException('You do not have permission to manage this buyer\'s prices');
+    }
+  }
 
   @Post()
   @Roles(Role.BUYER)
@@ -204,5 +214,45 @@ export class BuyersController {
     @Body() updateData: Partial<Buyer>,
   ) {
     return this.buyersService.update(id, updateData);
+  }
+
+  @Post(':buyerId/prices')
+  @ApiOperation({ summary: 'Set daily price for a quality grade' })
+  @ApiResponse({ status: 201, description: 'The price has been successfully set.' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.BUYER)
+  async setBuyerPrice(
+    @Param('buyerId') buyerId: string,
+    @Body() createBuyerPriceDto: CreateBuyerPriceDto,
+    @CurrentUser() user: User,
+  ) {
+    // Verify the buyer belongs to the current user
+    await this.verifyBuyerOwnership(buyerId, user.id);
+    return this.buyersService.createBuyerPrice(buyerId, createBuyerPriceDto);
+  }
+
+  @Get(':buyerId/prices')
+  @ApiOperation({ summary: 'Get all active prices for a buyer' })
+  @ApiResponse({ status: 200, description: 'Returns the list of active prices.' })
+  @UseGuards(JwtAuthGuard)
+  async getBuyerPrices(
+    @Param('buyerId') buyerId: string,
+    @Query('date') date?: string,
+  ) {
+    const effectiveDate = date ? new Date(date) : new Date();
+    return this.buyersService.getBuyerPrices(buyerId, effectiveDate);
+  }
+
+  @Get(':buyerId/prices/:grade')
+  @ApiOperation({ summary: 'Get current price for a specific grade' })
+  @ApiResponse({ status: 200, description: 'Returns the current price for the specified grade.' })
+  @UseGuards(JwtAuthGuard)
+  async getBuyerPriceByGrade(
+    @Param('buyerId') buyerId: string,
+    @Param('grade') grade: string,
+    @Query('date') date?: string,
+  ) {
+    const effectiveDate = date ? new Date(date) : new Date();
+    return this.buyersService.getBuyerPriceByGrade(buyerId, grade, effectiveDate);
   }
 } 

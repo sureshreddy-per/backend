@@ -3,6 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Buyer } from './entities/buyer.entity';
 import { User } from '../auth/entities/user.entity';
+import { BuyerPrice } from './entities/buyer-price.entity';
+import { EventEmitter2 } from 'eventemitter2';
+import { CreateBuyerPriceDto } from './dto/create-buyer-price.dto';
+import { LessThanOrEqual } from 'typeorm';
 
 @Injectable()
 export class BuyersService {
@@ -11,6 +15,9 @@ export class BuyersService {
     private readonly buyerRepository: Repository<Buyer>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(BuyerPrice)
+    private readonly buyerPricesRepository: Repository<BuyerPrice>,
+    private eventEmitter: EventEmitter2,
   ) {}
 
   async findOne(id: string): Promise<Buyer> {
@@ -93,5 +100,72 @@ export class BuyersService {
       .getMany();
 
     return buyers;
+  }
+
+  async createBuyerPrice(buyerId: string, createBuyerPriceDto: CreateBuyerPriceDto): Promise<BuyerPrice> {
+    const buyer = await this.buyerRepository.findOne({ where: { id: buyerId } });
+    if (!buyer) {
+      throw new NotFoundException('Buyer not found');
+    }
+
+    // Deactivate any existing active price for the same grade
+    await this.buyerPricesRepository.update(
+      {
+        buyerId,
+        qualityGrade: createBuyerPriceDto.qualityGrade,
+        isActive: true,
+      },
+      { isActive: false }
+    );
+
+    const buyerPrice = this.buyerPricesRepository.create({
+      ...createBuyerPriceDto,
+      buyerId,
+    });
+
+    const savedPrice = await this.buyerPricesRepository.save(buyerPrice);
+
+    // Emit event for auto-offer generation
+    this.eventEmitter.emit('buyer.price.created', {
+      buyerId,
+      price: savedPrice,
+    });
+
+    return savedPrice;
+  }
+
+  async getBuyerPrices(buyerId: string, date?: Date): Promise<BuyerPrice[]> {
+    const query = this.buyerPricesRepository
+      .createQueryBuilder('buyerPrice')
+      .where('buyerPrice.buyerId = :buyerId', { buyerId })
+      .andWhere('buyerPrice.isActive = :isActive', { isActive: true });
+
+    if (date) {
+      query.andWhere('buyerPrice.effectiveDate <= :date', { date });
+    }
+
+    return query.getMany();
+  }
+
+  async getBuyerPriceByGrade(buyerId: string, qualityGrade: string, date: Date): Promise<BuyerPrice | null> {
+    return this.buyerPricesRepository.findOne({
+      where: {
+        buyerId,
+        qualityGrade,
+        isActive: true,
+        effectiveDate: LessThanOrEqual(date),
+      },
+      order: {
+        effectiveDate: 'DESC',
+      },
+    });
+  }
+
+  async getAllBuyers(): Promise<Buyer[]> {
+    return this.buyerRepository.find({
+      where: {
+        isActive: true,
+      },
+    });
   }
 } 

@@ -1,9 +1,23 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Produce } from '../../produce/entities/produce.entity';
 
 @Entity('qualities')
 export class Quality {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ name: 'produce_id' })
+  produceId: string;
+
+  @ManyToOne(() => Produce)
+  @JoinColumn({ name: 'produce_id' })
+  produce: Produce;
+
+  @Column({ default: false })
+  isFinalized: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  finalizedAt: Date;
 
   @Column()
   name: string;

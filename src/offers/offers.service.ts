@@ -8,6 +8,8 @@ import { User } from '../auth/entities/user.entity';
 import { Produce, ProduceStatus } from '../produce/entities/produce.entity';
 import { UpdateOfferDto } from './dto/update-offer.dto';
 import { ProduceService } from '../produce/produce.service';
+import { OnEvent } from '@nestjs/event-emitter';
+import { OfferStatus } from './enums/offer-status.enum';
 
 @Injectable()
 export class OffersService {
@@ -274,5 +276,33 @@ export class OffersService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  @OnEvent('quality.finalized')
+  async handleQualityFinalized(payload: { 
+    produceId: string;
+    qualityId: string;
+    grade: number;
+    finalPrice: number;
+  }) {
+    // Find all pending offers for this produce
+    const pendingOffers = await this.offerRepository.find({
+      where: {
+        produceId: payload.produceId,
+        status: OfferStatus.PENDING
+      }
+    });
+
+    // Update offers based on quality assessment
+    for (const offer of pendingOffers) {
+      // If the offer price is below the final price based on quality,
+      // automatically reject it
+      if (offer.quotedPrice < payload.finalPrice) {
+        await this.offerRepository.update(offer.id, {
+          status: OfferStatus.REJECTED,
+          rejectionReason: `Offer price (${offer.quotedPrice}) is below the minimum price (${payload.finalPrice}) based on quality grade ${payload.grade}`
+        });
+      }
+    }
   }
 } 

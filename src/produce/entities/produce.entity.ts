@@ -55,6 +55,12 @@ export class Produce {
   })
   type: ProduceType;
 
+  @Column('decimal', { precision: 10, scale: 6 })
+  lat: number;
+
+  @Column('decimal', { precision: 10, scale: 6 })
+  lng: number;
+
   @Column({ type: 'decimal' })
   quantity: number;
 
@@ -80,6 +86,9 @@ export class Produce {
 
   @Column({ nullable: true })
   qualityId: string;
+
+  @Column({ nullable: true })
+  qualityGrade: string;
 
   @Column({ type: 'jsonb', nullable: true })
   metadata: {
