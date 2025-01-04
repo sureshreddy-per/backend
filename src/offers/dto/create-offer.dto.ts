@@ -1,25 +1,31 @@
-import { IsString, IsNumber, IsOptional, IsUUID, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, IsUUID, Min, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { OfferStatus } from '../entities/offer.entity';
 
 export class CreateOfferDto {
-  @ApiProperty({ description: 'ID of the produce listing' })
+  @ApiProperty({ description: 'ID of the produce being offered for' })
+  @IsNotEmpty()
   @IsUUID()
   produceId: string;
 
-  @ApiProperty({ description: 'Quality grade used for pricing' })
-  @IsString()
-  gradeUsed: string;
+  @ApiProperty({ description: 'ID of the buyer making the offer' })
+  @IsNotEmpty()
+  @IsUUID()
+  buyerId: string;
 
-  @ApiProperty({ description: 'Quoted price for the produce' })
+  @ApiProperty({ description: 'Price per unit' })
+  @IsNotEmpty()
   @IsNumber()
-  quotedPrice: number;
+  @Min(0)
+  pricePerUnit: number;
 
-  @ApiPropertyOptional({ description: 'Additional metadata' })
+  @ApiProperty({ description: 'Quantity being offered for' })
+  @IsNotEmpty()
+  @IsNumber()
+  @Min(0)
+  quantity: number;
+
+  @ApiPropertyOptional({ description: 'Optional message with the offer' })
   @IsOptional()
-  metadata?: {
-    overrideReason?: string;
-    autoCalculated: boolean;
-    originalPrice?: number;
-  };
+  @IsString()
+  message?: string;
 } 

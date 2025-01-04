@@ -222,4 +222,44 @@ export class ProduceService {
 
     return savedProduce;
   }
+
+  async findByGrade(grade: string): Promise<Produce[]> {
+    return this.produceRepository.find({
+      where: {
+        qualityGrade: grade,
+        status: ProduceStatus.LISTED, // Only return active listings
+      },
+      relations: ['quality'],
+    });
+  }
+
+  async findByGradeAndLocation(grade: string, lat: number, lng: number, radiusKm: number): Promise<Produce[]> {
+    return this.produceRepository
+      .createQueryBuilder('produce')
+      .where('produce.qualityGrade = :grade', { grade })
+      .andWhere('produce.status = :status', { status: ProduceStatus.LISTED })
+      .andWhere(
+        'ST_DWithin(ST_SetSRID(ST_MakePoint(produce.lng, produce.lat), 4326)::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)',
+        {
+          lat,
+          lng,
+          radius: radiusKm * 1000, // Convert km to meters
+        }
+      )
+      .getMany();
+  }
+
+  async findAvailableByGrade(qualityGrade: string): Promise<Produce[]> {
+    return this.produceRepository.find({
+      where: {
+        qualityGrade,
+        status: ProduceStatus.PENDING,
+        isActive: true,
+      },
+      relations: ['quality'],
+      order: {
+        createdAt: 'DESC'
+      }
+    });
+  }
 } 
