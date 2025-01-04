@@ -1,36 +1,87 @@
-import { IsString, IsNotEmpty, IsObject, ValidateNested } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNumber, IsOptional, IsObject, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class QualityParameter {
-  @ApiProperty()
-  @IsNotEmpty()
-  weight: number;
+export class CreateQualityDto {
+  @IsString()
+  name: string;
 
-  @ApiProperty()
-  @IsNotEmpty()
-  maxScore: number;
-
-  @ApiProperty()
   @IsString()
   description: string;
-}
 
-export class CreateQualityDto {
-  @ApiProperty()
-  @IsString()
-  @IsNotEmpty()
-  produceType: string;
+  @IsNumber()
+  grade: number;
 
-  @ApiProperty({
-    type: 'object',
-    example: {
-      moisture: { weight: 2, maxScore: 10, description: 'Moisture content' },
-      color: { weight: 1, maxScore: 5, description: 'Color uniformity' },
-    },
-  })
+  @IsNumber()
+  confidence: number;
+
+  @IsArray()
+  @IsString({ each: true })
+  defects: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  recommendations: string[];
+
+  @IsOptional()
   @IsObject()
-  @ValidateNested()
-  @Type(() => QualityParameter)
-  params: Record<string, QualityParameter>;
+  criteria?: {
+    appearance?: {
+      color?: string[];
+      size?: {
+        min?: number;
+        max?: number;
+        unit?: string;
+      };
+      shape?: string[];
+      texture?: string[];
+    };
+    defects?: {
+      allowedTypes?: string[];
+      maxPercentage?: number;
+    };
+    composition?: {
+      moisture?: {
+        min?: number;
+        max?: number;
+      };
+      sugar?: {
+        min?: number;
+        max?: number;
+      };
+      [key: string]: {
+        min?: number;
+        max?: number;
+      };
+    };
+  };
+
+  @IsOptional()
+  @IsObject()
+  metadata?: {
+    marketValue?: {
+      min: number;
+      max: number;
+      currency: string;
+    };
+    shelfLife?: {
+      duration: number;
+      unit: string;
+    };
+    storageRequirements?: {
+      temperature?: {
+        min: number;
+        max: number;
+        unit: string;
+      };
+      humidity?: {
+        min: number;
+        max: number;
+        unit: string;
+      };
+    };
+  };
+
+  @IsOptional()
+  @IsString()
+  rawAnalysis?: string;
 } 

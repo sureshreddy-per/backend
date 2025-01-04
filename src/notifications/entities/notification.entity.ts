@@ -1,12 +1,40 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { NotificationType } from '../enums/notification-type.enum';
-import { Customer } from '../../customers/entities/customer.entity';
-import { Buyer } from '../../buyers/entities/buyer.entity';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { User } from '../../auth/entities/user.entity';
+
+export enum NotificationType {
+  OFFER_CREATED = 'OFFER_CREATED',
+  OFFER_UPDATED = 'OFFER_UPDATED',
+  OFFER_ACCEPTED = 'OFFER_ACCEPTED',
+  OFFER_REJECTED = 'OFFER_REJECTED',
+  RATING_RECEIVED = 'RATING_RECEIVED',
+  QUALITY_UPDATED = 'QUALITY_UPDATED',
+  PRICE_UPDATED = 'PRICE_UPDATED',
+}
+
+export enum NotificationStatus {
+  PENDING = 'PENDING',
+  SENT = 'SENT',
+  READ = 'READ',
+  FAILED = 'FAILED',
+}
 
 @Entity('notifications')
 export class Notification {
   @PrimaryGeneratedColumn('uuid')
   id: string;
+
+  @Column({ name: 'user_id' })
+  userId: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'user_id' })
+  user: User;
+
+  @Column()
+  title: string;
+
+  @Column({ type: 'text' })
+  message: string;
 
   @Column({
     type: 'enum',
@@ -14,35 +42,28 @@ export class Notification {
   })
   type: NotificationType;
 
-  @Column()
-  title: string;
+  @Column({
+    type: 'enum',
+    enum: NotificationStatus,
+    default: NotificationStatus.PENDING,
+  })
+  status: NotificationStatus;
 
-  @Column('text')
-  message: string;
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: {
+    offerId?: string;
+    produceId?: string;
+    ratingId?: string;
+    qualityId?: string;
+    price?: number;
+  };
 
-  @Column({ type: 'uuid', nullable: true })
-  customerId: string | null;
+  @Column({ name: 'sent_at', type: 'timestamp', nullable: true })
+  sentAt: Date;
 
-  @Column({ type: 'uuid', nullable: true })
-  buyerId: string | null;
+  @Column({ name: 'read_at', type: 'timestamp', nullable: true })
+  readAt: Date;
 
-  @ManyToOne(() => Customer, { nullable: true })
-  @JoinColumn({ name: 'customerId' })
-  customer: Customer;
-
-  @ManyToOne(() => Buyer, { nullable: true })
-  @JoinColumn({ name: 'buyerId' })
-  buyer: Buyer;
-
-  @Column('jsonb', { nullable: true })
-  metadata: Record<string, any>;
-
-  @Column({ default: false })
-  isRead: boolean;
-
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 } 

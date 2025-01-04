@@ -3,24 +3,17 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import { AuthService } from './auth.service';
-import { Customer } from '../customers/entities/customer.entity';
-import { Buyer } from '../buyers/entities/buyer.entity';
-import { Role } from './enums/role.enum';
+import { User } from './entities/user.entity';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import * as bcrypt from 'bcrypt';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let customerRepository: Repository<Customer>;
-  let buyerRepository: Repository<Buyer>;
+  let userRepository: Repository<User>;
   let jwtService: JwtService;
+  let eventEmitter: EventEmitter2;
 
-  const mockCustomerRepository = {
-    findOne: jest.fn(),
-    create: jest.fn(),
-    save: jest.fn(),
-  };
-
-  const mockBuyerRepository = {
+  const mockUserRepository = {
     findOne: jest.fn(),
     create: jest.fn(),
     save: jest.fn(),
@@ -30,154 +23,216 @@ describe('AuthService', () => {
     sign: jest.fn(),
   };
 
+  const mockEventEmitter = {
+    emit: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
         {
-          provide: getRepositoryToken(Customer),
-          useValue: mockCustomerRepository,
-        },
-        {
-          provide: getRepositoryToken(Buyer),
-          useValue: mockBuyerRepository,
+          provide: getRepositoryToken(User),
+          useValue: mockUserRepository,
         },
         {
           provide: JwtService,
           useValue: mockJwtService,
         },
+        {
+          provide: EventEmitter2,
+          useValue: mockEventEmitter,
+        },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    customerRepository = module.get<Repository<Customer>>(getRepositoryToken(Customer));
-    buyerRepository = module.get<Repository<Buyer>>(getRepositoryToken(Buyer));
+    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
     jwtService = module.get<JwtService>(JwtService);
+    eventEmitter = module.get<EventEmitter2>(EventEmitter2);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  describe('validateUser', () => {
-    it('should validate customer and return user data with role', async () => {
-      const mockCustomer = {
-        id: 'test-id',
+  describe('register', () => {
+    it('should register a new user and return token', async () => {
+      const registerDto = {
         email: 'test@example.com',
-        password: await bcrypt.hash('password123', 10),
+        password: 'password123',
+        phone: '+1234567890',
+        isFarmer: true,
+        isBuyer: false,
+        name: 'Test User',
       };
 
-      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
+      const mockUser = {
+        id: 'test-id',
+        email: registerDto.email,
+        phone: registerDto.phone,
+        isFarmer: registerDto.isFarmer,
+        isBuyer: registerDto.isBuyer,
+        verificationStatus: 'PENDING',
+      };
 
-      const result = await service.validateUser('test@example.com', 'password123');
+      mockUserRepository.findOne.mockResolvedValue(null);
+      mockUserRepository.create.mockReturnValue(mockUser);
+      mockUserRepository.save.mockResolvedValue(mockUser);
+      mockJwtService.sign.mockReturnValue('mock-token');
+
+      const result = await service.register(registerDto);
 
       expect(result).toEqual({
-        id: mockCustomer.id,
-        email: mockCustomer.email,
-        role: Role.CUSTOMER,
+        user: mockUser,
+        token: 'mock-token',
+      });
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('user.registered', {
+        userId: mockUser.id,
+        isFarmer: mockUser.isFarmer,
+        isBuyer: mockUser.isBuyer,
       });
     });
 
-    it('should validate buyer and return user data with role', async () => {
-      const mockBuyer = {
-        id: 'test-id',
+    it('should throw error if user already exists', async () => {
+      const registerDto = {
         email: 'test@example.com',
-        password: await bcrypt.hash('password123', 10),
+        password: 'password123',
+        phone: '+1234567890',
+        isFarmer: true,
+        isBuyer: false,
+        name: 'Test User',
       };
 
-      mockCustomerRepository.findOne.mockResolvedValue(null);
-      mockBuyerRepository.findOne.mockResolvedValue(mockBuyer);
+      mockUserRepository.findOne.mockResolvedValue({ id: 'existing-id' });
 
-      const result = await service.validateUser('test@example.com', 'password123');
-
-      expect(result).toEqual({
-        id: mockBuyer.id,
-        email: mockBuyer.email,
-        role: Role.BUYER,
-      });
-    });
-
-    it('should return null for invalid credentials', async () => {
-      mockCustomerRepository.findOne.mockResolvedValue(null);
-      mockBuyerRepository.findOne.mockResolvedValue(null);
-
-      const result = await service.validateUser('test@example.com', 'wrongpassword');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('verifyPhone', () => {
-    it('should throw error if phone is already registered', async () => {
-      const mockCustomer = {
-        id: 'test-id',
-        phone: '+1234567890',
-      };
-
-      mockCustomerRepository.findOne.mockResolvedValue(mockCustomer);
-
-      await expect(service.verifyPhone({ phone: '+1234567890' }))
-        .rejects.toThrow('Phone number already registered');
-    });
-
-    it('should create temporary customer record and return success message', async () => {
-      mockCustomerRepository.findOne.mockResolvedValue(null);
-      mockCustomerRepository.create.mockReturnValue({
-        phone: '+1234567890',
-      });
-
-      const result = await service.verifyPhone({ phone: '+1234567890' });
-
-      expect(result).toEqual({ message: 'Verification code sent' });
-      expect(mockCustomerRepository.create).toHaveBeenCalledWith({
-        phone: '+1234567890',
-      });
-    });
-  });
-
-  describe('verifyEmail', () => {
-    it('should throw error if email is already registered', async () => {
-      mockCustomerRepository.findOne.mockResolvedValue({ id: 'test-id' });
-
-      await expect(service.verifyEmail('test@example.com'))
-        .rejects.toThrow('Email already registered');
-    });
-
-    it('should return success message for new email', async () => {
-      mockCustomerRepository.findOne.mockResolvedValue(null);
-      mockBuyerRepository.findOne.mockResolvedValue(null);
-
-      const result = await service.verifyEmail('test@example.com');
-
-      expect(result).toEqual({ message: 'Verification email sent' });
+      await expect(service.register(registerDto)).rejects.toThrow('User with this email or phone already exists');
     });
   });
 
   describe('login', () => {
-    it('should return access token and user data', async () => {
+    it('should login user and return token', async () => {
+      const loginDto = {
+        email: 'test@example.com',
+        password: 'password123',
+      };
+
+      const mockUser = {
+        id: 'test-id',
+        email: loginDto.email,
+        passwordHash: await bcrypt.hash(loginDto.password, 12),
+        isFarmer: true,
+        isBuyer: false,
+        isBlocked: false,
+      };
+
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+      mockJwtService.sign.mockReturnValue('mock-token');
+
+      const result = await service.login(loginDto);
+
+      expect(result).toEqual({
+        user: expect.objectContaining({
+          id: mockUser.id,
+          email: mockUser.email,
+        }),
+        token: 'mock-token',
+      });
+      expect(mockEventEmitter.emit).toHaveBeenCalledWith('user.loggedIn', {
+        userId: mockUser.id,
+        isFarmer: mockUser.isFarmer,
+        isBuyer: mockUser.isBuyer,
+      });
+    });
+
+    it('should throw error if user is blocked', async () => {
+      const loginDto = {
+        email: 'test@example.com',
+        password: 'password123',
+      };
+
+      const mockUser = {
+        id: 'test-id',
+        email: loginDto.email,
+        passwordHash: await bcrypt.hash(loginDto.password, 12),
+        isBlocked: true,
+      };
+
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+
+      await expect(service.login(loginDto)).rejects.toThrow('Account is blocked');
+    });
+  });
+
+  describe('validateUser', () => {
+    it('should validate and return user', async () => {
       const mockUser = {
         id: 'test-id',
         email: 'test@example.com',
-        role: Role.CUSTOMER,
+        passwordHash: 'hashed-password',
+        isBlocked: false,
       };
 
-      mockJwtService.sign.mockReturnValue('mock-token');
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
 
-      const result = await service.login(mockUser);
+      const result = await service.validateUser('test-id');
 
-      expect(result).toEqual({
-        access_token: 'mock-token',
-        user: {
-          id: mockUser.id,
-          email: mockUser.email,
-          role: mockUser.role,
-        },
-      });
-      expect(mockJwtService.sign).toHaveBeenCalledWith({
+      expect(result).toEqual(expect.objectContaining({
+        id: mockUser.id,
         email: mockUser.email,
-        sub: mockUser.id,
-        role: mockUser.role,
-      });
+      }));
+      expect(result).not.toHaveProperty('passwordHash');
+    });
+
+    it('should throw error if user not found', async () => {
+      mockUserRepository.findOne.mockResolvedValue(null);
+
+      await expect(service.validateUser('test-id')).rejects.toThrow('User not found');
+    });
+  });
+
+  describe('validateCredentials', () => {
+    it('should validate credentials and return user', async () => {
+      const credentials = {
+        email: 'test@example.com',
+        password: 'password123',
+      };
+
+      const mockUser = {
+        id: 'test-id',
+        email: credentials.email,
+        passwordHash: await bcrypt.hash(credentials.password, 12),
+        isBlocked: false,
+      };
+
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+
+      const result = await service.validateCredentials(credentials.email, credentials.password);
+
+      expect(result).toEqual(expect.objectContaining({
+        id: mockUser.id,
+        email: mockUser.email,
+      }));
+      expect(result).not.toHaveProperty('passwordHash');
+    });
+
+    it('should throw error for invalid credentials', async () => {
+      const credentials = {
+        email: 'test@example.com',
+        password: 'wrong-password',
+      };
+
+      const mockUser = {
+        id: 'test-id',
+        email: credentials.email,
+        passwordHash: await bcrypt.hash('correct-password', 12),
+        isBlocked: false,
+      };
+
+      mockUserRepository.findOne.mockResolvedValue(mockUser);
+
+      await expect(service.validateCredentials(credentials.email, credentials.password))
+        .rejects.toThrow('Invalid credentials');
     });
   });
 }); 

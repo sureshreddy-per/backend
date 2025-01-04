@@ -1,30 +1,49 @@
-import { IsString, IsEnum, IsNotEmpty } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-import { TicketType } from '../enums/ticket-type.enum';
+import { IsString, IsEnum, IsOptional, IsObject, IsArray, IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TicketCategory, TicketPriority } from '../entities/ticket.entity';
 
 export class CreateTicketDto {
-  @ApiProperty({
-    description: 'The ID of the user creating the ticket',
-    example: '123e4567-e89b-12d3-a456-426614174000',
-  })
+  @ApiProperty({ description: 'Title of the ticket' })
   @IsString()
-  @IsNotEmpty()
-  userId: string;
+  title: string;
 
-  @ApiProperty({
-    description: 'The type of the ticket',
-    enum: TicketType,
-    example: TicketType.SUPPORT,
-  })
-  @IsEnum(TicketType)
-  @IsNotEmpty()
-  type: TicketType;
-
-  @ApiProperty({
-    description: 'The description of the ticket',
-    example: 'I need help with my order',
-  })
+  @ApiProperty({ description: 'Detailed description of the issue' })
   @IsString()
-  @IsNotEmpty()
   description: string;
+
+  @ApiProperty({ enum: TicketCategory, description: 'Category of the ticket' })
+  @IsEnum(TicketCategory)
+  category: TicketCategory;
+
+  @ApiPropertyOptional({ enum: TicketPriority, description: 'Priority of the ticket' })
+  @IsOptional()
+  @IsEnum(TicketPriority)
+  priority?: TicketPriority;
+
+  @ApiPropertyOptional({
+    description: 'Additional metadata',
+    example: {
+      offerId: 'uuid',
+      produceId: 'uuid',
+      deviceInfo: {
+        browser: 'Chrome',
+        os: 'Windows',
+        device: 'Desktop',
+      },
+      attachments: ['url1', 'url2'],
+    },
+  })
+  @IsOptional()
+  @IsObject()
+  metadata?: {
+    offerId?: string;
+    produceId?: string;
+    ratingId?: string;
+    deviceInfo?: {
+      browser?: string;
+      os?: string;
+      device?: string;
+    };
+    attachments?: string[];
+  };
 } 

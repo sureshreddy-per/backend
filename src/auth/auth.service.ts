@@ -1,79 +1,157 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { User, VerificationStatus } from './entities/user.entity';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { LoginUserDto } from './dto/login-user.dto';
 import * as bcrypt from 'bcrypt';
-import { Customer } from '../customers/entities/customer.entity';
-import { Buyer } from '../buyers/entities/buyer.entity';
-import { Role } from './enums/role.enum';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(Customer)
-    private readonly customerRepository: Repository<Customer>,
-    @InjectRepository(Buyer)
-    private readonly buyerRepository: Repository<Buyer>,
+    @InjectRepository(User)
+    private readonly usersRepository: Repository<User>,
     private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
-    const customer = await this.customerRepository.findOne({ where: { email } });
-    if (customer && await bcrypt.compare(password, customer.password)) {
-      const { password, ...result } = customer;
-      return { ...result, role: Role.CUSTOMER };
-    }
+  async register(registerUserDto: RegisterUserDto): Promise<{ user: User; token: string }> {
+    const { password, ...userData } = registerUserDto;
+    const passwordHash = await bcrypt.hash(password, 10);
 
-    const buyer = await this.buyerRepository.findOne({ where: { email } });
-    if (buyer && await bcrypt.compare(password, buyer.password)) {
-      const { password, ...result } = buyer;
-      return { ...result, role: Role.BUYER };
-    }
+    const user = await this.usersRepository.save({
+      ...userData,
+      passwordHash,
+      verificationStatus: VerificationStatus.PENDING,
+    });
 
-    return null;
-  }
+    const token = this.generateToken(user);
 
-  async login(user: any) {
-    const payload = { email: user.email, sub: user.id, role: user.role };
-    return {
-      access_token: this.jwtService.sign(payload),
+    const response = {
       user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
+        ...user,
+        userId: user.id,
+        isFarmer: user.isFarmer,
+        isBuyer: user.isBuyer,
       },
+      token,
     };
+
+    delete response.user.passwordHash;
+
+    return response;
   }
 
-  async verifyPhone(data: { phone: string }) {
-    const customer = await this.customerRepository.findOne({
-      where: { phone: data.phone },
+  async login(loginUserDto: LoginUserDto): Promise<{ user: User; token: string }> {
+    const { email, password } = loginUserDto;
+
+    const user = await this.usersRepository.findOne({
+      where: { email },
     });
 
-    if (customer) {
-      throw new BadRequestException('Phone number already registered');
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Create a temporary customer record
-    const tempCustomer = this.customerRepository.create({
-      phone: data.phone,
-    });
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
-    // In a real application, you would send an OTP to the phone number here
-    // For now, we'll just return a success message
-    return { message: 'Verification code sent' };
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Account is blocked');
+    }
+
+    user.lastLoginAt = new Date();
+    await this.usersRepository.save(user);
+
+    const token = this.generateToken(user);
+
+    const response = {
+      user: {
+        ...user,
+        userId: user.id,
+      },
+      token,
+    };
+
+    delete response.user.passwordHash;
+
+    return response;
   }
 
-  async verifyEmail(email: string) {
-    const customer = await this.customerRepository.findOne({ where: { email } });
-    const buyer = await this.buyerRepository.findOne({ where: { email } });
+  async validateUser(userId: string): Promise<User> {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId },
+    });
 
-    if (customer || buyer) {
-      throw new BadRequestException('Email already registered');
+    if (!user) {
+      throw new UnauthorizedException('User not found');
     }
 
-    // In a real application, you would send a verification email here
-    // For now, we'll just return a success message
-    return { message: 'Verification email sent' };
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Account is blocked');
+    }
+
+    delete user.passwordHash;
+    return user;
+  }
+
+  async validateCredentials(email: string, password: string): Promise<User> {
+    const user = await this.usersRepository.findOne({
+      where: { email },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    if (user.isBlocked) {
+      throw new UnauthorizedException('Account is blocked');
+    }
+
+    delete user.passwordHash;
+    return user;
+  }
+
+  async blockUser(userId: string, reason: string): Promise<User> {
+    const user = await this.validateUser(userId);
+
+    user.isBlocked = true;
+    user.blockReason = reason;
+
+    const updatedUser = await this.usersRepository.save(user);
+    delete updatedUser.passwordHash;
+
+    return updatedUser;
+  }
+
+  async unblockUser(userId: string): Promise<User> {
+    const user = await this.validateUser(userId);
+
+    user.isBlocked = false;
+    user.blockReason = null;
+
+    const updatedUser = await this.usersRepository.save(user);
+    delete updatedUser.passwordHash;
+
+    return updatedUser;
+  }
+
+  private generateToken(user: User): string {
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
+
+    return this.jwtService.sign(payload);
   }
 } 

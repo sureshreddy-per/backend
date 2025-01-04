@@ -67,10 +67,10 @@ export class OffersGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Notify the produce room about the new offer
     this.server.to(`produce:${offer.produceId}`).emit('newOffer', offer);
 
-    // Notify the customer who owns the produce
-    const customerSockets = this.userSockets.get(offer.produce.customerId);
-    if (customerSockets) {
-      customerSockets.forEach(socket => {
+    // Notify the farmer who owns the produce
+    const farmerSockets = this.userSockets.get(offer.produce.farmerId);
+    if (farmerSockets) {
+      farmerSockets.forEach(socket => {
         socket.emit('newOfferForProduce', offer);
       });
     }

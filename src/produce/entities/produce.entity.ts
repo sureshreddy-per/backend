@@ -1,67 +1,106 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, OneToMany, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { Customer } from '../../customers/entities/customer.entity';
-import { Quality } from '../../quality/entities/quality.entity';
+import { Farmer } from '../../farmers/entities/farmer.entity';
+import { Transaction } from '../../transactions/entities/transaction.entity';
 import { Offer } from '../../offers/entities/offer.entity';
 
 export enum ProduceStatus {
   PENDING = 'PENDING',
-  ASSESSED = 'ASSESSED',
   IN_PROGRESS = 'IN_PROGRESS',
-  FINAL_PRICE = 'FINAL_PRICE',
+  ASSESSED = 'ASSESSED',
   COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
+  FINAL_PRICE = 'FINAL_PRICE'
 }
 
-@Entity('produce')
+export enum VerifiedStatus {
+  NONE = 'NONE',
+  PENDING = 'PENDING',
+  VERIFIED = 'VERIFIED',
+  REJECTED = 'REJECTED'
+}
+
+export enum ProduceType {
+  FRUIT = 'FRUIT',
+  VEGETABLE = 'VEGETABLE',
+  GRAIN = 'GRAIN',
+  DAIRY = 'DAIRY',
+  MEAT = 'MEAT',
+  OTHER = 'OTHER'
+}
+
+@Entity('produces')
 export class Produce {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'customer_id' })
-  customerId: string;
+  @Column({ name: 'farmer_id' })
+  farmerId: string;
 
-  @ManyToOne(() => Customer, customer => customer.produces)
-  @JoinColumn({ name: 'customer_id' })
-  customer: Customer;
+  @ManyToOne(() => Farmer, farmer => farmer.produces)
+  @JoinColumn({ name: 'farmer_id' })
+  farmer: Farmer;
+
+  @OneToMany(() => Transaction, transaction => transaction.produce)
+  transactions: Transaction[];
 
   @Column()
-  type: string;
+  name: string;
+
+  @Column()
+  description: string;
+
+  @Column({
+    type: 'enum',
+    enum: ProduceType,
+    default: ProduceType.OTHER
+  })
+  type: ProduceType;
 
   @Column({ type: 'decimal' })
   quantity: number;
 
-  @Column({ type: 'jsonb', array: true, default: [] })
-  photos: string[];
+  @Column()
+  unit: string;
 
-  @Column({ nullable: true })
-  video: string;
-
-  @Column({ name: 'quality_id', nullable: true })
-  qualityId: string;
-
-  @ManyToOne(() => Quality, { nullable: true })
-  @JoinColumn({ name: 'quality_id' })
-  quality: Quality;
+  @Column({ type: 'decimal' })
+  price: number;
 
   @Column({
     type: 'enum',
     enum: ProduceStatus,
-    default: ProduceStatus.PENDING,
+    default: ProduceStatus.PENDING
   })
   status: ProduceStatus;
 
-  @Column({ type: 'float', nullable: true })
-  lat: number;
+  @Column({
+    type: 'enum',
+    enum: VerifiedStatus,
+    default: VerifiedStatus.NONE
+  })
+  verifiedStatus: VerifiedStatus;
 
-  @Column({ type: 'float', nullable: true })
-  lng: number;
+  @Column({ nullable: true })
+  qualityId: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: {
+    category?: string;
+    variety?: string;
+    grade?: string;
+    harvestDate?: string;
+    expiryDate?: string;
+    storageConditions?: string;
+    certifications?: string[];
+  };
+
+  @Column({ default: true })
+  isAvailable: boolean;
+
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updatedAt: Date;
 
   @OneToMany(() => Offer, offer => offer.produce)
   offers: Offer[];
-
-  @CreateDateColumn()
-  createdAt: Date;
-
-  @UpdateDateColumn()
-  updatedAt: Date;
 } 

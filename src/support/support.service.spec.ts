@@ -2,41 +2,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SupportService } from './support.service';
-import { Support, SupportStatus, SupportPriority, SupportCategory } from './entities/support.entity';
+import { Support, SupportCategory, SupportPriority } from './entities/support.entity';
+import { User } from '../auth/entities/user.entity';
 import { CreateSupportDto } from './dto/create-support.dto';
-import { UpdateSupportDto } from './dto/update-support.dto';
-import { NotificationsService } from '../notifications/notifications.service';
-import { FileUploadService } from '../common/services/file-upload.service';
+import { NotFoundException } from '@nestjs/common';
 
 describe('SupportService', () => {
   let service: SupportService;
-  let repository: Repository<Support>;
-  let notificationsService: NotificationsService;
-  let fileUploadService: FileUploadService;
-
-  const mockRepository = {
-    create: jest.fn(),
-    save: jest.fn(),
-    findOne: jest.fn(),
-    find: jest.fn(),
-    createQueryBuilder: jest.fn(() => ({
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      orderBy: jest.fn().mockReturnThis(),
-      skip: jest.fn().mockReturnThis(),
-      take: jest.fn().mockReturnThis(),
-      getManyAndCount: jest.fn(),
-    })),
-  };
-
-  const mockNotificationsService = {
-    create: jest.fn(),
-  };
-
-  const mockFileUploadService = {
-    saveFile: jest.fn(),
-    deleteFile: jest.fn(),
-  };
+  let supportRepository: Repository<Support>;
+  let userRepository: Repository<User>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -44,23 +18,18 @@ describe('SupportService', () => {
         SupportService,
         {
           provide: getRepositoryToken(Support),
-          useValue: mockRepository,
+          useClass: Repository,
         },
         {
-          provide: NotificationsService,
-          useValue: mockNotificationsService,
-        },
-        {
-          provide: FileUploadService,
-          useValue: mockFileUploadService,
+          provide: getRepositoryToken(User),
+          useClass: Repository,
         },
       ],
     }).compile();
 
     service = module.get<SupportService>(SupportService);
-    repository = module.get<Repository<Support>>(getRepositoryToken(Support));
-    notificationsService = module.get<NotificationsService>(NotificationsService);
-    fileUploadService = module.get<FileUploadService>(FileUploadService);
+    supportRepository = module.get<Repository<Support>>(getRepositoryToken(Support));
+    userRepository = module.get<Repository<User>>(getRepositoryToken(User));
   });
 
   it('should be defined', () => {
@@ -68,157 +37,70 @@ describe('SupportService', () => {
   });
 
   describe('create', () => {
-    const createSupportDto: CreateSupportDto = {
-      title: 'Test Support',
-      description: 'Test Description',
-      category: SupportCategory.GENERAL,
-      priority: SupportPriority.MEDIUM,
-      attachments: [],
-      metadata: {},
-    };
-
-    const userId = 'test-user-id';
-    const userType = 'customer';
-
-    it('should create a support ticket successfully', async () => {
-      const mockSupport = {
-        id: 'test-id',
-        ...createSupportDto,
-        customerId: userId,
-        status: SupportStatus.OPEN,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+    it('should create a support ticket', async () => {
+      const userId = 'test-user-id';
+      const createSupportDto: CreateSupportDto = {
+        title: 'Test Support',
+        description: 'Test Description',
+        category: SupportCategory.GENERAL,
+        priority: SupportPriority.MEDIUM,
       };
 
-      mockRepository.create.mockReturnValue(mockSupport);
-      mockRepository.save.mockResolvedValue(mockSupport);
-      mockNotificationsService.create.mockResolvedValue({});
+      const user = { id: userId, name: 'Test User' };
+      const expectedSupport = { ...createSupportDto, userId };
 
-      const result = await service.create(createSupportDto, userId, userType as 'customer' | 'buyer');
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(user as User);
+      jest.spyOn(supportRepository, 'create').mockReturnValue(expectedSupport as Support);
+      jest.spyOn(supportRepository, 'save').mockResolvedValue(expectedSupport as Support);
 
-      expect(result).toEqual(mockSupport);
-      expect(mockRepository.create).toHaveBeenCalledWith({
+      const result = await service.create(userId, createSupportDto);
+
+      expect(result).toEqual(expectedSupport);
+      expect(userRepository.findOne).toHaveBeenCalledWith({ where: { id: userId } });
+      expect(supportRepository.create).toHaveBeenCalledWith({
         ...createSupportDto,
-        customerId: userId,
+        userId,
       });
-      expect(mockRepository.save).toHaveBeenCalledWith(mockSupport);
-      expect(mockNotificationsService.create).toHaveBeenCalled();
+      expect(supportRepository.save).toHaveBeenCalledWith(expectedSupport);
     });
-  });
 
-  describe('findAll', () => {
-    it('should return paginated support tickets', async () => {
-      const mockTickets = [
-        {
-          id: 'test-id-1',
-          title: 'Test Support 1',
-          status: SupportStatus.OPEN,
-        },
-        {
-          id: 'test-id-2',
-          title: 'Test Support 2',
-          status: SupportStatus.CLOSED,
-        },
-      ];
+    it('should throw NotFoundException if user not found', async () => {
+      const userId = 'non-existent-id';
+      const createSupportDto: CreateSupportDto = {
+        title: 'Test Support',
+        description: 'Test Description',
+        category: SupportCategory.GENERAL,
+        priority: SupportPriority.MEDIUM,
+      };
 
-      mockRepository.createQueryBuilder().getManyAndCount.mockResolvedValue([mockTickets, 2]);
+      jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
 
-      const result = await service.findAll(1, 10);
-
-      expect(result).toEqual({
-        tickets: mockTickets,
-        total: 2,
-        page: 1,
-        totalPages: 1,
-      });
+      await expect(service.create(userId, createSupportDto)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('findOne', () => {
-    it('should return a support ticket by id', async () => {
-      const mockTicket = {
-        id: 'test-id',
-        title: 'Test Support',
-        status: SupportStatus.OPEN,
-      };
+    it('should return a support ticket', async () => {
+      const supportId = 'test-support-id';
+      const expectedSupport = { id: supportId, title: 'Test Support' };
 
-      mockRepository.findOne.mockResolvedValue(mockTicket);
+      jest.spyOn(supportRepository, 'findOne').mockResolvedValue(expectedSupport as Support);
 
-      const result = await service.findOne('test-id');
+      const result = await service.findOne(supportId);
 
-      expect(result).toEqual(mockTicket);
-      expect(mockRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 'test-id' },
-        relations: ['customer', 'buyer'],
+      expect(result).toEqual(expectedSupport);
+      expect(supportRepository.findOne).toHaveBeenCalledWith({
+        where: { id: supportId },
+        relations: ['user'],
       });
     });
 
-    it('should throw NotFoundException when ticket not found', async () => {
-      mockRepository.findOne.mockResolvedValue(null);
+    it('should throw NotFoundException if support ticket not found', async () => {
+      const supportId = 'non-existent-id';
 
-      await expect(service.findOne('non-existent-id')).rejects.toThrow();
-    });
-  });
+      jest.spyOn(supportRepository, 'findOne').mockResolvedValue(null);
 
-  describe('update', () => {
-    const updateSupportDto: UpdateSupportDto = {
-      status: SupportStatus.IN_PROGRESS,
-    };
-
-    it('should update a support ticket successfully', async () => {
-      const mockTicket = {
-        id: 'test-id',
-        title: 'Test Support',
-        status: SupportStatus.OPEN,
-        customerId: 'test-customer-id',
-      };
-
-      mockRepository.findOne.mockResolvedValue(mockTicket);
-      mockRepository.save.mockResolvedValue({
-        ...mockTicket,
-        ...updateSupportDto,
-      });
-      mockNotificationsService.create.mockResolvedValue({});
-
-      const result = await service.update('test-id', updateSupportDto);
-
-      expect(result).toEqual({
-        ...mockTicket,
-        ...updateSupportDto,
-      });
-      expect(mockNotificationsService.create).toHaveBeenCalled();
-    });
-  });
-
-  describe('attachments', () => {
-    it('should add an attachment successfully', async () => {
-      const mockTicket = {
-        id: 'test-id',
-        attachments: [],
-      };
-
-      mockRepository.findOne.mockResolvedValue(mockTicket);
-      mockRepository.save.mockImplementation(ticket => ticket);
-
-      const result = await service.addAttachment('test-id', 'test-file.pdf');
-
-      expect(result.attachments).toContain('test-file.pdf');
-    });
-
-    it('should remove an attachment successfully', async () => {
-      const mockTicket = {
-        id: 'test-id',
-        attachments: ['test-file.pdf'],
-      };
-
-      mockRepository.findOne.mockResolvedValue(mockTicket);
-      mockRepository.save.mockImplementation(ticket => ticket);
-      mockFileUploadService.deleteFile.mockResolvedValue(undefined);
-
-      const result = await service.removeAttachment('test-id', 'test-file.pdf');
-
-      expect(result.attachments).not.toContain('test-file.pdf');
-      expect(mockFileUploadService.deleteFile).toHaveBeenCalledWith('test-file.pdf');
+      await expect(service.findOne(supportId)).rejects.toThrow(NotFoundException);
     });
   });
 }); 

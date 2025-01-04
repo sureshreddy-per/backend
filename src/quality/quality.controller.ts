@@ -1,92 +1,90 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
-  ParseUUIDPipe,
-} from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { QualityService } from './quality.service';
-import { Quality } from './entities/quality.entity';
-import { CreateQualityDto } from './dto/create-quality.dto';
-import { UpdateQualityDto } from './dto/update-quality.dto';
-import { AssessQualityDto } from './dto/assess-quality.dto';
+import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
+import { QualityService } from './quality.service';
+import { Quality } from './entities/quality.entity';
+import { CreateQualityDto } from './dto/create-quality.dto';
 
-@ApiTags('Quality')
-@ApiBearerAuth()
+@ApiTags('Quality Assessment')
 @Controller('quality')
 @UseGuards(JwtAuthGuard, RolesGuard)
+@ApiBearerAuth()
 export class QualityController {
   constructor(private readonly qualityService: QualityService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Create quality parameters' })
-  @ApiResponse({ status: 201, description: 'Quality parameters created successfully' })
+  @Roles(Role.ADMIN, Role.QUALITY_INSPECTOR)
+  @ApiOperation({
+    summary: 'Create quality assessment',
+    description: 'Creates a new quality assessment record. Only accessible by administrators and quality inspectors.'
+  })
+  @ApiBody({
+    type: CreateQualityDto,
+    description: 'Quality assessment details including grade, criteria, and notes'
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'The quality assessment has been successfully created',
+    type: Quality 
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Bad Request - Invalid quality assessment data' 
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Forbidden - User does not have required role' 
+  })
   async create(@Body() createQualityDto: CreateQualityDto): Promise<Quality> {
     return this.qualityService.create(createQualityDto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all quality parameters' })
-  @ApiResponse({ status: 200, description: 'Return all quality parameters' })
+  @ApiOperation({
+    summary: 'Retrieve all quality assessments',
+    description: 'Returns a list of all quality assessment records in the system.'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'List of quality assessments retrieved successfully',
+    type: [Quality] 
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Forbidden - User does not have permission to view quality assessments' 
+  })
   async findAll(): Promise<Quality[]> {
     return this.qualityService.findAll();
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get quality parameters by ID' })
-  @ApiResponse({ status: 200, description: 'Return quality parameters' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Quality> {
+  @ApiOperation({
+    summary: 'Get quality assessment by ID',
+    description: 'Retrieves detailed information about a specific quality assessment.'
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Unique identifier of the quality assessment',
+    type: 'string',
+    format: 'uuid'
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'The quality assessment record has been successfully retrieved',
+    type: Quality 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Not Found - Quality assessment with provided ID does not exist' 
+  })
+  @ApiResponse({ 
+    status: 403, 
+    description: 'Forbidden - User does not have permission to view this quality assessment' 
+  })
+  async findOne(@Param('id') id: string): Promise<Quality> {
     return this.qualityService.findOne(id);
-  }
-
-  @Get('produce/:type')
-  @ApiOperation({ summary: 'Get quality parameters by produce type' })
-  @ApiResponse({ status: 200, description: 'Return quality parameters' })
-  async findByProduceType(@Param('type') type: string): Promise<Quality[]> {
-    return this.qualityService.findByProduceType(type);
-  }
-
-  @Put(':id')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Update quality parameters' })
-  @ApiResponse({ status: 200, description: 'Quality parameters updated successfully' })
-  async update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateQualityDto: UpdateQualityDto,
-  ): Promise<Quality> {
-    return this.qualityService.update(id, updateQualityDto);
-  }
-
-  @Delete(':id')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Delete quality parameters' })
-  @ApiResponse({ status: 200, description: 'Quality parameters deleted successfully' })
-  async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    return this.qualityService.remove(id);
-  }
-
-  @Post('assess')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Assess produce quality' })
-  @ApiResponse({ status: 200, description: 'Return quality score' })
-  async assessQuality(@Body() assessQualityDto: AssessQualityDto): Promise<number> {
-    return this.qualityService.assessQuality(assessQualityDto);
-  }
-
-  @Get('parameters/:type')
-  @ApiOperation({ summary: 'Get quality parameters structure' })
-  @ApiResponse({ status: 200, description: 'Return quality parameters structure' })
-  async getQualityParameters(@Param('type') type: string): Promise<Record<string, any>> {
-    return this.qualityService.getQualityParameters(type);
   }
 } 

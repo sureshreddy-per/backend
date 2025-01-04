@@ -1,24 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as twilio from 'twilio';
+import twilio, { Twilio } from 'twilio';
 
 @Injectable()
 export class TwilioService {
-  private client: twilio.Twilio | null = null;
+  private client: Twilio | null = null;
   private readonly logger = new Logger(TwilioService.name);
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(private configService: ConfigService) {
     const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
     const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
 
-    if (accountSid?.startsWith('AC') && authToken) {
-      try {
-        this.client = twilio(accountSid, authToken);
-      } catch (error) {
-        this.logger.error('Failed to initialize Twilio client:', error);
-      }
-    } else {
-      this.logger.warn('Twilio credentials not properly configured. SMS functionality will be disabled.');
+    if (!accountSid || !authToken) {
+      this.logger.warn('Twilio credentials not found');
+      return;
+    }
+
+    try {
+      this.client = twilio(accountSid, authToken);
+    } catch (error) {
+      this.logger.error('Failed to initialize Twilio client:', error);
     }
   }
 

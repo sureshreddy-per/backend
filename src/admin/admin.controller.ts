@@ -1,47 +1,50 @@
-import { Controller, Get, UseGuards, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Put, Param, UseGuards } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
-import { AdminService } from './admin.service';
+import { SupportStatus } from '../support/entities/support.entity';
 
 @ApiTags('Admin')
+@ApiBearerAuth()
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
-@ApiBearerAuth()
+@Roles(Role.ADMIN)
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  @Get('dashboard')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Get dashboard statistics' })
-  @ApiResponse({ status: 200, description: 'Returns dashboard statistics' })
-  async getDashboardStats() {
-    return this.adminService.getDashboardStats();
+  @Get('users')
+  async getUsers() {
+    return this.adminService.getUsers();
   }
 
-  @Get('customers')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Get customer statistics' })
-  @ApiResponse({ status: 200, description: 'Returns customer statistics' })
-  async getCustomerStats() {
-    return this.adminService.getCustomerStats();
+  @Get('users/:id')
+  async getUser(@Param('id') id: string) {
+    return this.adminService.getUser(id);
   }
 
-  @Get('buyers')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Get buyer statistics' })
-  @ApiResponse({ status: 200, description: 'Returns buyer statistics' })
-  async getBuyerStats() {
-    return this.adminService.getBuyerStats();
+  @Put('users/:id/block')
+  async blockUser(@Param('id') id: string) {
+    return this.adminService.blockUser(id);
+  }
+
+  @Put('users/:id/unblock')
+  async unblockUser(@Param('id') id: string) {
+    return this.adminService.unblockUser(id);
   }
 
   @Get('support')
-  @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Get support ticket statistics' })
-  @ApiResponse({ status: 200, description: 'Returns support ticket statistics' })
-  async getSupportStats() {
-    return this.adminService.getSupportStats();
+  async getSupportTickets() {
+    return this.adminService.getSupportTickets();
+  }
+
+  @Put('support/:id/status')
+  async updateSupportTicket(
+    @Param('id') id: string,
+    @Param('status') status: SupportStatus,
+  ) {
+    return this.adminService.updateSupportTicket(id, status);
   }
 } 

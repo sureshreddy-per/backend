@@ -8,9 +8,9 @@ import {
   ParseUUIDPipe,
   Query,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 import { TransactionsService } from './transactions.service';
-import { Transaction } from './entities/transaction.entity';
+import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -27,8 +27,31 @@ export class TransactionsController {
 
   @Post()
   @Roles(Role.BUYER)
-  @ApiOperation({ summary: 'Create a new transaction' })
-  @ApiResponse({ status: 201, description: 'Transaction created successfully' })
+  @ApiOperation({
+    summary: 'Create transaction',
+    description: 'Creates a new transaction for purchasing produce. Only accessible by users with the BUYER role.'
+  })
+  @ApiBody({
+    type: CreateTransactionDto,
+    description: 'Transaction details including produce ID, quantity, and payment information'
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'The transaction has been successfully created',
+    type: Transaction
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid transaction data or produce not available'
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User does not have the BUYER role'
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Referenced produce does not exist'
+  })
   async create(
     @Body() createTransactionDto: CreateTransactionDto,
     @CurrentUser('id') buyerId: string,
@@ -38,10 +61,53 @@ export class TransactionsController {
 
   @Get()
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Get all transactions' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Return all transactions' })
+  @ApiOperation({
+    summary: 'Get all transactions',
+    description: 'Retrieves a paginated list of all transactions. Only accessible by administrators.'
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number for pagination',
+    required: false,
+    type: Number,
+    example: 1
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Number of items per page',
+    required: false,
+    type: Number,
+    example: 10
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of transactions retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        transactions: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/Transaction' }
+        },
+        total: {
+          type: 'number',
+          description: 'Total number of transactions'
+        },
+        page: {
+          type: 'number',
+          description: 'Current page number'
+        },
+        totalPages: {
+          type: 'number',
+          description: 'Total number of pages'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User does not have admin privileges'
+  })
   async findAll(
     @Query('page') page = 1,
     @Query('limit') limit = 10,
@@ -51,10 +117,53 @@ export class TransactionsController {
 
   @Get('my-transactions')
   @Roles(Role.BUYER)
-  @ApiOperation({ summary: 'Get buyer\'s transactions' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiResponse({ status: 200, description: 'Return buyer\'s transactions' })
+  @ApiOperation({
+    summary: 'Get own transactions',
+    description: 'Retrieves a paginated list of transactions for the authenticated buyer.'
+  })
+  @ApiQuery({
+    name: 'page',
+    description: 'Page number for pagination',
+    required: false,
+    type: Number,
+    example: 1
+  })
+  @ApiQuery({
+    name: 'limit',
+    description: 'Number of items per page',
+    required: false,
+    type: Number,
+    example: 10
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Buyer\'s transactions retrieved successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        transactions: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/Transaction' }
+        },
+        total: {
+          type: 'number',
+          description: 'Total number of transactions'
+        },
+        page: {
+          type: 'number',
+          description: 'Current page number'
+        },
+        totalPages: {
+          type: 'number',
+          description: 'Total number of pages'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User does not have the BUYER role'
+  })
   async findMyTransactions(
     @CurrentUser('id') buyerId: string,
     @Query('page') page = 1,
@@ -64,8 +173,25 @@ export class TransactionsController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Get a transaction by ID' })
-  @ApiResponse({ status: 200, description: 'Return the transaction' })
+  @ApiOperation({
+    summary: 'Get transaction by ID',
+    description: 'Retrieves detailed information about a specific transaction.'
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'Unique identifier of the transaction',
+    type: 'string',
+    format: 'uuid'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Transaction retrieved successfully',
+    type: Transaction
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Transaction with provided ID does not exist'
+  })
   async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Transaction> {
     return this.transactionsService.findOne(id);
   }

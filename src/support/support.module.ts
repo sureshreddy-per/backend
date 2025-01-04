@@ -3,16 +3,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { SupportController } from './support.controller';
 import { SupportService } from './support.service';
 import { Support } from './entities/support.entity';
-import { NotificationsModule } from '../notifications/notifications.module';
-import { FileUploadService } from '../common/services/file-upload.service';
+import { User } from '../auth/entities/user.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Support]),
-    NotificationsModule,
+    TypeOrmModule.forFeature([Support, User]),
   ],
   controllers: [SupportController],
-  providers: [SupportService, FileUploadService],
-  exports: [SupportService],
+  providers: [SupportService],
 })
 export class SupportModule {} 

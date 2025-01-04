@@ -1,34 +1,20 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { JwtModule } from '@nestjs/jwt';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
-import { NotificationsGateway } from './notifications.gateway';
 import { Notification } from './entities/notification.entity';
-import { CustomersModule } from '../customers/customers.module';
-import { BuyersModule } from '../buyers/buyers.module';
-import { RedisModule } from '../redis/redis.module';
-import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
+import { User } from '../auth/entities/user.entity';
+import { Produce } from '../produce/entities/produce.entity';
+import { AuthModule } from '../auth/auth.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Notification]),
-    CustomersModule,
-    BuyersModule,
-    RedisModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get('JWT_SECRET'),
-        signOptions: {
-          expiresIn: configService.get('JWT_EXPIRATION', '1d'),
-        },
-      }),
-      inject: [ConfigService],
-    }),
+    TypeOrmModule.forFeature([Notification, User, Produce]),
+    AuthModule,
+    EventEmitterModule.forRoot(),
   ],
-  providers: [NotificationsService, NotificationsGateway, WsJwtGuard],
+  providers: [NotificationsService],
   controllers: [NotificationsController],
   exports: [NotificationsService],
 })

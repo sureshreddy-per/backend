@@ -1,19 +1,17 @@
-import { IsString, IsNotEmpty, IsObject, IsUUID } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsUUID, IsArray, IsOptional } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AssessQualityDto {
-  @ApiProperty()
+  @ApiProperty({ description: 'The ID of the produce to assess' })
   @IsUUID()
-  @IsNotEmpty()
-  qualityId: string;
+  produceId: string;
 
-  @ApiProperty({
-    description: 'Quality parameters with their values',
-    example: {
-      moisture: 8.5,
-      color: 4.2,
-    },
-  })
-  @IsObject()
-  parameters: Record<string, number>;
+  @ApiProperty({ description: 'Array of image URLs for quality assessment' })
+  @IsArray()
+  @IsString({ each: true })
+  imageUrls: string[];
+
+  @ApiPropertyOptional({ description: 'Additional metadata for quality assessment' })
+  @IsOptional()
+  metadata?: Record<string, any>;
 } 
