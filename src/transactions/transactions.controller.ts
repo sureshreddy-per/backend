@@ -3,20 +3,24 @@ import {
   Get,
   Post,
   Body,
+  Patch,
   Param,
+  Delete,
+  Query,
   UseGuards,
   ParseUUIDPipe,
-  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam, ApiBody } from '@nestjs/swagger';
 import { TransactionsService } from './transactions.service';
-import { Transaction, TransactionStatus } from './entities/transaction.entity';
+import { Transaction } from './entities/transaction.entity';
+import { TransactionStatus } from './enums/transaction-status.enum';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Role } from '../auth/enums/role.enum';
+import { User } from '../auth/entities/user.entity';
 
 @ApiTags('Transactions')
 @ApiBearerAuth()

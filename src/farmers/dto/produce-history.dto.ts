@@ -1,62 +1,40 @@
-import { IsString, IsOptional, IsNumber, IsBoolean, IsEnum } from 'class-validator';
-import { TransactionStatus } from '../../transactions/entities/transaction.entity';
+import { Type } from 'class-transformer';
+import { IsOptional, IsDate, IsString } from 'class-validator';
 
 export class ProduceHistoryQueryDto {
   @IsOptional()
-  @IsString()
-  startDate?: string;
+  @IsDate()
+  @Type(() => Date)
+  startDate?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  endDate?: Date;
 
   @IsOptional()
   @IsString()
-  endDate?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isAvailable?: boolean;
-
-  @IsNumber()
-  page: number;
-
-  @IsNumber()
-  limit: number;
-
-  @IsOptional()
-  @IsNumber()
-  minPrice?: number;
-
-  @IsOptional()
-  @IsNumber()
-  maxPrice?: number;
-
-  @IsOptional()
-  @IsEnum(TransactionStatus)
-  transactionStatus?: TransactionStatus;
+  produceType?: string;
 }
 
-export interface BuyerDto {
+export class TransactionDto {
   id: string;
-  name: string;
-  email: string;
-  phone: string;
-}
-
-export interface TransactionDto {
-  id: string;
-  produceId: string;
-  amount: number;
   quantity: number;
-  unit: string;
-  totalCost: number;
-  status: TransactionStatus;
+  pricePerUnit: number;
+  status: string;
   createdAt: Date;
-  buyer: BuyerDto | null;
+  buyer: {
+    id: string;
+    name: string;
+    rating: number;
+  };
 }
 
-export interface ProduceHistoryResponseDto {
-  farmerId: string;
-  userId: string;
+export class ProduceHistoryResponseDto {
   transactions: TransactionDto[];
-  total: number;
-  page: number;
-  limit: number;
+  meta: {
+    total: number;
+    totalValue: number;
+    averagePrice: number;
+  };
 } 

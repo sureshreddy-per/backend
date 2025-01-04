@@ -1,4 +1,4 @@
-import { IsUUID, IsNumber, Min, IsOptional } from 'class-validator';
+import { IsUUID, IsNumber, IsString, Min, IsOptional, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateTransactionDto {
@@ -11,10 +11,11 @@ export class CreateTransactionDto {
   @Min(0)
   quantity: number;
 
-  @ApiProperty({ description: 'Total cost of the transaction' })
-  @IsNumber()
-  @Min(0)
-  totalCost: number;
+  @ApiPropertyOptional({ description: 'Notes about the transaction' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notes?: string;
 
   @ApiPropertyOptional({ description: 'Additional metadata for the transaction' })
   @IsOptional()
