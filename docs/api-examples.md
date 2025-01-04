@@ -137,6 +137,132 @@ Response (200 OK):
 
 > **Note**: The password must be at least 8 characters long and contain uppercase, lowercase, number and special character. After 5 failed login attempts, the account will be temporarily locked for 15 minutes.
 
+## Mobile OTP Authentication
+
+The system supports mobile number-based authentication using OTP (One-Time Password) for both farmers and buyers.
+
+### 1. Request OTP
+
+```http
+POST /auth/otp/request
+Content-Type: application/json
+
+Request:
+{
+  "phoneNumber": "+919876543210",
+  "userType": "FARMER",  // "FARMER" or "BUYER"
+  "name": "John Doe",    // Required for first-time users
+  "location": {          // Required for first-time users
+    "lat": 12.9716,
+    "lng": 77.5946
+  }
+}
+
+Response (200 OK):
+{
+  "requestId": "otp_req_123456789",
+  "expiresIn": 300,     // OTP validity in seconds (5 minutes)
+  "isNewUser": true,    // Indicates if this is a first-time user
+  "message": "OTP sent successfully"
+}
+```
+
+### 2. Verify OTP
+
+```http
+POST /auth/otp/verify
+Content-Type: application/json
+
+Request:
+{
+  "requestId": "otp_req_123456789",
+  "otp": "123456",
+  "userType": "FARMER",
+  // Additional fields required for first-time users
+  "name": "John Doe",
+  "location": {
+    "lat": 12.9716,
+    "lng": 77.5946
+  }
+}
+
+Response (200 OK):
+{
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "phoneNumber": "+919876543210",
+    "name": "John Doe",
+    "userType": "FARMER",
+    "location": {
+      "lat": 12.9716,
+      "lng": 77.5946
+    },
+    "isVerified": true,
+    "createdAt": "2024-01-20T12:00:00Z",
+    "updatedAt": "2024-01-20T12:00:00Z"
+  },
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+### Error Responses
+
+#### Invalid Phone Number (400 Bad Request)
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid phone number format",
+  "error": "Bad Request"
+}
+```
+
+#### Invalid OTP (401 Unauthorized)
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid or expired OTP",
+  "error": "Unauthorized"
+}
+```
+
+#### Too Many OTP Requests (429 Too Many Requests)
+```json
+{
+  "statusCode": 429,
+  "message": "Too many OTP requests. Please try again after 5 minutes",
+  "error": "Too Many Requests",
+  "retryAfter": 300
+}
+```
+
+### OTP Rules and Limitations
+
+1. **OTP Format**
+   - 6-digit numeric code
+   - Valid for 5 minutes
+   - Case-sensitive
+
+2. **Rate Limiting**
+   - Maximum 3 OTP requests per phone number in 15 minutes
+   - Maximum 5 invalid OTP attempts before temporary block
+   - 5-minute cooldown period after reaching rate limit
+
+3. **Security Measures**
+   - OTP is sent via SMS only
+   - Each OTP can only be used once
+   - Previous OTPs are invalidated when new one is requested
+   - Phone number is verified before account creation
+
+4. **First-time Users**
+   - Must provide name and location
+   - Account is created upon successful OTP verification
+   - Temporary profile is created which can be updated later
+
+5. **Existing Users**
+   - Only phone number required for OTP request
+   - Profile data is returned upon successful verification
+   - New JWT token is issued after successful login
+
 ## Farmers Service
 
 ### Create Farmer Profile
