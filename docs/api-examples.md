@@ -1674,3 +1674,177 @@ Response (200 OK):
 > - New rating received
 > - Quality grade updated
 > - Price updated
+
+# Advanced Filtering Examples
+
+## Produce Filtering
+
+The system supports advanced filtering for produce listings through the `GET /produce` endpoint. You can combine multiple filters to get precise results.
+
+### Basic Filters
+
+```http
+GET /produce?type=grain&minPrice=10&maxPrice=20
+```
+
+This will return all grain produce with prices between 10 and 20 (inclusive).
+
+### Quality Grade Filtering
+
+```http
+GET /produce?grade=A
+```
+
+Returns all produce with quality grade A.
+
+### Location-Based Search
+
+```http
+GET /produce?location=12.9716,77.5946&radius=10
+```
+
+Returns all produce within 10 kilometers of the specified coordinates (12.9716°N, 77.5946°E).
+The response includes a `distance` field for each item showing its distance from the specified point.
+
+### Complex Filtering
+
+You can combine multiple filters:
+
+```http
+GET /produce?type=grain&minPrice=10&maxPrice=20&grade=A&location=12.9716,77.5946&radius=10&sortBy=distance&sortOrder=asc
+```
+
+This query:
+- Filters for grain produce
+- Price range: 10-20
+- Quality grade: A
+- Location: Within 10km of coordinates
+- Sorts results by distance (ascending)
+
+### Search and Quantity Filters
+
+```http
+GET /produce?searchTerm=organic&minQuantity=100&maxQuantity=1000
+```
+
+Searches for "organic" in produce descriptions and farmer names, with quantity between 100 and 1000.
+
+### Farmer-Specific Produce
+
+```http
+GET /produce?farmerId=123&sortBy=date&sortOrder=desc
+```
+
+Returns all produce from a specific farmer, sorted by date (newest first).
+
+### Available Filter Parameters
+
+| Parameter    | Type     | Description                                    | Example Value        |
+|-------------|----------|------------------------------------------------|---------------------|
+| type        | enum     | Type of produce                                | grain, vegetable, fruit, pulse |
+| minPrice    | number   | Minimum price                                  | 10                  |
+| maxPrice    | number   | Maximum price                                  | 20                  |
+| grade       | enum     | Quality grade                                  | A, B, C             |
+| location    | string   | Coordinates in "lat,lng" format                | "12.9716,77.5946"   |
+| radius      | number   | Search radius in kilometers (max 100)          | 10                  |
+| farmerId    | string   | Filter by specific farmer                      | "uuid"              |
+| minQuantity | number   | Minimum quantity                               | 100                 |
+| maxQuantity | number   | Maximum quantity                               | 1000                |
+| searchTerm  | string   | Search in description and farmer name          | "organic"           |
+| sortBy      | string   | Field to sort by                              | price, date, quantity, distance |
+| sortOrder   | string   | Sort direction                                 | asc, desc           |
+
+### Response Format
+
+```typescript
+{
+  "items": [
+    {
+      "id": "uuid",
+      "type": "grain",
+      "price": 15.50,
+      "quantity": 500,
+      "description": "Organic wheat",
+      "latitude": 12.9716,
+      "longitude": 77.5946,
+      "distance": 5.2,  // Only present if location filter is used
+      "farmer": {
+        "id": "uuid",
+        "name": "John Doe"
+      },
+      "qualityAssessment": {
+        "grade": "A",
+        "metadata": {
+          "moisture": 12.5,
+          "purity": 98.5,
+          "damage": 0.5,
+          "foreignMatter": 0.2,
+          "notes": "Excellent quality"
+        }
+      },
+      "createdAt": "2024-01-20T10:00:00Z",
+      "updatedAt": "2024-01-20T10:00:00Z"
+    }
+  ],
+  "total": 100,
+  "hasMore": true
+}
+```
+
+### Error Responses
+
+#### Invalid Filter Values (400 Bad Request)
+```json
+{
+  "statusCode": 400,
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "minPrice",
+      "message": "minPrice must be a positive number"
+    }
+  ]
+}
+```
+
+#### Location Format Error (400 Bad Request)
+```json
+{
+  "statusCode": 400,
+  "message": "Validation failed",
+  "errors": [
+    {
+      "field": "location",
+      "message": "location must be in format 'latitude,longitude'"
+    }
+  ]
+}
+```
+
+### Best Practices
+
+1. **Performance Optimization**
+   - Use specific filters when possible to reduce result set
+   - Combine filters to get more precise results
+   - Use location-based search only when necessary as it's computationally intensive
+
+2. **Location Search**
+   - Always provide both location and radius when doing location-based search
+   - Keep radius reasonable (max 100km) for better performance
+   - Consider sorting by distance when using location search
+
+3. **Price and Quantity Ranges**
+   - Use both min and max values to create specific ranges
+   - Values must be positive numbers
+   - maxPrice/maxQuantity should be greater than minPrice/minQuantity
+
+4. **Text Search**
+   - searchTerm searches in both description and farmer name
+   - Case-insensitive search
+   - Partial matches are supported
+
+5. **Sorting**
+   - Distance sorting only works when location filter is applied
+   - Default sort is by createdAt in descending order (newest first)
+   - Combine sorting with filters for better organization of results
+```
