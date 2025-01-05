@@ -18,29 +18,76 @@ This document provides a detailed explanation of the business logic implemented 
 
 ## Authentication Service
 
+### OTP Request Logic
+1. Input validation:
+   - Mobile number format validation (E.164 format)
+   - Rate limiting checks
+   - Blacklist checks
+
+2. OTP generation:
+   - Generate secure 6-digit OTP
+   - Store OTP in Redis with 5-minute expiry
+   - Associate OTP with mobile number
+   - Track request count per mobile number
+
+3. SMS delivery:
+   - Send OTP via SMS gateway
+   - Handle SMS delivery failures
+   - Implement fallback providers
+
+### OTP Verification Logic
+1. Input validation:
+   - Mobile number format validation
+   - OTP format validation (6 digits)
+   - Attempt count tracking
+
+2. Verification process:
+   - Check OTP expiry
+   - Verify OTP against stored value
+   - Handle invalid attempts
+   - Delete used OTP
+
+3. User handling:
+   - Check if user exists
+   - Create new user if not exists
+   - Generate JWT token
+   - Update last login timestamp
+
 ### User Registration Logic
 1. Input validation:
-   - Email format validation
-   - Password strength check (8+ chars, uppercase, lowercase, number, special char)
-   - Phone number format validation
+   - Mobile number verification
    - Required fields check
+   - Role validation
 
-2. User creation process:
-   - Check for existing email
-   - Hash password using bcrypt
-   - Create user record
-   - Set initial verification status as PENDING
-   - Generate verification token
+2. User creation/update:
+   - Check for existing user
+   - Update user details
+   - Set user status
+   - Handle profile data
 
-3. Role assignment:
-   - Validate role selection (Farmer/Buyer)
-   - Prevent multiple roles if not allowed
-   - Set default permissions
+### Security Measures
+1. Rate Limiting:
+   - Max 5 OTP requests per number per day
+   - Max 3 verification attempts per OTP
+   - 1-minute cooldown between requests
 
-4. Security measures:
-   - Rate limiting on registration attempts
-   - IP-based spam prevention
-   - Email verification requirement
+2. OTP Security:
+   - 6-digit numeric OTP
+   - 5-minute expiry
+   - One-time use only
+   - Previous OTP invalidation
+
+3. Token Management:
+   - JWT token generation
+   - Token blacklisting
+   - Token expiry handling
+   - Role-based access control
+
+4. Mobile Number Verification:
+   - E.164 format validation
+   - SMS delivery confirmation
+   - Fallback SMS providers
+   - Error handling
 
 ### Login Logic
 1. Authentication flow:

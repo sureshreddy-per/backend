@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsObject, IsNumber, Min, Max } from 'class-validator';
+import { IsString, IsOptional, IsObject, IsNumber, Min, Max, IsEmail, IsPhoneNumber } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LocationDto {
@@ -16,23 +16,34 @@ export class LocationDto {
 }
 
 export class FarmDetailsDto {
-  @ApiProperty({ description: 'Size of the farm in acres' })
+  @ApiPropertyOptional({ description: 'Size of the farm in acres' })
+  @IsOptional()
   @IsString()
-  size: string;
+  size?: string;
 
-  @ApiProperty({ description: 'Types of crops grown' })
+  @ApiPropertyOptional({ description: 'Types of crops grown' })
+  @IsOptional()
   @IsString({ each: true })
-  crops: string[];
+  crops?: string[];
 }
 
 export class CreateFarmerDto {
+  @ApiProperty({ description: 'Farmer\'s user ID' })
+  @IsString()
+  userId: string;
+
   @ApiProperty({ description: 'Farmer\'s name' })
   @IsString()
   name: string;
 
-  @ApiProperty({ description: 'Farmer\'s description' })
-  @IsString()
-  description: string;
+  @ApiProperty({ description: 'Farmer\'s phone number' })
+  @IsPhoneNumber()
+  phoneNumber: string;
+
+  @ApiPropertyOptional({ description: 'Farmer\'s email' })
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
   @ApiPropertyOptional({ type: LocationDto })
   @IsOptional()

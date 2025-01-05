@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { OffersController } from './controllers/offers.controller';
-import { OffersService } from './services/offers.service';
 import { Offer } from './entities/offer.entity';
-import { OffersGateway } from './offers.gateway';
-import { AutoOfferManagerService } from './services/auto-offer-manager.service';
+import { OffersService } from './services/offers.service';
+import { OffersController } from './controllers/offers.controller';
+import { ProduceModule } from '../produce/produce.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Offer])],
+  imports: [
+    TypeOrmModule.forFeature([Offer]),
+    ProduceModule,
+  ],
   controllers: [OffersController],
-  providers: [OffersService, OffersGateway, AutoOfferManagerService],
-  exports: [OffersService]
+  providers: [OffersService],
+  exports: [OffersService],
 })
 export class OffersModule {} 

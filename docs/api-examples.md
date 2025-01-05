@@ -13,274 +13,146 @@
 10. [Support Service](#support-service)
 11. [Admin Service](#admin-service)
 12. [Notifications Service](#notifications-service)
+13. [File Upload Service](#file-upload-service)
 
 ## Auth Service
 
-### Register User
+### Check Mobile Number
+```http
+POST /auth/check-mobile
+Content-Type: application/json
+
+{
+  "mobileNumber": "+1234567890"
+}
+
+Response (200 OK):
+{
+  "isRegistered": false
+}
+```
+
+### Register New User (Only for new users)
 ```http
 POST /auth/register
 Content-Type: application/json
 
 {
-  "email": "john.doe@example.com",
-  "password": "StrongP@ss123",
   "name": "John Doe",
-  "phone": "+1234567890",
-  "isFarmer": true,
-  "isBuyer": false
+  "mobileNumber": "+1234567890",
+  "email": "john@example.com",
+  "roles": ["FARMER"]
 }
 
 Response (201 Created):
 {
-  "user": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "email": "john.doe@example.com",
-    "name": "John Doe",
-    "phone": "+1234567890",
-    "isFarmer": true,
-    "isBuyer": false,
-    "verificationStatus": "PENDING",
-    "isBlocked": false,
-    "createdAt": "2024-01-20T12:00:00Z",
-    "updatedAt": "2024-01-20T12:00:00Z"
-  },
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "requestId": "abc123xyz",
+  "message": "User registered successfully. OTP sent: 123456"
 }
 ```
 
-### Login
+### Request OTP (Login)
 ```http
-POST /auth/login
+POST /auth/otp/request
 Content-Type: application/json
 
 {
-  "email": "john.doe@example.com",
-  "password": "StrongP@ss123"
+  "mobileNumber": "+1234567890"
 }
 
 Response (200 OK):
 {
-  "user": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "email": "john.doe@example.com",
-    "name": "John Doe",
-    "phone": "+1234567890",
-    "isFarmer": true,
-    "isBuyer": false,
-    "verificationStatus": "VERIFIED",
-    "isBlocked": false,
-    "lastLoginAt": "2024-01-20T12:30:00Z",
-    "createdAt": "2024-01-20T12:00:00Z",
-    "updatedAt": "2024-01-20T12:30:00Z"
-  },
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  "requestId": "abc123xyz",
+  "message": "OTP sent successfully: 123456"
 }
 ```
 
-### Validate User
+### Verify OTP
+```http
+POST /auth/otp/verify
+Content-Type: application/json
+
+{
+  "mobileNumber": "+1234567890",
+  "otp": "123456"
+}
+
+Response (200 OK):
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "John Doe",
+    "mobileNumber": "+1234567890",
+    "email": "john@example.com",
+    "roles": ["FARMER"],
+    "status": "ACTIVE"
+  }
+}
+```
+
+### Logout
+```http
+POST /auth/logout
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "message": "Successfully logged out"
+}
+```
+
+### Delete Account
+```http
+DELETE /auth/account
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "message": "Account scheduled for deletion. Data will be permanently removed after 30 days."
+}
+```
+
+> **Note**: When an account is deleted:
+> 1. The account is immediately marked as deleted and user cannot login
+> 2. All data is kept for 30 days before permanent deletion
+> 3. User can register again with the same mobile number after deletion
+> 4. Existing authentication tokens are invalidated
+
+### Validate Token
 ```http
 GET /auth/validate
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "john.doe@example.com",
-  "name": "John Doe",
-  "phone": "+1234567890",
-  "isFarmer": true,
-  "isBuyer": false,
-  "verificationStatus": "VERIFIED",
-  "isBlocked": false,
-  "lastLoginAt": "2024-01-20T12:30:00Z",
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-### Block User
-```http
-POST /auth/block/:userId
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "reason": "Violation of terms of service"
-}
-
-Response (200 OK):
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "john.doe@example.com",
-  "name": "John Doe",
-  "isBlocked": true,
-  "blockReason": "Violation of terms of service",
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-### Unblock User
-```http
-POST /auth/unblock/:userId
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "john.doe@example.com",
-  "name": "John Doe",
-  "isBlocked": false,
-  "blockReason": null,
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-> **Note**: The password must be at least 8 characters long and contain uppercase, lowercase, number and special character. After 5 failed login attempts, the account will be temporarily locked for 15 minutes.
-
-## Mobile OTP Authentication
-
-The system supports mobile number-based authentication using OTP (One-Time Password) for both farmers and buyers.
-
-### 1. Request OTP
-
-```http
-POST /auth/otp/request
-Content-Type: application/json
-
-Request:
-{
-  "phoneNumber": "+919876543210",
-  "userType": "FARMER",  // "FARMER" or "BUYER"
-  "name": "John Doe",    // Required for first-time users
-  "location": {          // Required for first-time users
-    "lat": 12.9716,
-    "lng": 77.5946
-  }
-}
-
-Response (200 OK):
-{
-  "requestId": "otp_req_123456789",
-  "expiresIn": 300,     // OTP validity in seconds (5 minutes)
-  "isNewUser": true,    // Indicates if this is a first-time user
-  "message": "OTP sent successfully"
-}
-```
-
-### 2. Verify OTP
-
-```http
-POST /auth/otp/verify
-Content-Type: application/json
-
-Request:
-{
-  "requestId": "otp_req_123456789",
-  "otp": "123456",
-  "userType": "FARMER",
-  // Additional fields required for first-time users
-  "name": "John Doe",
-  "location": {
-    "lat": 12.9716,
-    "lng": 77.5946
-  }
-}
-
-Response (200 OK):
-{
+  "valid": true,
   "user": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
-    "phoneNumber": "+919876543210",
     "name": "John Doe",
-    "userType": "FARMER",
-    "location": {
-      "lat": 12.9716,
-      "lng": 77.5946
-    },
-    "isVerified": true,
-    "createdAt": "2024-01-20T12:00:00Z",
-    "updatedAt": "2024-01-20T12:00:00Z"
-  },
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    "mobileNumber": "+1234567890",
+    "roles": ["FARMER"],
+    "status": "ACTIVE"
+  }
 }
 ```
-
-### Error Responses
-
-#### Invalid Phone Number (400 Bad Request)
-```json
-{
-  "statusCode": 400,
-  "message": "Invalid phone number format",
-  "error": "Bad Request"
-}
-```
-
-#### Invalid OTP (401 Unauthorized)
-```json
-{
-  "statusCode": 401,
-  "message": "Invalid or expired OTP",
-  "error": "Unauthorized"
-}
-```
-
-#### Too Many OTP Requests (429 Too Many Requests)
-```json
-{
-  "statusCode": 429,
-  "message": "Too many OTP requests. Please try again after 5 minutes",
-  "error": "Too Many Requests",
-  "retryAfter": 300
-}
-```
-
-### OTP Rules and Limitations
-
-1. **OTP Format**
-   - 6-digit numeric code
-   - Valid for 5 minutes
-   - Case-sensitive
-
-2. **Rate Limiting**
-   - Maximum 3 OTP requests per phone number in 15 minutes
-   - Maximum 5 invalid OTP attempts before temporary block
-   - 5-minute cooldown period after reaching rate limit
-
-3. **Security Measures**
-   - OTP is sent via SMS only
-   - Each OTP can only be used once
-   - Previous OTPs are invalidated when new one is requested
-   - Phone number is verified before account creation
-
-4. **First-time Users**
-   - Must provide name and location
-   - Account is created upon successful OTP verification
-   - Temporary profile is created which can be updated later
-
-5. **Existing Users**
-   - Only phone number required for OTP request
-   - Profile data is returned upon successful verification
-   - New JWT token is issued after successful login
 
 ## Farmers Service
 
-### Create Farmer Profile
+### Create/Update Farmer Profile
 ```http
 POST /farmers
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "name": "John Doe",
-  "phone": "+1234567890",
   "location": {
     "lat": 12.9716,
     "lng": 77.5946
   },
   "farmDetails": {
-    "size": "50 acres",
-    "crops": ["tomatoes", "potatoes", "onions"]
+    "size": "50",
+    "sizeUnit": "acres"
   }
 }
 
@@ -288,70 +160,40 @@ Response (201 Created):
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "John Doe",
-  "phone": "+1234567890",
+  "phoneNumber": "+1234567890",
+  "email": "john@example.com",
   "location": {
     "lat": 12.9716,
     "lng": 77.5946
   },
-  "farmDetails": {
-    "size": "50 acres",
-    "crops": ["tomatoes", "potatoes", "onions"]
-  },
+  "farmSize": 50,
+  "farmSizeUnit": "acres",
   "rating": 0,
   "totalRatings": 0,
   "isActive": true,
+  "produceCount": 0,
   "createdAt": "2024-01-20T12:00:00Z",
   "updatedAt": "2024-01-20T12:00:00Z"
 }
 ```
 
-### Get All Farmers
-```http
-GET /farmers
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "John Doe",
-      "location": {
-        "lat": 12.9716,
-        "lng": 77.5946
-      },
-      "rating": 4.5,
-      "produceCount": 5,
-      "produce": [
-        {
-          "id": "770e8400-e29b-41d4-a716-446655440000",
-          "type": "TOMATOES",
-          "status": "AVAILABLE"
-        }
-      ]
-    }
-  ]
-}
-```
-
 ### Get Farmer Profile
 ```http
-GET /farmers/:id
+GET /farmers/profile
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "name": "John Doe",
-  "phone": "+1234567890",
+  "phoneNumber": "+1234567890",
+  "email": "john@example.com",
   "location": {
     "lat": 12.9716,
     "lng": 77.5946
   },
-  "farmDetails": {
-    "size": "50 acres",
-    "crops": ["tomatoes", "potatoes", "onions"]
-  },
+  "farmSize": 50,
+  "farmSizeUnit": "acres",
   "rating": 4.5,
   "totalRatings": 10,
   "isActive": true,
@@ -359,7 +201,7 @@ Response (200 OK):
   "produce": [
     {
       "id": "770e8400-e29b-41d4-a716-446655440000",
-      "type": "TOMATOES",
+      "name": "Tomatoes",
       "status": "AVAILABLE"
     }
   ],
@@ -368,35 +210,9 @@ Response (200 OK):
 }
 ```
 
-### Update Farmer Profile
-```http
-PATCH /farmers/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "phone": "+1234567891",
-  "farmDetails": {
-    "size": "60 acres",
-    "crops": ["tomatoes", "potatoes", "onions", "carrots"]
-  }
-}
-
-Response (200 OK):
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "phone": "+1234567891",
-  "farmDetails": {
-    "size": "60 acres",
-    "crops": ["tomatoes", "potatoes", "onions", "carrots"]
-  },
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
 ### Get Farmer's Produce History
 ```http
-GET /farmers/:id/produce-history?startDate=2024-01-01&endDate=2024-01-31
+GET /farmers/profile/produce-history?startDate=2024-01-01&endDate=2024-01-31
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
@@ -423,161 +239,26 @@ Response (200 OK):
 }
 ```
 
-## Buyers Service
-
-### Create Buyer Profile
+### Find Nearby Farmers
 ```http
-POST /buyers
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "name": "Jane Smith",
-  "phone": "+1234567891",
-  "location": {
-    "lat": 12.9716,
-    "lng": 77.5946
-  },
-  "businessDetails": {
-    "type": "Wholesale",
-    "license": "LIC123456"
-  }
-}
-
-Response (201 Created):
-{
-  "id": "660e8400-e29b-41d4-a716-446655440000",
-  "name": "Jane Smith",
-  "phone": "+1234567891",
-  "location": {
-    "lat": 12.9716,
-    "lng": 77.5946
-  },
-  "businessDetails": {
-    "type": "Wholesale",
-    "license": "LIC123456"
-  },
-  "createdAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Get All Buyers
-```http
-GET /buyers?page=1&limit=10
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+GET /farmers/nearby?lat=12.9716&lng=77.5946&radius=10
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
   "data": [
     {
-      "id": "660e8400-e29b-41d4-a716-446655440000",
-      "name": "Jane Smith",
-      "location": {
-        "lat": 12.9716,
-        "lng": 77.5946
-      },
-      "rating": 4.8
-    }
-  ],
-  "meta": {
-    "total": 50,
-    "page": 1,
-    "limit": 10,
-    "hasNext": true
-  }
-}
-```
-
-### Find Nearby Buyers
-```http
-GET /buyers/nearby?lat=12.9716&lng=77.5946&radius=10
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "data": [
-    {
-      "id": "660e8400-e29b-41d4-a716-446655440000",
-      "name": "Jane Smith",
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "John Doe",
       "location": {
         "lat": 12.9716,
         "lng": 77.5946
       },
       "distance": 2.5,
-      "rating": 4.8
-    }
-  ],
-  "meta": {
-    "total": 5,
-    "radius": 10
-  }
-}
-```
-
-### Set Daily Price for Quality Grade
-```http
-POST /buyers/:buyerId/prices
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "qualityGrade": "A",
-  "pricePerUnit": 25.50,
-  "effectiveDate": "2024-02-01"
-}
-
-Response (201 Created):
-{
-  "id": "660e8400-e29b-41d4-a716-446655440001",
-  "qualityGrade": "A",
-  "pricePerUnit": 25.50,
-  "effectiveDate": "2024-02-01",
-  "isActive": true,
-  "createdAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Get Buyer's Active Prices
-```http
-GET /buyers/:buyerId/prices
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "data": [
-    {
-      "id": "660e8400-e29b-41d4-a716-446655440001",
-      "qualityGrade": "A",
-      "pricePerUnit": 25.50,
-      "effectiveDate": "2024-02-01",
-      "isActive": true,
-      "createdAt": "2024-01-20T12:00:00Z"
-    },
-    {
-      "id": "660e8400-e29b-41d4-a716-446655440002",
-      "qualityGrade": "B",
-      "pricePerUnit": 20.00,
-      "effectiveDate": "2024-02-01",
-      "isActive": true,
-      "createdAt": "2024-01-20T12:00:00Z"
+      "rating": 4.5,
+      "produceCount": 5
     }
   ]
-}
-```
-
-### Get Current Price for Specific Grade
-```http
-GET /buyers/:buyerId/prices/:grade?date=2024-02-01
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "660e8400-e29b-41d4-a716-446655440001",
-  "qualityGrade": "A",
-  "pricePerUnit": 25.50,
-  "effectiveDate": "2024-02-01",
-  "isActive": true,
-  "createdAt": "2024-01-20T12:00:00Z"
 }
 ```
 
@@ -590,33 +271,39 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "farmerId": "550e8400-e29b-41d4-a716-446655440000",
-  "type": "TOMATOES",
+  "name": "Fresh Tomatoes",
+  "description": "Fresh, ripe tomatoes harvested from organic farm",
   "quantity": 500,
+  "unit": "kg",
   "price": 25.50,
+  "pricePerUnit": 25.50,
+  "currency": "USD",
   "location": {
-    "lat": 12.9716,
-    "lng": 77.5946
-  },
-  "harvestDate": "2024-01-15",
-  "description": "Fresh, ripe tomatoes harvested from organic farm"
+    "latitude": 12.9716,
+    "longitude": 77.5946
+  }
 }
 
 Response (201 Created):
 {
   "id": "770e8400-e29b-41d4-a716-446655440000",
-  "farmerId": "550e8400-e29b-41d4-a716-446655440000",
-  "type": "TOMATOES",
+  "name": "Fresh Tomatoes",
+  "description": "Fresh, ripe tomatoes harvested from organic farm",
   "quantity": 500,
+  "unit": "kg",
   "price": 25.50,
+  "pricePerUnit": 25.50,
+  "currency": "USD",
+  "status": "AVAILABLE",
   "location": {
     "lat": 12.9716,
     "lng": 77.5946
   },
-  "harvestDate": "2024-01-15",
-  "description": "Fresh, ripe tomatoes harvested from organic farm",
-  "status": "PENDING",
-  "qualityGrade": "PENDING",
+  "qualityGrade": null,
+  "farmer": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "John Doe"
+  },
   "createdAt": "2024-01-20T12:00:00Z",
   "updatedAt": "2024-01-20T12:00:00Z"
 }
@@ -624,7 +311,7 @@ Response (201 Created):
 
 ### Get All Produce
 ```http
-GET /produce?page=1&limit=10
+GET /produce?page=1&limit=10&type=vegetable&minPrice=10&maxPrice=50&lat=12.9716&lng=77.5946&radius=10
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
@@ -632,16 +319,18 @@ Response (200 OK):
   "items": [
     {
       "id": "770e8400-e29b-41d4-a716-446655440000",
-      "type": "TOMATOES",
+      "name": "Fresh Tomatoes",
+      "description": "Fresh, ripe tomatoes harvested from organic farm",
       "quantity": 500,
+      "unit": "kg",
       "price": 25.50,
+      "pricePerUnit": 25.50,
+      "currency": "USD",
+      "status": "AVAILABLE",
       "location": {
         "lat": 12.9716,
         "lng": 77.5946
       },
-      "harvestDate": "2024-01-15",
-      "description": "Fresh, ripe tomatoes harvested from organic farm",
-      "status": "AVAILABLE",
       "qualityGrade": "A",
       "farmer": {
         "id": "550e8400-e29b-41d4-a716-446655440000",
@@ -652,16 +341,38 @@ Response (200 OK):
       "updatedAt": "2024-01-20T12:30:00Z"
     }
   ],
-  "meta": {
-    "total": 100,
-    "page": 1,
-    "limit": 10,
-    "hasNext": true
-  }
+  "total": 100,
+  "hasMore": true
 }
 ```
 
-### Get Produce Details
+### Find Nearby Produce
+```http
+GET /produce/nearby?latitude=12.9716&longitude=77.5946&radiusInKm=10&limit=20
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "items": [
+    {
+      "id": "770e8400-e29b-41d4-a716-446655440000",
+      "name": "Fresh Tomatoes",
+      "distance": 2.5, // Distance in kilometers
+      "price": 25.50,
+      "pricePerUnit": 25.50,
+      "currency": "USD",
+      "status": "AVAILABLE",
+      "farmer": {
+        "id": "550e8400-e29b-41d4-a716-446655440000",
+        "name": "John Doe",
+        "rating": 4.5
+      }
+    }
+  ]
+}
+```
+
+### Get Produce by ID
 ```http
 GET /produce/:id
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
@@ -669,46 +380,86 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Response (200 OK):
 {
   "id": "770e8400-e29b-41d4-a716-446655440000",
-  "type": "TOMATOES",
+  "name": "Fresh Tomatoes",
+  "description": "Fresh, ripe tomatoes harvested from organic farm",
   "quantity": 500,
+  "unit": "kg",
   "price": 25.50,
+  "pricePerUnit": 25.50,
+  "currency": "USD",
+  "status": "AVAILABLE",
   "location": {
     "lat": 12.9716,
     "lng": 77.5946
   },
-  "harvestDate": "2024-01-15",
-  "description": "Fresh, ripe tomatoes harvested from organic farm",
-  "status": "AVAILABLE",
   "qualityGrade": "A",
   "farmer": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "name": "John Doe",
-    "rating": 4.5,
-    "phone": "+1234567890"
+    "rating": 4.5
+  },
+  "qualityAssessment": {
+    "id": "990e8400-e29b-41d4-a716-446655440000",
+    "grade": "A",
+    "notes": "Excellent quality produce"
   },
   "createdAt": "2024-01-20T12:00:00Z",
   "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
 
+### Get My Produce Listings
+```http
+GET /produce/my-listings
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
+
+Response (200 OK):
+{
+  "items": [
+    {
+      "id": "770e8400-e29b-41d4-a716-446655440000",
+      "name": "Fresh Tomatoes",
+      "description": "Fresh, ripe tomatoes harvested from organic farm",
+      "quantity": 500,
+      "unit": "kg",
+      "price": 25.50,
+      "pricePerUnit": 25.50,
+      "currency": "USD",
+      "status": "AVAILABLE",
+      "location": {
+        "lat": 12.9716,
+        "lng": 77.5946
+      },
+      "qualityGrade": "A",
+      "createdAt": "2024-01-20T12:00:00Z",
+      "updatedAt": "2024-01-20T12:30:00Z"
+    }
+  ]
+}
+```
+
 ### Update Produce
 ```http
-PATCH /produce/:id
+PUT /produce/:id
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
   "price": 27.50,
+  "pricePerUnit": 27.50,
   "quantity": 450,
-  "description": "Updated description for fresh tomatoes"
+  "description": "Updated description for fresh tomatoes",
+  "status": "IN_PROGRESS"
 }
 
 Response (200 OK):
 {
   "id": "770e8400-e29b-41d4-a716-446655440000",
   "price": 27.50,
+  "pricePerUnit": 27.50,
   "quantity": 450,
   "description": "Updated description for fresh tomatoes",
+  "status": "IN_PROGRESS",
   "updatedAt": "2024-01-20T12:30:00Z"
 }
 ```
@@ -718,42 +469,18 @@ Response (200 OK):
 DELETE /produce/:id
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
-Response (204 No Content)
-```
-
-### Find Nearby Produce
-```http
-GET /produce/nearby?lat=12.9716&lng=77.5946&radius=10
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
 Response (200 OK):
 {
-  "items": [
-    {
-      "id": "770e8400-e29b-41d4-a716-446655440000",
-      "type": "TOMATOES",
-      "quantity": 500,
-      "price": 25.50,
-      "location": {
-        "lat": 12.9720,
-        "lng": 77.5950
-      },
-      "status": "AVAILABLE",
-      "qualityGrade": "A",
-      "farmer": {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "name": "John Doe",
-        "rating": 4.5
-      },
-      "distance": 0.5
-    }
-  ]
+  "id": "770e8400-e29b-41d4-a716-446655440000"
 }
 ```
 
+> **Note**: Only farmers can create, update, and delete their own produce listings.
+> The produce status can be one of: AVAILABLE, IN_PROGRESS, SOLD, CANCELLED
+
 ## Offers Service
 
-### Create Offer
+### Create Manual Offer
 ```http
 POST /offers
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
@@ -761,7 +488,7 @@ Content-Type: application/json
 
 {
   "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "quotedPrice": 23.50,
+  "pricePerUnit": 23.50,
   "quantity": 500,
   "qualityGrade": "A",
   "message": "Interested in buying half the quantity"
@@ -786,142 +513,77 @@ Response (201 Created):
 }
 ```
 
-### Auto-Generated Offers
-
-The system automatically generates offers in two scenarios:
-
-1. When a produce's quality grade is finalized
-2. When a buyer sets new daily prices
-
-#### Quality Grade Finalization Event
-
-When a produce's quality grade is finalized, the system automatically generates offers for nearby buyers who have matching daily prices for that quality grade.
-
+### Get Auto-Generated Offers for Produce
 ```http
-Event: quality.grade.finalized
-Payload:
-{
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "grade": "A"
-}
-
-Result: System automatically creates offers for matching buyers within 100km radius
-```
-
-#### Buyer Price Creation Event
-
-When a buyer sets new daily prices, the system automatically generates offers for matching produce within their specified radius.
-
-```http
-Event: buyer.price.created
-Payload:
-{
-  "buyerId": "660e8400-e29b-41d4-a716-446655440000",
-  "price": {
-    "qualityGrade": "A",
-    "pricePerUnit": 25.50,
-    "effectiveDate": "2024-02-01"
-  }
-}
-
-Result: System automatically creates offers for matching produce within 100km radius
-```
-
-#### Auto-Generated Offer Rules
-
-The system follows these rules for auto-generated offers:
-
-- Maximum of 5 active offers per produce
-- Offers expire after 24 hours by default
-- 15-minute grace period for price adjustments
-- Maximum of 3 simultaneous offers per buyer-produce pair
-- Prioritization based on: buyer rating, distance, and historical transactions
-
-#### Override Auto-Generated Offer
-
-```http
-PUT /offers/:id/override
+GET /offers/auto/produce/:produceId
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "pricePerUnit": 24.50,
-  "quantity": 450,
-  "message": "Adjusting offer based on market conditions"
-}
 
 Response (200 OK):
 {
-  "id": "880e8400-e29b-41d4-a716-446655440000",
-  "pricePerUnit": 24.50,
-  "quantity": 450,
-  "metadata": {
-    "qualityGrade": "A",
-    "autoGeneratedAt": "2024-01-20T12:00:00Z",
-    "priceHistory": [
-      {
-        "oldPrice": 23.50,
-        "newPrice": 24.50,
-        "timestamp": "2024-01-20T12:30:00Z",
-        "reason": "Manual override"
+  "offers": [
+    {
+      "id": "880e8400-e29b-41d4-a716-446655440000",
+      "buyerId": "660e8400-e29b-41d4-a716-446655440000",
+      "pricePerUnit": 25.50,
+      "quantity": 500,
+      "status": "PENDING",
+      "metadata": {
+        "qualityGrade": "A",
+        "autoGeneratedAt": "2024-01-20T12:00:00Z",
+        "priceHistory": [],
+        "lastPriceUpdate": {
+          "oldPrice": 0,
+          "newPrice": 25.50,
+          "timestamp": "2024-01-20T12:00:00Z"
+        }
       }
-    ],
-    "lastPriceUpdate": {
-      "oldPrice": 23.50,
-      "newPrice": 24.50,
-      "timestamp": "2024-01-20T12:30:00Z",
-      "reason": "Manual override"
     }
-  },
-  "message": "Adjusting offer based on market conditions",
-  "updatedAt": "2024-01-20T12:30:00Z"
+  ]
 }
 ```
 
-### Update Offer Price
+### Get Auto-Generated Offers for Buyer
 ```http
-PUT /offers/:id/price
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "newPrice": 24.50,
-  "overrideReason": "Market price adjustment"
-}
+GET /offers/auto/buyer
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
 {
-  "id": "880e8400-e29b-41d4-a716-446655440000",
-  "pricePerUnit": 24.50,
-  "metadata": {
-    "priceHistory": [
-      {
-        "oldPrice": 23.50,
-        "newPrice": 24.50,
-        "timestamp": "2024-01-20T12:30:00Z",
-        "reason": "Market price adjustment"
+  "offers": [
+    {
+      "id": "880e8400-e29b-41d4-a716-446655440000",
+      "produceId": "770e8400-e29b-41d4-a716-446655440000",
+      "pricePerUnit": 25.50,
+      "quantity": 500,
+      "status": "PENDING",
+      "metadata": {
+        "qualityGrade": "A",
+        "autoGeneratedAt": "2024-01-20T12:00:00Z",
+        "priceHistory": [],
+        "lastPriceUpdate": {
+          "oldPrice": 0,
+          "newPrice": 25.50,
+          "timestamp": "2024-01-20T12:00:00Z"
+        }
+      },
+      "produce": {
+        "id": "770e8400-e29b-41d4-a716-446655440000",
+        "name": "Fresh Tomatoes",
+        "farmer": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "name": "John Doe",
+          "rating": 4.5
+        }
       }
-    ],
-    "lastPriceUpdate": {
-      "oldPrice": 23.50,
-      "newPrice": 24.50,
-      "timestamp": "2024-01-20T12:30:00Z",
-      "reason": "Market price adjustment"
     }
-  },
-  "updatedAt": "2024-01-20T12:30:00Z"
+  ]
 }
 ```
 
-### Accept Offer
+### Accept Offer (Farmer Only)
 ```http
 POST /offers/:id/accept
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "farmerId": "550e8400-e29b-41d4-a716-446655440000"
-}
 
 Response (200 OK):
 {
@@ -932,14 +594,13 @@ Response (200 OK):
 }
 ```
 
-### Reject Offer
+### Reject Offer (Farmer Only)
 ```http
 POST /offers/:id/reject
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "farmerId": "550e8400-e29b-41d4-a716-446655440000",
   "reason": "Price too low"
 }
 
@@ -953,14 +614,13 @@ Response (200 OK):
 }
 ```
 
-### Cancel Offer
+### Cancel Offer (Buyer Only)
 ```http
 POST /offers/:id/cancel
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 Content-Type: application/json
 
 {
-  "buyerId": "660e8400-e29b-41d4-a716-446655440000",
   "reason": "Found better price elsewhere"
 }
 
@@ -974,9 +634,9 @@ Response (200 OK):
 }
 ```
 
-### Get Buyer's Offers
+### Get My Offers
 ```http
-GET /offers/buyer/:buyerId?page=1&limit=10
+GET /offers/my-offers?status=PENDING
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
 
 Response (200 OK):
@@ -988,989 +648,123 @@ Response (200 OK):
       "pricePerUnit": 23.50,
       "quantity": 500,
       "status": "PENDING",
+      "metadata": {
+        "qualityGrade": "A",
+        "autoGeneratedAt": null,
+        "priceHistory": []
+      },
       "produce": {
-        "id": "770e8400-e29b-41d4-a716-446655440000",
-        "type": "TOMATOES",
+        "name": "Fresh Tomatoes",
         "farmer": {
-          "id": "550e8400-e29b-41d4-a716-446655440000",
-          "name": "John Doe"
+          "name": "John Doe",
+          "rating": 4.5
         }
       },
       "createdAt": "2024-01-20T12:00:00Z"
     }
   ],
-  "meta": {
-    "total": 25,
-    "page": 1,
-    "limit": 10,
-    "totalPages": 3,
-    "hasNext": true,
-    "hasPrevious": false
-  }
+  "total": 5,
+  "hasMore": false
 }
 ```
 
-## Transactions Service
+> **Note**: 
+> 1. Offers can be created manually by buyers or auto-generated by the system
+> 2. Auto-generated offers are created for nearby buyers when new produce is listed
+> 3. Auto-generated offers are created for buyers based on their location and preferences
+> 4. Offer status can be: PENDING, ACCEPTED, REJECTED, CANCELLED
+> 5. Only farmers can accept/reject offers for their produce
+> 6. Only buyers can cancel their own offers
 
-### Create Transaction
-```http
-POST /transactions
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
+# Error Responses
 
+## Authentication Errors
+
+### Unauthorized (401)
+```json
 {
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "quantity": 100,
-  "notes": "Urgent delivery needed"
-}
-
-Response (201 Created):
-{
-  "id": "990e8400-e29b-41d4-a716-446655440000",
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "buyerId": "660e8400-e29b-41d4-a716-446655440000",
-  "quantity": 100,
-  "status": "PENDING",
-  "metadata": {
-    "priceAtTransaction": 25.50,
-    "qualityGrade": "A",
-    "notes": "Urgent delivery needed"
-  },
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z",
-  "produce": {
-    "id": "770e8400-e29b-41d4-a716-446655440000",
-    "type": "TOMATOES",
-    "quantity": 500,
-    "price": 25.50,
-    "farmer": {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "John Doe"
-    }
-  }
+  "statusCode": 401,
+  "message": "Unauthorized access",
+  "error": "Unauthorized"
 }
 ```
 
-### Get All Transactions
-```http
-GET /transactions?page=1&limit=10
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
+### Forbidden (403)
+```json
 {
-  "items": [
-    {
-      "id": "990e8400-e29b-41d4-a716-446655440000",
-      "quantity": 100,
-      "status": "PENDING",
-      "metadata": {
-        "priceAtTransaction": 25.50,
-        "qualityGrade": "A",
-        "notes": "Urgent delivery needed"
-      },
-      "createdAt": "2024-01-20T12:00:00Z",
-      "produce": {
-        "id": "770e8400-e29b-41d4-a716-446655440000",
-        "type": "TOMATOES",
-        "farmer": {
-          "id": "550e8400-e29b-41d4-a716-446655440000",
-          "name": "John Doe"
-        }
-      }
-    }
-  ],
-  "meta": {
-    "total": 100,
-    "page": 1,
-    "limit": 10,
-    "totalPages": 10,
-    "hasNext": true,
-    "hasPrevious": false
-  }
+  "statusCode": 403,
+  "message": "Insufficient permissions",
+  "error": "Forbidden"
 }
 ```
 
-### Get Transaction Details
-```http
-GET /transactions/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
+### Token Expired (401)
+```json
 {
-  "id": "990e8400-e29b-41d4-a716-446655440000",
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "buyerId": "660e8400-e29b-41d4-a716-446655440000",
-  "quantity": 100,
-  "status": "PENDING",
-  "metadata": {
-    "priceAtTransaction": 25.50,
-    "qualityGrade": "A",
-    "notes": "Urgent delivery needed"
-  },
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z",
-  "buyer": {
-    "id": "660e8400-e29b-41d4-a716-446655440000",
-    "name": "Jane Smith"
-  },
-  "produce": {
-    "id": "770e8400-e29b-41d4-a716-446655440000",
-    "type": "TOMATOES",
-    "quantity": 500,
-    "price": 25.50,
-    "farmer": {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "John Doe"
-    }
-  }
+  "statusCode": 401,
+  "message": "Token has expired",
+  "error": "Unauthorized"
 }
 ```
 
-### Update Transaction
-```http
-PATCH /transactions/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
+## Validation Errors
 
-{
-  "quantity": 150,
-  "notes": "Updated delivery instructions"
-}
-
-Response (200 OK):
-{
-  "id": "990e8400-e29b-41d4-a716-446655440000",
-  "quantity": 150,
-  "metadata": {
-    "priceAtTransaction": 25.50,
-    "qualityGrade": "A",
-    "notes": "Updated delivery instructions"
-  },
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-### Cancel Transaction
-```http
-POST /transactions/:id/cancel
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "reason": "Changed delivery requirements"
-}
-
-Response (200 OK):
-{
-  "id": "990e8400-e29b-41d4-a716-446655440000",
-  "status": "CANCELLED",
-  "cancellationReason": "Changed delivery requirements",
-  "cancelledAt": "2024-01-20T12:30:00Z",
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-### Complete Transaction
-```http
-POST /transactions/:id/complete
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "990e8400-e29b-41d4-a716-446655440000",
-  "status": "COMPLETED",
-  "completedAt": "2024-01-20T12:30:00Z",
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-### Get Buyer's Transactions
-```http
-GET /transactions/buyer/:buyerId?page=1&limit=10
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "items": [
-    {
-      "id": "990e8400-e29b-41d4-a716-446655440000",
-      "quantity": 100,
-      "status": "PENDING",
-      "metadata": {
-        "priceAtTransaction": 25.50,
-        "qualityGrade": "A",
-        "notes": "Urgent delivery needed"
-      },
-      "createdAt": "2024-01-20T12:00:00Z",
-      "produce": {
-        "id": "770e8400-e29b-41d4-a716-446655440000",
-        "type": "TOMATOES",
-        "farmer": {
-          "id": "550e8400-e29b-41d4-a716-446655440000",
-          "name": "John Doe"
-        }
-      }
-    }
-  ],
-  "meta": {
-    "total": 50,
-    "page": 1,
-    "limit": 10,
-    "totalPages": 5,
-    "hasNext": true,
-    "hasPrevious": false
-  }
-}
-```
-
-## Quality Service
-
-### Create Quality Assessment
-```http
-POST /quality
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "criteria": {
-    "appearance": 2,
-    "size": 1,
-    "freshness": 2,
-    "damage": 1
-  },
-  "notes": "Good quality produce with minor blemishes"
-}
-
-Response (201 Created):
-{
-  "id": "aa0e8400-e29b-41d4-a716-446655440000",
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "criteria": {
-    "appearance": 2,
-    "size": 1,
-    "freshness": 2,
-    "damage": 1
-  },
-  "grade": "A",
-  "notes": "Good quality produce with minor blemishes",
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Get All Quality Assessments
-```http
-GET /quality
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "items": [
-    {
-      "id": "aa0e8400-e29b-41d4-a716-446655440000",
-      "criteria": {
-        "appearance": 2,
-        "size": 1,
-        "freshness": 2,
-        "damage": 1
-      },
-      "grade": "A",
-      "notes": "Good quality produce with minor blemishes",
-      "createdAt": "2024-01-20T12:00:00Z",
-      "produce": {
-        "id": "770e8400-e29b-41d4-a716-446655440000",
-        "type": "TOMATOES",
-        "farmer": {
-          "id": "550e8400-e29b-41d4-a716-446655440000",
-          "name": "John Doe"
-        }
-      }
-    }
-  ],
-  "meta": {
-    "total": 1
-  }
-}
-```
-
-### Get Quality Assessment Details
-```http
-GET /quality/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "aa0e8400-e29b-41d4-a716-446655440000",
-  "criteria": {
-    "appearance": 2,
-    "size": 1,
-    "freshness": 2,
-    "damage": 1
-  },
-  "grade": "A",
-  "notes": "Good quality produce with minor blemishes",
-  "metadata": {
-    "finalPrice": 25.50,
-    "priceMultiplier": 1.0,
-    "finalizedAt": "2024-01-20T12:30:00Z"
-  },
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:30:00Z",
-  "produce": {
-    "id": "770e8400-e29b-41d4-a716-446655440000",
-    "type": "TOMATOES",
-    "farmer": {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "John Doe"
-    }
-  }
-}
-```
-
-### Finalize Quality Assessment
-```http
-POST /quality/:id/finalize
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "finalPrice": 25.50
-}
-
-Response (200 OK):
-{
-  "id": "aa0e8400-e29b-41d4-a716-446655440000",
-  "grade": "A",
-  "metadata": {
-    "finalPrice": 25.50,
-    "priceMultiplier": 1.0,
-    "finalizedAt": "2024-01-20T12:30:00Z"
-  },
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-## Inspection Service
-
-### Schedule Inspection
-```http
-POST /inspections
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "preferredDate": "2024-01-25",
-  "preferredTime": "10:00",
-  "notes": "Please inspect for export quality certification"
-}
-
-Response (201 Created):
-{
-  "id": "cc0e8400-e29b-41d4-a716-446655440000",
-  "produceId": "770e8400-e29b-41d4-a716-446655440000",
-  "scheduledDate": "2024-01-25",
-  "scheduledTime": "10:00",
-  "status": "SCHEDULED",
-  "notes": "Please inspect for export quality certification",
-  "createdAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Get Inspection Details
-```http
-GET /inspections/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "cc0e8400-e29b-41d4-a716-446655440000",
-  "produce": {
-    "id": "770e8400-e29b-41d4-a716-446655440000",
-    "type": "TOMATOES",
-    "farmer": {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "John Doe"
-    }
-  },
-  "inspector": {
-    "id": "dd0e8400-e29b-41d4-a716-446655440000",
-    "name": "Inspector 1"
-  },
-  "scheduledDate": "2024-01-25",
-  "scheduledTime": "10:00",
-  "status": "COMPLETED",
-  "report": {
-    "findings": "Meets export quality standards",
-    "recommendations": "Ready for export",
-    "certificationIssued": true
-  },
-  "createdAt": "2024-01-20T12:00:00Z",
-  "completedAt": "2024-01-25T10:30:00Z"
-}
-```
-
-## Ratings Service
-
-### Create Rating
-```http
-POST /ratings
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "offerId": "880e8400-e29b-41d4-a716-446655440000",
-  "rating": 4.5,
-  "comment": "Great quality produce and excellent service"
-}
-
-Response (201 Created):
-{
-  "id": "cc0e8400-e29b-41d4-a716-446655440000",
-  "offerId": "880e8400-e29b-41d4-a716-446655440000",
-  "rating": 4.5,
-  "comment": "Great quality produce and excellent service",
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Get All Ratings
-```http
-GET /ratings
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "items": [
-    {
-      "id": "cc0e8400-e29b-41d4-a716-446655440000",
-      "rating": 4.5,
-      "comment": "Great quality produce and excellent service",
-      "createdAt": "2024-01-20T12:00:00Z",
-      "offer": {
-        "id": "880e8400-e29b-41d4-a716-446655440000",
-        "status": "COMPLETED",
-        "buyer": {
-          "id": "660e8400-e29b-41d4-a716-446655440000",
-          "name": "Jane Smith"
-        },
-        "produce": {
-          "id": "770e8400-e29b-41d4-a716-446655440000",
-          "type": "TOMATOES",
-          "farmer": {
-            "id": "550e8400-e29b-41d4-a716-446655440000",
-            "name": "John Doe"
-          }
-        }
-      }
-    }
-  ]
-}
-```
-
-### Get Rating Details
-```http
-GET /ratings/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "cc0e8400-e29b-41d4-a716-446655440000",
-  "rating": 4.5,
-  "comment": "Great quality produce and excellent service",
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z",
-  "offer": {
-    "id": "880e8400-e29b-41d4-a716-446655440000",
-    "status": "COMPLETED",
-    "buyer": {
-      "id": "660e8400-e29b-41d4-a716-446655440000",
-      "name": "Jane Smith"
-    },
-    "produce": {
-      "id": "770e8400-e29b-41d4-a716-446655440000",
-      "type": "TOMATOES",
-      "farmer": {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "name": "John Doe"
-      }
-    }
-  }
-}
-```
-
-> **Note**: Ratings can only be created for completed offers.
-
-## Support Service
-
-### Create Support Ticket
-```http
-POST /support
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "subject": "Issue with produce delivery",
-  "description": "The produce quality does not match the listing description",
-  "priority": "HIGH",
-  "category": "QUALITY_ISSUE"
-}
-
-Response (201 Created):
-{
-  "id": "ee0e8400-e29b-41d4-a716-446655440000",
-  "subject": "Issue with produce delivery",
-  "description": "The produce quality does not match the listing description",
-  "priority": "HIGH",
-  "category": "QUALITY_ISSUE",
-  "status": "OPEN",
-  "userId": "550e8400-e29b-41d4-a716-446655440000",
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Get All Support Tickets
-```http
-GET /support
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "items": [
-    {
-      "id": "ee0e8400-e29b-41d4-a716-446655440000",
-      "subject": "Issue with produce delivery",
-      "description": "The produce quality does not match the listing description",
-      "priority": "HIGH",
-      "category": "QUALITY_ISSUE",
-      "status": "OPEN",
-      "user": {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "name": "John Doe",
-        "email": "john.doe@example.com"
-      },
-      "createdAt": "2024-01-20T12:00:00Z",
-      "updatedAt": "2024-01-20T12:00:00Z"
-    }
-  ]
-}
-```
-
-### Get Support Ticket Details
-```http
-GET /support/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "ee0e8400-e29b-41d4-a716-446655440000",
-  "subject": "Issue with produce delivery",
-  "description": "The produce quality does not match the listing description",
-  "priority": "HIGH",
-  "category": "QUALITY_ISSUE",
-  "status": "OPEN",
-  "user": {
-    "id": "550e8400-e29b-41d4-a716-446655440000",
-    "name": "John Doe",
-    "email": "john.doe@example.com"
-  },
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Update Support Ticket
-```http
-PATCH /support/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "status": "IN_PROGRESS",
-  "priority": "MEDIUM"
-}
-
-Response (200 OK):
-{
-  "id": "ee0e8400-e29b-41d4-a716-446655440000",
-  "status": "IN_PROGRESS",
-  "priority": "MEDIUM",
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-### Delete Support Ticket
-```http
-DELETE /support/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (204 No Content)
-```
-
-## Admin Service
-
-### Get All Users
-```http
-GET /admin/users
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "items": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "email": "john.doe@example.com",
-      "name": "John Doe",
-      "isFarmer": true,
-      "isBuyer": false,
-      "isBlocked": false,
-      "createdAt": "2024-01-20T12:00:00Z"
-    }
-  ]
-}
-```
-
-### Get User Details
-```http
-GET /admin/users/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "john.doe@example.com",
-  "name": "John Doe",
-  "isFarmer": true,
-  "isBuyer": false,
-  "isBlocked": false,
-  "createdAt": "2024-01-20T12:00:00Z",
-  "updatedAt": "2024-01-20T12:00:00Z"
-}
-```
-
-### Block User
-```http
-POST /admin/users/:id/block
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "isBlocked": true,
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-### Unblock User
-```http
-POST /admin/users/:id/unblock
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "isBlocked": false,
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-### Get Support Tickets
-```http
-GET /admin/support
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "items": [
-    {
-      "id": "ee0e8400-e29b-41d4-a716-446655440000",
-      "subject": "Issue with produce delivery",
-      "description": "The produce quality does not match the listing description",
-      "priority": "HIGH",
-      "category": "QUALITY_ISSUE",
-      "status": "OPEN",
-      "user": {
-        "id": "550e8400-e29b-41d4-a716-446655440000",
-        "name": "John Doe",
-        "email": "john.doe@example.com"
-      },
-      "createdAt": "2024-01-20T12:00:00Z",
-      "updatedAt": "2024-01-20T12:00:00Z"
-    }
-  ]
-}
-```
-
-### Update Support Ticket Status
-```http
-PATCH /admin/support/:id
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-Content-Type: application/json
-
-{
-  "status": "IN_PROGRESS"
-}
-
-Response (200 OK):
-{
-  "id": "ee0e8400-e29b-41d4-a716-446655440000",
-  "status": "IN_PROGRESS",
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-## Notifications Service
-
-### Get User's Notifications
-```http
-GET /notifications?page=1&limit=10
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "notifications": [
-    {
-      "id": "dd0e8400-e29b-41d4-a716-446655440000",
-      "type": "OFFER_CREATED",
-      "title": "New Offer Received",
-      "message": "You have received a new offer on your produce listing.",
-      "status": "SENT",
-      "metadata": {
-        "offerId": "880e8400-e29b-41d4-a716-446655440000",
-        "produceId": "770e8400-e29b-41d4-a716-446655440000",
-        "buyerId": "660e8400-e29b-41d4-a716-446655440000"
-      },
-      "createdAt": "2024-01-20T12:00:00Z",
-      "sentAt": "2024-01-20T12:00:01Z",
-      "readAt": null
-    },
-    {
-      "id": "dd0e8400-e29b-41d4-a716-446655440001",
-      "type": "RATING_RECEIVED",
-      "title": "New Rating Received",
-      "message": "You have received a new rating.",
-      "status": "READ",
-      "metadata": {
-        "ratingId": "cc0e8400-e29b-41d4-a716-446655440000"
-      },
-      "createdAt": "2024-01-19T15:00:00Z",
-      "sentAt": "2024-01-19T15:00:01Z",
-      "readAt": "2024-01-19T15:05:00Z"
-    }
-  ],
-  "total": 25,
-  "page": 1,
-  "totalPages": 3
-}
-```
-
-### Get Unread Notifications Count
-```http
-GET /notifications/unread/count
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "count": 5
-}
-```
-
-### Mark Notification as Read
-```http
-POST /notifications/:id/read
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInT5cCI6IkpXVCJ9...
-
-Response (200 OK):
-{
-  "id": "dd0e8400-e29b-41d4-a716-446655440000",
-  "status": "READ",
-  "readAt": "2024-01-20T12:30:00Z",
-  "updatedAt": "2024-01-20T12:30:00Z"
-}
-```
-
-> **Note**: Notifications are automatically created for various events:
-> - New offer received
-> - Offer updated
-> - Offer accepted
-> - Offer rejected
-> - New rating received
-> - Quality grade updated
-> - Price updated
-
-# Advanced Filtering Examples
-
-## Produce Filtering
-
-The system supports advanced filtering for produce listings through the `GET /produce` endpoint. You can combine multiple filters to get precise results.
-
-### Basic Filters
-
-```http
-GET /produce?type=grain&minPrice=10&maxPrice=20
-```
-
-This will return all grain produce with prices between 10 and 20 (inclusive).
-
-### Quality Grade Filtering
-
-```http
-GET /produce?grade=A
-```
-
-Returns all produce with quality grade A.
-
-### Location-Based Search
-
-```http
-GET /produce?location=12.9716,77.5946&radius=10
-```
-
-Returns all produce within 10 kilometers of the specified coordinates (12.9716°N, 77.5946°E).
-The response includes a `distance` field for each item showing its distance from the specified point.
-
-### Complex Filtering
-
-You can combine multiple filters:
-
-```http
-GET /produce?type=grain&minPrice=10&maxPrice=20&grade=A&location=12.9716,77.5946&radius=10&sortBy=distance&sortOrder=asc
-```
-
-This query:
-- Filters for grain produce
-- Price range: 10-20
-- Quality grade: A
-- Location: Within 10km of coordinates
-- Sorts results by distance (ascending)
-
-### Search and Quantity Filters
-
-```http
-GET /produce?searchTerm=organic&minQuantity=100&maxQuantity=1000
-```
-
-Searches for "organic" in produce descriptions and farmer names, with quantity between 100 and 1000.
-
-### Farmer-Specific Produce
-
-```http
-GET /produce?farmerId=123&sortBy=date&sortOrder=desc
-```
-
-Returns all produce from a specific farmer, sorted by date (newest first).
-
-### Available Filter Parameters
-
-| Parameter    | Type     | Description                                    | Example Value        |
-|-------------|----------|------------------------------------------------|---------------------|
-| type        | enum     | Type of produce                                | grain, vegetable, fruit, pulse |
-| minPrice    | number   | Minimum price                                  | 10                  |
-| maxPrice    | number   | Maximum price                                  | 20                  |
-| grade       | enum     | Quality grade                                  | A, B, C             |
-| location    | string   | Coordinates in "lat,lng" format                | "12.9716,77.5946"   |
-| radius      | number   | Search radius in kilometers (max 100)          | 10                  |
-| farmerId    | string   | Filter by specific farmer                      | "uuid"              |
-| minQuantity | number   | Minimum quantity                               | 100                 |
-| maxQuantity | number   | Maximum quantity                               | 1000                |
-| searchTerm  | string   | Search in description and farmer name          | "organic"           |
-| sortBy      | string   | Field to sort by                              | price, date, quantity, distance |
-| sortOrder   | string   | Sort direction                                 | asc, desc           |
-
-### Response Format
-
-```typescript
-{
-  "items": [
-    {
-      "id": "uuid",
-      "type": "grain",
-      "price": 15.50,
-      "quantity": 500,
-      "description": "Organic wheat",
-      "latitude": 12.9716,
-      "longitude": 77.5946,
-      "distance": 5.2,  // Only present if location filter is used
-      "farmer": {
-        "id": "uuid",
-        "name": "John Doe"
-      },
-      "qualityAssessment": {
-        "grade": "A",
-        "metadata": {
-          "moisture": 12.5,
-          "purity": 98.5,
-          "damage": 0.5,
-          "foreignMatter": 0.2,
-          "notes": "Excellent quality"
-        }
-      },
-      "createdAt": "2024-01-20T10:00:00Z",
-      "updatedAt": "2024-01-20T10:00:00Z"
-    }
-  ],
-  "total": 100,
-  "hasMore": true
-}
-```
-
-### Error Responses
-
-#### Invalid Filter Values (400 Bad Request)
+### Invalid Input (400)
 ```json
 {
   "statusCode": 400,
   "message": "Validation failed",
   "errors": [
     {
-      "field": "minPrice",
-      "message": "minPrice must be a positive number"
+      "field": "price",
+      "message": "price must be a positive number"
     }
   ]
 }
 ```
 
-#### Location Format Error (400 Bad Request)
+### Resource Not Found (404)
 ```json
 {
-  "statusCode": 400,
-  "message": "Validation failed",
-  "errors": [
-    {
-      "field": "location",
-      "message": "location must be in format 'latitude,longitude'"
-    }
-  ]
+  "statusCode": 404,
+  "message": "Resource not found",
+  "error": "Not Found"
 }
 ```
 
-### Best Practices
-
-1. **Performance Optimization**
-   - Use specific filters when possible to reduce result set
-   - Combine filters to get more precise results
-   - Use location-based search only when necessary as it's computationally intensive
-
-2. **Location Search**
-   - Always provide both location and radius when doing location-based search
-   - Keep radius reasonable (max 100km) for better performance
-   - Consider sorting by distance when using location search
-
-3. **Price and Quantity Ranges**
-   - Use both min and max values to create specific ranges
-   - Values must be positive numbers
-   - maxPrice/maxQuantity should be greater than minPrice/minQuantity
-
-4. **Text Search**
-   - searchTerm searches in both description and farmer name
-   - Case-insensitive search
-   - Partial matches are supported
-
-5. **Sorting**
-   - Distance sorting only works when location filter is applied
-   - Default sort is by createdAt in descending order (newest first)
-   - Combine sorting with filters for better organization of results
+### Conflict (409)
+```json
+{
+  "statusCode": 409,
+  "message": "Resource already exists",
+  "error": "Conflict"
+}
 ```
+
+# Authentication Notes
+
+1. All endpoints (except auth endpoints) require JWT token authentication
+2. Token must be included in Authorization header
+3. Token contains:
+   - User ID
+   - User roles (FARMER, BUYER, ADMIN)
+   - Token expiration
+
+# Role-Based Access
+
+1. FARMER role can:
+   - Manage their profile
+   - Create/update/delete produce listings
+   - Accept/reject offers
+   - View their transactions
+
+2. BUYER role can:
+   - Manage their profile
+   - View produce listings
+   - Create/cancel offers
+   - View their transactions
+
+3. ADMIN role can:
+   - Access all endpoints
+   - Manage all resources
+   - View system metrics

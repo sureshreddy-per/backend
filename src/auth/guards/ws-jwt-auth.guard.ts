@@ -5,7 +5,7 @@ import { Socket } from 'socket.io';
 
 @Injectable()
 export class WsJwtAuthGuard implements CanActivate {
-  constructor(private jwtService: JwtService) {}
+  constructor(private readonly jwtService: JwtService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     try {

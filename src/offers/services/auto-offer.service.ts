@@ -62,11 +62,11 @@ export class AutoOfferService {
       return [];
     }
 
-    const matchingProduce = await this.produceService.findNearby(
-      buyer.location.lat,
-      buyer.location.lng,
-      100
-    );
+    const matchingProduce = await this.produceService.findNearby({
+      latitude: buyer.location.lat,
+      longitude: buyer.location.lng,
+      radiusInKm: 100
+    });
 
     const offers: Offer[] = [];
 
