@@ -12,6 +12,7 @@ import { TransactionsModule } from './transactions/transactions.module';
 import { QualityModule } from './quality/quality.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TasksModule } from './tasks/tasks.module';
+import { FarmersModule } from './farmers/farmers.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { TasksModule } from './tasks/tasks.module';
     QualityModule,
     NotificationsModule,
     TasksModule,
+    FarmersModule,
   ],
 })
 export class AppModule {}

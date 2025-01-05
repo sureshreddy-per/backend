@@ -8,12 +8,14 @@ import { RegisterDto } from './dto/register.dto';
 import { User } from '../users/entities/user.entity';
 import { CheckMobileDto, CheckMobileResponseDto } from './dto/check-mobile.dto';
 import { Token } from './decorators/token.decorator';
+import { Public } from './decorators/public.decorator';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
   @Post('check-mobile')
   @ApiOperation({ summary: 'Check if mobile number is already registered' })
   @ApiResponse({ 
@@ -25,6 +27,7 @@ export class AuthController {
     return this.authService.checkMobile(checkMobileDto.mobileNumber);
   }
 
+  @Public()
   @Post('register')
   @ApiOperation({ summary: 'Register a new user and send OTP' })
   @ApiResponse({ 
@@ -36,6 +39,7 @@ export class AuthController {
     return this.authService.register(registerDto);
   }
 
+  @Public()
   @Post('otp/request')
   @ApiOperation({ summary: 'Request OTP for existing user login' })
   @ApiResponse({ 
@@ -47,6 +51,7 @@ export class AuthController {
     return this.authService.requestOtp(requestOtpDto.mobileNumber);
   }
 
+  @Public()
   @Post('otp/verify')
   @ApiOperation({ summary: 'Verify OTP and get JWT token' })
   @ApiResponse({

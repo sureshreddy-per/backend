@@ -7,7 +7,9 @@ import { ProduceFilterDto } from './dto/produce-filter.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { GetFarmer } from '../auth/decorators/get-farmer.decorator';
 import { Role } from '../auth/enums/role.enum';
+import { Farmer } from '../farmers/entities/farmer.entity';
 
 @ApiTags('Produce')
 @ApiBearerAuth()
