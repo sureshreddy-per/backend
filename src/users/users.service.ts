@@ -75,4 +75,8 @@ export class UsersService {
     user.blockReason = null;
     return this.userRepository.save(user);
   }
+
+  async remove(user: User): Promise<User> {
+    return this.userRepository.remove(user);
+  }
 } 

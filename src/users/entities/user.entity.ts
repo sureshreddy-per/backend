@@ -13,7 +13,8 @@ export enum UserStatus {
   ACTIVE = 'ACTIVE',
   INACTIVE = 'INACTIVE',
   SUSPENDED = 'SUSPENDED',
-  PENDING_VERIFICATION = 'PENDING_VERIFICATION'
+  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
+  DELETED = 'DELETED'
 }
 
 @Entity()
@@ -29,9 +30,6 @@ export class User {
 
   @Column()
   name: string;
-
-  @Column()
-  password: string;
 
   @Column({
     type: 'enum',
@@ -86,6 +84,12 @@ export class User {
 
   @Column({ nullable: true })
   verifiedAt: Date;
+
+  @Column({ nullable: true })
+  deletedAt: Date;
+
+  @Column({ nullable: true })
+  scheduledForDeletionAt: Date;
 
   @CreateDateColumn()
   createdAt: Date;

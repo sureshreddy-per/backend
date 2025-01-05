@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Farmer } from './entities/farmer.entity';
@@ -19,12 +19,31 @@ export class FarmersService {
   async create(createFarmerDto: CreateFarmerDto) {
     const farmer = new Farmer();
     Object.assign(farmer, {
-      ...createFarmerDto,
+      userId: createFarmerDto.userId,
+      name: createFarmerDto.name,
+      phoneNumber: createFarmerDto.phoneNumber,
+      email: createFarmerDto.email,
+      location: createFarmerDto.location,
+      farmSize: createFarmerDto.farmDetails?.size ? parseFloat(createFarmerDto.farmDetails.size) : null,
+      farmSizeUnit: createFarmerDto.farmDetails?.size ? 'acres' : null,
       rating: 0,
       totalRatings: 0,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      isActive: true
+    });
+
+    return this.farmerRepository.save(farmer);
+  }
+
+  async createFromUser(user: any) {
+    const farmer = new Farmer();
+    Object.assign(farmer, {
+      userId: user.id,
+      name: user.name,
+      phoneNumber: user.phone,
+      email: user.email,
+      rating: 0,
+      totalRatings: 0,
+      isActive: true
     });
 
     return this.farmerRepository.save(farmer);
@@ -176,5 +195,21 @@ export class FarmersService {
 
   private toRad(degrees: number): number {
     return degrees * (Math.PI / 180);
+  }
+
+  async findByUserId(userId: string): Promise<Farmer> {
+    const farmer = await this.farmerRepository.findOne({
+      where: { userId },
+      relations: ['produce']
+    });
+
+    if (!farmer) {
+      throw new NotFoundException(`Farmer not found for user ${userId}`);
+    }
+
+    return {
+      ...farmer,
+      produceCount: farmer.produce?.length || 0
+    };
   }
 } 

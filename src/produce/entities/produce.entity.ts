@@ -1,72 +1,75 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, OneToOne, OneToMany, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne } from 'typeorm';
 import { Farmer } from '../../farmers/entities/farmer.entity';
-import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
-import { ProduceType } from '../dto/produce-filter.dto';
-import { ProduceStatus } from '../enums/produce-status.enum';
-import { Transaction } from '../../transactions/entities/transaction.entity';
 import { Offer } from '../../offers/entities/offer.entity';
+import { Transaction } from '../../transactions/entities/transaction.entity';
+import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
+
+export enum ProduceStatus {
+  AVAILABLE = 'AVAILABLE',
+  IN_PROGRESS = 'IN_PROGRESS',
+  SOLD = 'SOLD',
+  CANCELLED = 'CANCELLED'
+}
 
 @Entity()
 export class Produce {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({
-    type: 'enum',
-    enum: ProduceType,
-    default: ProduceType.OTHER
-  })
-  type: ProduceType;
+  @Column()
+  farmerId: string;
 
-  @Column({
-    type: 'enum',
-    enum: ProduceStatus,
-    default: ProduceStatus.PENDING
-  })
-  status: ProduceStatus;
-
-  @Column('decimal', { precision: 10, scale: 2 })
-  price: number;
-
-  @Column('decimal', { precision: 10, scale: 2 })
-  pricePerUnit: number;
-
-  @Column('decimal', { precision: 10, scale: 2 })
-  quantity: number;
+  @Column()
+  name: string;
 
   @Column()
   description: string;
 
-  @Column('decimal', { precision: 10, scale: 6 })
-  latitude: number;
+  @Column('decimal')
+  quantity: number;
 
-  @Column('decimal', { precision: 10, scale: 6 })
-  longitude: number;
+  @Column()
+  unit: string;
 
-  @ManyToOne(() => Farmer, farmer => farmer.produce)
-  @JoinColumn({ name: 'farmer_id' })
-  farmer: Farmer;
+  @Column('decimal')
+  price: number;
 
-  @Column('uuid')
-  farmerId: string;
+  @Column('decimal')
+  pricePerUnit: number;
 
-  @OneToOne(() => QualityAssessment, assessment => assessment.produce)
-  qualityAssessment: QualityAssessment;
+  @Column()
+  currency: string;
 
-  @Column({ nullable: true })
-  qualityGrade: string;
+  @Column({
+    type: 'enum',
+    enum: ProduceStatus,
+    default: ProduceStatus.AVAILABLE
+  })
+  status: ProduceStatus;
 
-  @OneToMany(() => Transaction, transaction => transaction.produce)
-  transactions: Transaction[];
-
-  @OneToMany(() => Offer, offer => offer.produce)
-  offers: Offer[];
-
-  @Column('json', { nullable: true })
+  @Column('json')
   location: {
     lat: number;
     lng: number;
   };
+
+  @Column({ nullable: true })
+  qualityGrade: string;
+
+  @Column('json', { nullable: true })
+  metadata?: Record<string, any>;
+
+  @ManyToOne(() => Farmer, farmer => farmer.produce)
+  farmer: Farmer;
+
+  @OneToMany(() => Offer, offer => offer.produce)
+  offers: Offer[];
+
+  @OneToMany(() => Transaction, transaction => transaction.produce)
+  transactions: Transaction[];
+
+  @OneToOne(() => QualityAssessment, assessment => assessment.produce)
+  qualityAssessment: QualityAssessment;
 
   @CreateDateColumn()
   createdAt: Date;

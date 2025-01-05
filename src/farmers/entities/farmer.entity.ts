@@ -16,19 +16,19 @@ export class Farmer {
   @Column()
   phoneNumber: string;
 
-  @Column()
+  @Column({ nullable: true })
   email: string;
 
-  @Column('json')
+  @Column('json', { nullable: true })
   location: {
     lat: number;
     lng: number;
   };
 
-  @Column()
+  @Column({ nullable: true })
   farmSize: number;
 
-  @Column()
+  @Column({ nullable: true })
   farmSizeUnit: string;
 
   @Column('decimal', { precision: 3, scale: 2, default: 0 })
@@ -46,9 +46,12 @@ export class Farmer {
   @OneToMany(() => Transaction, transaction => transaction.farmer)
   transactions: Transaction[];
 
-  @Column()
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
-  @Column()
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP', onUpdate: 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
+
+  // Virtual property - not stored in database
+  produceCount?: number;
 } 

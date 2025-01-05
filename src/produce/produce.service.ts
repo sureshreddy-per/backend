@@ -2,220 +2,156 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Produce } from './entities/produce.entity';
-import { ProduceFilterDto } from './dto/produce-filter.dto';
 import { CreateProduceDto } from './dto/create-produce.dto';
 import { UpdateProduceDto } from './dto/update-produce.dto';
-import { ProduceStatus } from './enums/produce-status.enum';
+import { ProduceFilterDto } from './dto/produce-filter.dto';
+import { Farmer } from '../farmers/entities/farmer.entity';
 
 @Injectable()
 export class ProduceService {
   constructor(
     @InjectRepository(Produce)
     private readonly produceRepository: Repository<Produce>,
+    @InjectRepository(Farmer)
+    private readonly farmerRepository: Repository<Farmer>,
   ) {}
 
-  async create(createProduceDto: CreateProduceDto): Promise<Produce> {
-    const produce = this.produceRepository.create({
-      ...createProduceDto,
-      status: ProduceStatus.PENDING,
-      location: {
-        lat: createProduceDto.location.latitude,
-        lng: createProduceDto.location.longitude,
-      },
-      latitude: createProduceDto.location.latitude,
-      longitude: createProduceDto.location.longitude,
-      pricePerUnit: createProduceDto.price / createProduceDto.quantity,
+  async getFarmerByUserId(userId: string): Promise<Farmer> {
+    const farmer = await this.farmerRepository.findOne({
+      where: { userId }
     });
 
+    if (!farmer) {
+      throw new NotFoundException('Farmer not found');
+    }
+
+    return farmer;
+  }
+
+  async create(farmerId: string, createProduceDto: CreateProduceDto) {
+    const produce = this.produceRepository.create({
+      ...createProduceDto,
+      farmerId,
+      location: {
+        lat: createProduceDto.location.latitude,
+        lng: createProduceDto.location.longitude
+      }
+    });
     return this.produceRepository.save(produce);
   }
 
-  async update(id: string, updateProduceDto: UpdateProduceDto): Promise<Produce> {
+  async findAll(filters?: ProduceFilterDto) {
+    if (!filters) {
+      return this.produceRepository.find();
+    }
+
+    const query = this.produceRepository.createQueryBuilder('produce')
+      .leftJoinAndSelect('produce.farmer', 'farmer');
+
+    if (filters.type) {
+      query.andWhere('produce.type = :type', { type: filters.type });
+    }
+
+    if (filters.minPrice) {
+      query.andWhere('produce.pricePerUnit >= :minPrice', { minPrice: filters.minPrice });
+    }
+
+    if (filters.maxPrice) {
+      query.andWhere('produce.pricePerUnit <= :maxPrice', { maxPrice: filters.maxPrice });
+    }
+
+    if (filters.location) {
+      // Add location-based filtering using PostGIS
+      query.andWhere(
+        'ST_DWithin(ST_SetSRID(ST_MakePoint(farmer.location->>"lng", farmer.location->>"lat"), 4326)::geography, ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :radius)',
+        {
+          lng: filters.location.longitude,
+          lat: filters.location.latitude,
+          radius: (filters.radius || 10) * 1000 // Convert km to meters
+        }
+      );
+    }
+
+    const [items, total] = await query
+      .skip((filters.page - 1) * filters.limit)
+      .take(filters.limit)
+      .getManyAndCount();
+
+    return {
+      items,
+      total,
+      hasMore: total > filters.page * filters.limit
+    };
+  }
+
+  async findByFarmerId(farmerId: string) {
+    return this.produceRepository.find({
+      where: { farmerId },
+      relations: ['farmer']
+    });
+  }
+
+  async findOne(id: string): Promise<Produce> {
+    const produce = await this.produceRepository.findOne({ 
+      where: { id },
+      relations: ['farmer']
+    });
+    if (!produce) {
+      throw new NotFoundException(`Produce with ID "${id}" not found`);
+    }
+    return produce;
+  }
+
+  async update(id: string, farmerId: string, updateProduceDto: UpdateProduceDto) {
     const produce = await this.findOne(id);
 
-    if (produce.status !== ProduceStatus.PENDING && produce.status !== ProduceStatus.AVAILABLE) {
-      throw new ForbiddenException('Cannot update produce that is not in PENDING or AVAILABLE status');
-    }
-
-    // Update location if provided
-    if (updateProduceDto.location) {
-      produce.location = {
-        lat: updateProduceDto.location.latitude,
-        lng: updateProduceDto.location.longitude,
-      };
-      produce.latitude = updateProduceDto.location.latitude;
-      produce.longitude = updateProduceDto.location.longitude;
-    }
-
-    // Update price per unit if price or quantity is updated
-    if (updateProduceDto.price !== undefined || updateProduceDto.quantity !== undefined) {
-      const newPrice = updateProduceDto.price ?? produce.price;
-      const newQuantity = updateProduceDto.quantity ?? produce.quantity;
-      produce.pricePerUnit = newPrice / newQuantity;
+    if (produce.farmerId !== farmerId) {
+      throw new ForbiddenException('You can only update your own produce listings');
     }
 
     Object.assign(produce, updateProduceDto);
     return this.produceRepository.save(produce);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, farmerId: string) {
     const produce = await this.findOne(id);
 
-    if (produce.status !== ProduceStatus.PENDING && produce.status !== ProduceStatus.AVAILABLE) {
-      throw new ForbiddenException('Cannot delete produce that is not in PENDING or AVAILABLE status');
+    if (produce.farmerId !== farmerId) {
+      throw new ForbiddenException('You can only delete your own produce listings');
     }
 
     await this.produceRepository.remove(produce);
+    return { id };
   }
 
-  async findAll(filters: ProduceFilterDto) {
+  async findNearby(params: {
+    latitude: number;
+    longitude: number;
+    radiusInKm: number;
+    limit?: number;
+  }): Promise<Produce[]> {
+    const { latitude, longitude, radiusInKm, limit = 10 } = params;
+    
+    // Using Haversine formula in raw SQL for PostgreSQL
     const query = this.produceRepository.createQueryBuilder('produce')
-      .leftJoinAndSelect('produce.farmer', 'farmer')
-      .leftJoinAndSelect('produce.qualityAssessment', 'quality');
-
-    // Apply type filter
-    if (filters.type) {
-      query.andWhere('produce.type = :type', { type: filters.type });
-    }
-
-    // Apply price range filter
-    if (filters.minPrice !== undefined) {
-      query.andWhere('produce.price >= :minPrice', { minPrice: filters.minPrice });
-    }
-    if (filters.maxPrice !== undefined) {
-      query.andWhere('produce.price <= :maxPrice', { maxPrice: filters.maxPrice });
-    }
-
-    // Apply quality grade filter
-    if (filters.grade) {
-      query.andWhere('quality.grade = :grade', { grade: filters.grade });
-    }
-
-    // Apply quantity range filter
-    if (filters.minQuantity !== undefined) {
-      query.andWhere('produce.quantity >= :minQuantity', { minQuantity: filters.minQuantity });
-    }
-    if (filters.maxQuantity !== undefined) {
-      query.andWhere('produce.quantity <= :maxQuantity', { maxQuantity: filters.maxQuantity });
-    }
-
-    // Apply farmer filter
-    if (filters.farmerId) {
-      query.andWhere('farmer.id = :farmerId', { farmerId: filters.farmerId });
-    }
-
-    // Apply location-based filter
-    if (filters.location && filters.radius) {
-      const [lat, lng] = filters.location.split(',').map(Number);
-      // Using Haversine formula for distance calculation
-      query.addSelect(
-        `(
-          6371 * acos(
-            cos(radians(:lat)) * cos(radians(produce.latitude)) *
-            cos(radians(produce.longitude) - radians(:lng)) +
-            sin(radians(:lat)) * sin(radians(produce.latitude))
-          )
-        )`,
-        'distance'
-      )
-      .having('distance <= :radius')
-      .setParameters({ lat, lng, radius: filters.radius });
-    }
-
-    // Apply search term filter
-    if (filters.searchTerm) {
-      query.andWhere(
-        '(LOWER(produce.description) LIKE LOWER(:search) OR LOWER(farmer.name) LIKE LOWER(:search))',
-        { search: `%${filters.searchTerm}%` }
-      );
-    }
-
-    // Apply sorting
-    if (filters.sortBy) {
-      const order = filters.sortOrder === 'desc' ? 'DESC' : 'ASC';
-      switch (filters.sortBy) {
-        case 'price':
-          query.orderBy('produce.price', order);
-          break;
-        case 'date':
-          query.orderBy('produce.createdAt', order);
-          break;
-        case 'quantity':
-          query.orderBy('produce.quantity', order);
-          break;
-        case 'distance':
-          if (filters.location) {
-            query.orderBy('distance', order);
-          }
-          break;
-        default:
-          query.orderBy('produce.createdAt', 'DESC');
-      }
-    } else {
-      // Default sorting by creation date
-      query.orderBy('produce.createdAt', 'DESC');
-    }
-
-    // Execute query with pagination
-    const [items, total] = await query.getManyAndCount();
-
-    return {
-      items,
-      total,
-      hasMore: items.length < total
-    };
-  }
-
-  async findOne(id: string): Promise<Produce> {
-    const produce = await this.produceRepository.findOne({
-      where: { id },
-      relations: ['farmer', 'qualityAssessment', 'transactions', 'offers']
-    });
-
-    if (!produce) {
-      throw new NotFoundException(`Produce with ID "${id}" not found`);
-    }
-
-    return produce;
-  }
-
-  async findNearby(lat: number, lng: number, radiusInKm: number = 100): Promise<Produce[]> {
-    const query = this.produceRepository
-      .createQueryBuilder('produce')
-      .leftJoinAndSelect('produce.farmer', 'farmer')
-      .leftJoinAndSelect('produce.qualityAssessment', 'quality');
-
-    // Add Haversine formula to calculate distance
-    query.addSelect(
-      `(
-        6371 * acos(
-          cos(radians(:lat)) * cos(radians(produce.latitude)) *
-          cos(radians(produce.longitude) - radians(:lng)) +
-          sin(radians(:lat)) * sin(radians(produce.latitude))
+      .where(`
+        ST_DistanceSphere(
+          ST_MakePoint(produce.location->>'lng', produce.location->>'lat')::geometry,
+          ST_MakePoint(:longitude, :latitude)::geometry
+        ) <= :radius
+      `, {
+        latitude,
+        longitude,
+        radius: radiusInKm * 1000 // Convert km to meters
+      })
+      .orderBy(`
+        ST_DistanceSphere(
+          ST_MakePoint(produce.location->>'lng', produce.location->>'lat')::geometry,
+          ST_MakePoint(:longitude, :latitude)::geometry
         )
-      )`,
-      'distance'
-    )
-    .having('distance <= :radius')
-    .setParameters({ lat, lng, radius: radiusInKm })
-    .orderBy('distance', 'ASC');
+      `)
+      .limit(limit);
 
     return query.getMany();
-  }
-
-  private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-    const R = 6371; // Earth's radius in kilometers
-    const dLat = this.toRad(lat2 - lat1);
-    const dLon = this.toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
-  private toRad(value: number): number {
-    return (value * Math.PI) / 180;
   }
 } 
