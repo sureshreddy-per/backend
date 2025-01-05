@@ -1,18 +1,14 @@
 import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Role } from '../enums/role.enum';
+import { UserRole } from '../../users/entities/user.entity';
 import { ROLES_KEY } from '../decorators/roles.decorator';
-import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(
-    private reflector: Reflector,
-    private configService: ConfigService,
-  ) {}
+  constructor(private reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
+    const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
@@ -22,17 +18,6 @@ export class RolesGuard implements CanActivate {
     }
 
     const { user } = context.switchToHttp().getRequest();
-
-    const userRoles: Role[] = [];
-    if (user.isFarmer) userRoles.push(Role.FARMER);
-    if (user.isBuyer) userRoles.push(Role.BUYER);
-    
-    // Get admin users from configuration
-    const adminUsers = this.configService.get<string[]>('ADMIN_USERS') || [];
-    if (adminUsers.includes(user.email)) {
-      userRoles.push(Role.ADMIN);
-    }
-
-    return requiredRoles.some((role) => userRoles.includes(role));
+    return requiredRoles.some((role) => user.roles?.includes(role));
   }
 } 

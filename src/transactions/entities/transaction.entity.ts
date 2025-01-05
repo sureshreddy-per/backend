@@ -1,36 +1,50 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn } from 'typeorm';
-import { Farmer } from '../../farmers/entities/farmer.entity';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
 import { Produce } from '../../produce/entities/produce.entity';
-import { Buyer } from '../../buyers/entities/buyer.entity';
-import { TransactionStatus } from '../enums/transaction-status.enum';
+import { User } from '../../users/entities/user.entity';
+import { Farmer } from '../../farmers/entities/farmer.entity';
+import { TransactionMetadata } from '../interfaces/transaction-metadata.interface';
+
+export enum TransactionStatus {
+  PENDING = 'PENDING',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  FAILED = 'FAILED'
+}
 
 @Entity()
 export class Transaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  farmerId: string;
+  @ManyToOne(() => Produce, produce => produce.transactions)
+  @JoinColumn({ name: 'produce_id' })
+  produce: Produce;
+
+  @Column('uuid')
+  produceId: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'buyer_id' })
+  buyer: User;
+
+  @Column('uuid')
+  buyerId: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'seller_id' })
+  seller: User;
+
+  @Column('uuid')
+  sellerId: string;
 
   @ManyToOne(() => Farmer)
   @JoinColumn({ name: 'farmer_id' })
   farmer: Farmer;
 
-  @Column()
-  buyerId: string;
+  @Column('uuid')
+  farmerId: string;
 
-  @ManyToOne(() => Buyer)
-  @JoinColumn({ name: 'buyer_id' })
-  buyer: Buyer;
-
-  @Column()
-  produceId: string;
-
-  @ManyToOne(() => Produce)
-  @JoinColumn({ name: 'produce_id' })
-  produce: Produce;
-
-  @Column()
+  @Column('decimal', { precision: 10, scale: 2 })
   quantity: number;
 
   @Column('decimal', { precision: 10, scale: 2 })
@@ -43,20 +57,16 @@ export class Transaction {
   })
   status: TransactionStatus;
 
-  @Column({ type: 'json', nullable: true })
-  metadata: {
-    priceAtTransaction: number;
-    qualityGrade: string;
-    notes: string;
-  };
+  @Column('jsonb', { nullable: true })
+  metadata: TransactionMetadata;
 
   @Column({ nullable: true })
-  notes: string;
+  cancellationReason: string;
 
-  @Column()
+  @CreateDateColumn()
   createdAt: Date;
 
-  @Column()
+  @UpdateDateColumn()
   updatedAt: Date;
 
   @Column({ nullable: true })
@@ -64,7 +74,4 @@ export class Transaction {
 
   @Column({ nullable: true })
   cancelledAt: Date;
-
-  @Column({ nullable: true })
-  cancellationReason: string;
 } 

@@ -1,158 +1,102 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Offer } from '../entities/offer.entity';
+import { Repository, DeepPartial } from 'typeorm';
+import { Offer, OfferStatus } from '../entities/offer.entity';
 import { CreateOfferDto } from '../dto/create-offer.dto';
 import { UpdateOfferDto } from '../dto/update-offer.dto';
-import { OfferStatus } from '../enums/offer-status.enum';
 
 @Injectable()
 export class OffersService {
-  private readonly MIN_PRICE = 0;
-  private readonly MAX_PRICE = 1000000;
-
   constructor(
     @InjectRepository(Offer)
-    private readonly offerRepository: Repository<Offer>
+    private readonly offerRepository: Repository<Offer>,
   ) {}
 
-  async create(createOfferDto: CreateOfferDto) {
-    if (createOfferDto.pricePerUnit <= this.MIN_PRICE) {
-      throw new BadRequestException('Price must be greater than zero');
-    }
-
-    if (createOfferDto.pricePerUnit > this.MAX_PRICE) {
-      throw new BadRequestException('Price exceeds maximum allowed value');
-    }
-
-    const offer = new Offer();
-    const newOffer = {
+  async create(createOfferDto: CreateOfferDto, buyerId: string): Promise<Offer> {
+    const offerData: DeepPartial<Offer> = {
       ...createOfferDto,
+      buyerId,
       status: OfferStatus.PENDING,
-      metadata: {
-        qualityGrade: createOfferDto.qualityGrade,
-        priceHistory: [],
-        lastPriceUpdate: {
-          oldPrice: 0,
-          newPrice: createOfferDto.pricePerUnit,
-          timestamp: new Date()
-        }
-      },
-      createdAt: new Date(),
-      updatedAt: new Date()
     };
 
-    Object.assign(offer, newOffer);
+    const offer = this.offerRepository.create(offerData);
     return this.offerRepository.save(offer);
   }
 
-  async findAll() {
-    return this.offerRepository.find({
-      relations: ['buyer', 'produce']
-    });
-  }
-
-  async findOne(id: string) {
-    return this.offerRepository.findOne({
-      where: { id },
-      relations: ['buyer', 'produce']
-    });
-  }
-
-  async update(id: string, updateOfferDto: UpdateOfferDto) {
+  async accept(id: string): Promise<Offer> {
     const offer = await this.findOne(id);
-    if (!offer) return null;
 
-    const oldPrice = offer.pricePerUnit;
-    const newPrice = updateOfferDto.pricePerUnit || oldPrice;
-
-    const updatedOffer = {
-      ...offer,
-      ...updateOfferDto,
-      metadata: {
-        ...offer.metadata,
-        priceHistory: [
-          ...(offer.metadata.priceHistory || []),
-          {
-            oldPrice,
-            newPrice,
-            timestamp: new Date()
-          }
-        ],
-        lastPriceUpdate: {
-          oldPrice,
-          newPrice,
-          timestamp: new Date()
-        }
-      },
-      updatedAt: new Date()
-    };
-
-    return this.offerRepository.save(updatedOffer);
-  }
-
-  async accept(offerId: string, farmerId: string) {
-    const offer = await this.findOne(offerId);
-    if (!offer) return null;
-
-    if (offer.produce.farmerId !== farmerId) {
-      throw new Error('Not authorized to accept this offer');
+    if (offer.status !== OfferStatus.PENDING) {
+      throw new BadRequestException('Can only accept pending offers');
     }
 
-    const updatedOffer = {
-      ...offer,
+    const updatedData: DeepPartial<Offer> = {
+      id: offer.id,
       status: OfferStatus.ACCEPTED,
+      acceptedAt: new Date(),
       metadata: {
         ...offer.metadata,
-        acceptedAt: new Date()
+        acceptedAt: new Date(),
       },
-      updatedAt: new Date()
     };
 
-    return this.offerRepository.save(updatedOffer);
+    return this.offerRepository.save(updatedData);
   }
 
-  async reject(offerId: string, farmerId: string, reason: string) {
-    const offer = await this.findOne(offerId);
-    if (!offer) return null;
+  async reject(id: string, reason: string): Promise<Offer> {
+    const offer = await this.findOne(id);
 
-    if (offer.produce.farmerId !== farmerId) {
-      throw new Error('Not authorized to reject this offer');
+    if (offer.status !== OfferStatus.PENDING) {
+      throw new BadRequestException('Can only reject pending offers');
     }
 
-    const updatedOffer = {
-      ...offer,
+    const updatedData: DeepPartial<Offer> = {
+      id: offer.id,
       status: OfferStatus.REJECTED,
+      rejectedAt: new Date(),
+      rejectionReason: reason,
       metadata: {
         ...offer.metadata,
         rejectionReason: reason,
-        rejectedAt: new Date()
+        rejectedAt: new Date(),
       },
-      updatedAt: new Date()
     };
 
-    return this.offerRepository.save(updatedOffer);
+    return this.offerRepository.save(updatedData);
   }
 
-  async cancel(offerId: string, buyerId: string, reason: string) {
-    const offer = await this.findOne(offerId);
-    if (!offer) return null;
+  async cancel(id: string, reason: string): Promise<Offer> {
+    const offer = await this.findOne(id);
 
-    if (offer.buyerId !== buyerId) {
-      throw new Error('Not authorized to cancel this offer');
+    if (offer.status !== OfferStatus.PENDING) {
+      throw new BadRequestException('Can only cancel pending offers');
     }
 
-    const updatedOffer = {
-      ...offer,
+    const updatedData: DeepPartial<Offer> = {
+      id: offer.id,
       status: OfferStatus.CANCELLED,
+      cancelledAt: new Date(),
+      cancellationReason: reason,
       metadata: {
         ...offer.metadata,
         cancellationReason: reason,
-        cancelledAt: new Date()
+        cancelledAt: new Date(),
       },
-      updatedAt: new Date()
     };
 
-    return this.offerRepository.save(updatedOffer);
+    return this.offerRepository.save(updatedData);
+  }
+
+  async findOne(id: string): Promise<Offer> {
+    const offer = await this.offerRepository.findOne({
+      where: { id },
+      relations: ['produce', 'buyer'],
+    });
+
+    if (!offer) {
+      throw new NotFoundException(`Offer with ID ${id} not found`);
+    }
+
+    return offer;
   }
 } 

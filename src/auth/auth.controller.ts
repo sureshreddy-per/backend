@@ -1,63 +1,53 @@
-import { Controller, Post, Body, Get, UseGuards, Param, Put, Delete } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Post, Body, Get, UseGuards, Param } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterUserDto } from './dto/register-user.dto';
-import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
-import { Role } from './enums/role.enum';
-import { CurrentUser } from './decorators/current-user.decorator';
-import { User } from './entities/user.entity';
+import { UserRole } from '../users/entities/user.entity';
 
-@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('register')
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User successfully registered' })
-  async register(@Body() registerUserDto: RegisterUserDto) {
-    return this.authService.register(registerUserDto);
+  @Post('request-otp')
+  async requestOtp(@Body('mobileNumber') mobileNumber: string) {
+    return this.authService.requestOtp(mobileNumber);
   }
 
-  @Post('login')
-  @ApiOperation({ summary: 'User login' })
-  @ApiResponse({ status: 200, description: 'User successfully logged in' })
-  async login(@Body() loginDto: LoginDto) {
-    return this.authService.login(loginDto);
-  }
-
-  @Get('profile')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get current user profile' })
-  @ApiResponse({ status: 200, description: 'Returns the current user profile' })
-  async getProfile(@CurrentUser() user: User) {
-    return user;
-  }
-
-  @Put('users/:userId/block')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Block a user' })
-  @ApiResponse({ status: 200, description: 'User successfully blocked' })
-  async blockUser(
-    @Param('userId') userId: string,
-    @Body('reason') reason: string,
+  @Post('verify-otp')
+  async verifyOtp(
+    @Body('mobileNumber') mobileNumber: string,
+    @Body('otp') otp: string,
   ) {
-    return this.authService.blockUser(userId, reason);
+    return this.authService.verifyOtp(mobileNumber, otp);
   }
 
-  @Put('users/:userId/unblock')
+  @Post('register')
+  async register(
+    @Body('mobileNumber') mobileNumber: string,
+    @Body('name') name: string,
+    @Body('email') email: string,
+    @Body('role') role: UserRole,
+  ) {
+    return this.authService.register({
+      mobileNumber,
+      name,
+      email,
+      roles: [role],
+    });
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Unblock a user' })
-  @ApiResponse({ status: 200, description: 'User successfully unblocked' })
-  async unblockUser(@Param('userId') userId: string) {
-    return this.authService.unblockUser(userId);
+  @Get('users')
+  @Roles([UserRole.ADMIN])
+  async getUsers() {
+    return this.authService.getUsers();
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Get('users/:id')
+  @Roles([UserRole.ADMIN])
+  async getUser(@Param('id') id: string) {
+    return this.authService.getUser(id);
   }
 } 

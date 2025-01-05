@@ -1,8 +1,3 @@
-export enum Role {
-  ADMIN = 'ADMIN',
-  USER = 'USER',
-  FARMER = 'FARMER',
-  BUYER = 'BUYER',
-  INSPECTOR = 'INSPECTOR',
-  QUALITY_INSPECTOR = 'QUALITY_INSPECTOR'
-} 
+import { UserRole } from '../../users/entities/user.entity';
+
+export { UserRole as Role }; 

@@ -1,8 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Produce } from './entities/produce.entity';
 import { ProduceFilterDto } from './dto/produce-filter.dto';
+import { CreateProduceDto } from './dto/create-produce.dto';
+import { UpdateProduceDto } from './dto/update-produce.dto';
+import { ProduceStatus } from './enums/produce-status.enum';
 
 @Injectable()
 export class ProduceService {
@@ -10,6 +13,60 @@ export class ProduceService {
     @InjectRepository(Produce)
     private readonly produceRepository: Repository<Produce>,
   ) {}
+
+  async create(createProduceDto: CreateProduceDto): Promise<Produce> {
+    const produce = this.produceRepository.create({
+      ...createProduceDto,
+      status: ProduceStatus.PENDING,
+      location: {
+        lat: createProduceDto.location.latitude,
+        lng: createProduceDto.location.longitude,
+      },
+      latitude: createProduceDto.location.latitude,
+      longitude: createProduceDto.location.longitude,
+      pricePerUnit: createProduceDto.price / createProduceDto.quantity,
+    });
+
+    return this.produceRepository.save(produce);
+  }
+
+  async update(id: string, updateProduceDto: UpdateProduceDto): Promise<Produce> {
+    const produce = await this.findOne(id);
+
+    if (produce.status !== ProduceStatus.PENDING && produce.status !== ProduceStatus.AVAILABLE) {
+      throw new ForbiddenException('Cannot update produce that is not in PENDING or AVAILABLE status');
+    }
+
+    // Update location if provided
+    if (updateProduceDto.location) {
+      produce.location = {
+        lat: updateProduceDto.location.latitude,
+        lng: updateProduceDto.location.longitude,
+      };
+      produce.latitude = updateProduceDto.location.latitude;
+      produce.longitude = updateProduceDto.location.longitude;
+    }
+
+    // Update price per unit if price or quantity is updated
+    if (updateProduceDto.price !== undefined || updateProduceDto.quantity !== undefined) {
+      const newPrice = updateProduceDto.price ?? produce.price;
+      const newQuantity = updateProduceDto.quantity ?? produce.quantity;
+      produce.pricePerUnit = newPrice / newQuantity;
+    }
+
+    Object.assign(produce, updateProduceDto);
+    return this.produceRepository.save(produce);
+  }
+
+  async remove(id: string): Promise<void> {
+    const produce = await this.findOne(id);
+
+    if (produce.status !== ProduceStatus.PENDING && produce.status !== ProduceStatus.AVAILABLE) {
+      throw new ForbiddenException('Cannot delete produce that is not in PENDING or AVAILABLE status');
+    }
+
+    await this.produceRepository.remove(produce);
+  }
 
   async findAll(filters: ProduceFilterDto) {
     const query = this.produceRepository.createQueryBuilder('produce')
@@ -102,24 +159,48 @@ export class ProduceService {
     // Execute query with pagination
     const [items, total] = await query.getManyAndCount();
 
-    // Calculate distance for each item if location filter is applied
-    if (filters.location) {
-      const [lat, lng] = filters.location.split(',').map(Number);
-      items.forEach(item => {
-        item['distance'] = this.calculateDistance(
-          lat,
-          lng,
-          item.latitude,
-          item.longitude
-        );
-      });
-    }
-
     return {
       items,
       total,
       hasMore: items.length < total
     };
+  }
+
+  async findOne(id: string): Promise<Produce> {
+    const produce = await this.produceRepository.findOne({
+      where: { id },
+      relations: ['farmer', 'qualityAssessment', 'transactions', 'offers']
+    });
+
+    if (!produce) {
+      throw new NotFoundException(`Produce with ID "${id}" not found`);
+    }
+
+    return produce;
+  }
+
+  async findNearby(lat: number, lng: number, radiusInKm: number = 100): Promise<Produce[]> {
+    const query = this.produceRepository
+      .createQueryBuilder('produce')
+      .leftJoinAndSelect('produce.farmer', 'farmer')
+      .leftJoinAndSelect('produce.qualityAssessment', 'quality');
+
+    // Add Haversine formula to calculate distance
+    query.addSelect(
+      `(
+        6371 * acos(
+          cos(radians(:lat)) * cos(radians(produce.latitude)) *
+          cos(radians(produce.longitude) - radians(:lng)) +
+          sin(radians(:lat)) * sin(radians(produce.latitude))
+        )
+      )`,
+      'distance'
+    )
+    .having('distance <= :radius')
+    .setParameters({ lat, lng, radius: radiusInKm })
+    .orderBy('distance', 'ASC');
+
+    return query.getMany();
   }
 
   private calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
