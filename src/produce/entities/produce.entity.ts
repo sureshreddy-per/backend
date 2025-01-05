@@ -11,7 +11,7 @@ export enum ProduceStatus {
   CANCELLED = 'CANCELLED'
 }
 
-@Entity()
+@Entity('produces')
 export class Produce {
   @PrimaryGeneratedColumn('uuid')
   id: string;

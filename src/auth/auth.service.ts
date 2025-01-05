@@ -207,15 +207,15 @@ export class AuthService {
     const scheduledDeletionDate = new Date();
     scheduledDeletionDate.setDate(scheduledDeletionDate.getDate() + 30);
 
+    // Invalidate all existing tokens
+    const token = await this.jwtService.sign({ sub: userId });
+    await this.logout(token);
+
     // Update user status and set scheduled deletion date
     await this.usersService.update(userId, {
       status: UserStatus.DELETED,
       scheduledForDeletionAt: scheduledDeletionDate
     });
-
-    // Invalidate all existing tokens
-    const token = await this.jwtService.sign({ sub: userId });
-    await this.logout(token);
 
     return { message: 'Account scheduled for deletion. Data will be permanently removed after 30 days.' };
   }

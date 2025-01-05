@@ -7,6 +7,8 @@ import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RedisModule } from '../redis/redis.module';
 import { FarmersModule } from '../farmers/farmers.module';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -24,7 +26,14 @@ import { FarmersModule } from '../farmers/farmers.module';
       inject: [ConfigService],
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [
+    AuthService,
+    JwtStrategy,
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    }
+  ],
   controllers: [AuthController],
   exports: [AuthService, JwtModule],
 })

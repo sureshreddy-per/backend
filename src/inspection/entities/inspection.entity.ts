@@ -39,7 +39,7 @@ export interface InspectionMetadata {
   imageAnalysis?: ImageAnalysis;
 }
 
-@Entity()
+@Entity('inspections')
 export class Inspection {
   @PrimaryGeneratedColumn('uuid')
   id: string;

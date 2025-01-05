@@ -18,8 +18,6 @@ export class User {
   @Column({ unique: true })
   email: string;
 
-  @Column()
-  passwordHash: string;
 
   @Column({
     type: 'enum',

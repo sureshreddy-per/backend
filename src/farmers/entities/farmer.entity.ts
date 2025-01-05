@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Produce } from '../../produce/entities/produce.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 
-@Entity()
+@Entity('farmers')
 export class Farmer {
   @PrimaryGeneratedColumn('uuid')
   id: string;

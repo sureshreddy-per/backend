@@ -3,7 +3,7 @@ import { Produce } from '../../produce/entities/produce.entity';
 import { QualityGrade } from '../../produce/enums/quality-grade.enum';
 import { QualityMetadata, QualityCriteria } from '../dto/create-quality.dto';
 
-@Entity()
+@Entity('qualities')
 export class Quality {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -11,7 +11,7 @@ export enum OfferStatus {
   EXPIRED = 'EXPIRED'
 }
 
-@Entity()
+@Entity('offers')
 export class Offer {
   @PrimaryGeneratedColumn('uuid')
   id: string;

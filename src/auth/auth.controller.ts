@@ -7,6 +7,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RegisterDto } from './dto/register.dto';
 import { User } from '../users/entities/user.entity';
 import { CheckMobileDto, CheckMobileResponseDto } from './dto/check-mobile.dto';
+import { Token } from './decorators/token.decorator';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -66,8 +67,8 @@ export class AuthController {
     status: 200,
     description: 'Successfully logged out',
   })
-  async logout(@Request() req) {
-    return this.authService.logout(req.token);
+  async logout(@Token() token: string) {
+    return this.authService.logout(token);
   }
 
   @Delete('account')
@@ -95,8 +96,7 @@ export class AuthController {
     status: 401,
     description: 'Token is invalid or expired'
   })
-  async validate(@Request() req) {
-    const token = req.headers.authorization.split(' ')[1];
+  async validate(@Token() token: string) {
     return this.authService.validateToken(token);
   }
 } 
