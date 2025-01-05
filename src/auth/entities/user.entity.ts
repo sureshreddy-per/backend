@@ -1,5 +1,5 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { Role } from '../enums/role.enum';
+import { UserRole } from '../../users/entities/user.entity';
 
 export enum VerificationStatus {
   PENDING = 'PENDING',
@@ -23,10 +23,11 @@ export class User {
 
   @Column({
     type: 'enum',
-    enum: Role,
-    default: Role.USER
+    enum: UserRole,
+    array: true,
+    default: [UserRole.FARMER]
   })
-  role: Role;
+  roles: UserRole[];
 
   @Column({
     type: 'enum',

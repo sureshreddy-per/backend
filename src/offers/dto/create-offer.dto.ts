@@ -1,12 +1,8 @@
-import { IsString, IsNumber, IsUUID, IsOptional } from 'class-validator';
-import { QualityGrade } from '../../produce/enums/quality-grade.enum';
+import { IsString, IsNumber, IsOptional, IsUUID, IsDateString } from 'class-validator';
 
 export class CreateOfferDto {
   @IsUUID()
   produceId: string;
-
-  @IsUUID()
-  buyerId: string;
 
   @IsNumber()
   pricePerUnit: number;
@@ -14,14 +10,15 @@ export class CreateOfferDto {
   @IsNumber()
   quantity: number;
 
-  @IsOptional()
   @IsString()
+  @IsOptional()
   message?: string;
 
+  @IsString()
   @IsOptional()
-  qualityGrade?: QualityGrade;
+  qualityGrade?: string;
 
+  @IsDateString()
   @IsOptional()
-  @IsNumber()
-  quotedPrice?: number;
+  validUntil?: Date;
 } 

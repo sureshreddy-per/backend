@@ -1,35 +1,45 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Rating } from './entities/rating.entity';
 import { CreateRatingDto } from './dto/create-rating.dto';
-import { Offer } from '../offers/entities/offer.entity';
-import { OfferStatus } from '../offers/enums/offer-status.enum';
+import { OffersService } from '../offers/services/offers.service';
+import { Offer, OfferStatus } from '../offers/entities/offer.entity';
 
 @Injectable()
 export class RatingsService {
   constructor(
     @InjectRepository(Rating)
     private readonly ratingRepository: Repository<Rating>,
-    @InjectRepository(Offer)
-    private readonly offerRepository: Repository<Offer>
+    private readonly offersService: OffersService,
   ) {}
 
-  async create(createRatingDto: CreateRatingDto) {
-    const offer = await this.offerRepository.findOne({
-      where: { id: createRatingDto.offerId },
-      relations: ['buyer', 'produce', 'produce.farmer']
-    });
+  async create(createRatingDto: CreateRatingDto, ratedByUserId: string): Promise<Rating> {
+    const offer = await this.offersService.findOne(createRatingDto.offerId);
 
-    if (!offer || offer.status !== OfferStatus.COMPLETED) {
-      throw new Error('Cannot rate an incomplete transaction');
+    if (!offer || offer.status === OfferStatus.PENDING || 
+        offer.status === OfferStatus.CANCELLED || 
+        offer.status === OfferStatus.REJECTED ||
+        offer.status === OfferStatus.EXPIRED) {
+      throw new BadRequestException('Can only rate completed offers');
     }
 
-    const rating = new Rating();
-    Object.assign(rating, {
+    const existingRating = await this.ratingRepository.findOne({
+      where: {
+        offerId: createRatingDto.offerId,
+        ratedByUserId,
+      },
+    });
+
+    if (existingRating) {
+      throw new BadRequestException('You have already rated this offer');
+    }
+
+    const rating = this.ratingRepository.create({
       ...createRatingDto,
-      createdAt: new Date(),
-      updatedAt: new Date()
+      ratedByUserId,
+      ratedUserId: offer.buyerId,
+      offerId: offer.id,
     });
 
     return this.ratingRepository.save(rating);

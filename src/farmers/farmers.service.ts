@@ -5,12 +5,15 @@ import { Farmer } from './entities/farmer.entity';
 import { CreateFarmerDto } from './dto/create-farmer.dto';
 import { UpdateFarmerDto } from './dto/update-farmer.dto';
 import { ProduceHistoryQueryDto, ProduceHistoryResponseDto } from './dto/produce-history.dto';
+import { Transaction } from '../transactions/entities/transaction.entity';
 
 @Injectable()
 export class FarmersService {
   constructor(
     @InjectRepository(Farmer)
-    private readonly farmerRepository: Repository<Farmer>
+    private readonly farmerRepository: Repository<Farmer>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>
   ) {}
 
   async create(createFarmerDto: CreateFarmerDto) {
@@ -102,7 +105,7 @@ export class FarmersService {
         buyer: {
           id: transaction.buyer.id,
           name: transaction.buyer.name,
-          rating: transaction.buyer.rating
+          rating: transaction.buyer.metadata?.ratings?.average || 0
         }
       }));
 
@@ -119,5 +122,59 @@ export class FarmersService {
         averagePrice: transactions.length > 0 ? totalValue / transactions.length : 0
       }
     };
+  }
+
+  async getBuyerHistory(farmerId: string): Promise<any[]> {
+    const transactions = await this.transactionRepository.find({
+      where: { farmerId },
+      relations: ['buyer'],
+    });
+
+    return transactions.map(transaction => ({
+      buyerId: transaction.buyer.id,
+      name: transaction.buyer.name,
+      rating: transaction.buyer.metadata?.ratings?.average || 0,
+      transactionCount: 1, // This should be aggregated in a real implementation
+      lastTransactionDate: transaction.createdAt,
+    }));
+  }
+
+  async findNearby(lat: number, lng: number, radius: number = 10): Promise<Farmer[]> {
+    // Using Haversine formula to calculate distance
+    const haversineFormula = `
+      111.045 * DEGREES(ACOS(
+        COS(RADIANS($1)) * COS(RADIANS(CAST(location->>'lat' AS FLOAT))) *
+        COS(RADIANS($2) - RADIANS(CAST(location->>'lng' AS FLOAT))) +
+        SIN(RADIANS($1)) * SIN(RADIANS(CAST(location->>'lat' AS FLOAT)))
+      ))
+    `;
+
+    const farmers = await this.farmerRepository
+      .createQueryBuilder('farmer')
+      .where(`${haversineFormula} <= :radius`, { lat, lng, radius })
+      .orderBy(haversineFormula, 'ASC')
+      .setParameters([lat, lng])
+      .getMany();
+
+    return farmers.map(farmer => ({
+      ...farmer,
+      distance: this.calculateDistance(lat, lng, farmer.location.lat, farmer.location.lng)
+    }));
+  }
+
+  private calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = this.toRad(lat2 - lat1);
+    const dLng = this.toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(this.toRad(lat1)) * Math.cos(this.toRad(lat2)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  private toRad(degrees: number): number {
+    return degrees * (Math.PI / 180);
   }
 } 

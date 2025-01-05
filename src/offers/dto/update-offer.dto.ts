@@ -1,19 +1,4 @@
-import { IsNumber, IsOptional, IsString } from 'class-validator';
-import { QualityGrade } from '../../produce/enums/quality-grade.enum';
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateOfferDto } from './create-offer.dto';
 
-export class UpdateOfferDto {
-  @IsOptional()
-  @IsNumber()
-  pricePerUnit?: number;
-
-  @IsOptional()
-  @IsNumber()
-  quantity?: number;
-
-  @IsOptional()
-  @IsString()
-  message?: string;
-
-  @IsOptional()
-  qualityGrade?: QualityGrade;
-} 
+export class UpdateOfferDto extends PartialType(CreateOfferDto) {} 

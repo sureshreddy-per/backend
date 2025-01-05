@@ -39,4 +39,13 @@ export class FarmersController {
       endDate: query.endDate ? new Date(query.endDate) : undefined
     });
   }
+
+  @Get('nearby')
+  findNearby(
+    @Query('lat') lat: number,
+    @Query('lng') lng: number,
+    @Query('radius') radius: number = 10,
+  ) {
+    return this.farmersService.findNearby(lat, lng, radius);
+  }
 } 

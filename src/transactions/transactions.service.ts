@@ -1,14 +1,14 @@
 import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Transaction } from './entities/transaction.entity';
-import { TransactionStatus } from './enums/transaction-status.enum';
+import { Repository, DeepPartial } from 'typeorm';
+import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { ProduceStatus } from '../produce/enums/produce-status.enum';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { ProduceService } from '../produce/produce.service';
 import { TransactionsGateway } from './transactions.gateway';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { TransactionMetadata } from './interfaces/transaction-metadata.interface';
 
 @Injectable()
 export class TransactionsService {
@@ -75,17 +75,20 @@ export class TransactionsService {
         throw new ConflictException('An active transaction already exists for this produce');
       }
 
-      const transaction = this.transactionRepository.create({
+      const metadata: TransactionMetadata = {
+        priceAtTransaction: produce.price,
+        qualityGrade: produce.qualityGrade,
+        notes: createTransactionDto.notes || '',
+      };
+
+      const transactionData: DeepPartial<Transaction> = {
         ...createTransactionDto,
         buyerId,
         status: TransactionStatus.PENDING,
-        metadata: {
-          priceAtTransaction: produce.price,
-          qualityGrade: produce.qualityGrade,
-          notes: createTransactionDto.notes || '',
-        },
-      });
+        metadata,
+      };
 
+      const transaction = this.transactionRepository.create(transactionData);
       const savedTransaction = await this.transactionRepository.save(transaction);
       const transactionWithRelations = await this.findOne(savedTransaction.id);
 
@@ -192,19 +195,22 @@ export class TransactionsService {
     }
 
     try {
-      const updatedTransaction = await this.transactionRepository.save({
-        ...transaction,
+      const updatedData: DeepPartial<Transaction> = {
+        id: transaction.id,
         ...updateTransactionDto,
-        updatedAt: new Date(),
-      });
+        status: transaction.status,
+      };
+
+      const updatedTransaction = await this.transactionRepository.save(updatedData);
+      const refreshedTransaction = await this.findOne(updatedTransaction.id);
 
       this.eventEmitter.emit('transaction.updated', {
-        transactionId: updatedTransaction.id,
-        buyerId: updatedTransaction.buyerId,
-        produceId: updatedTransaction.produceId,
+        transactionId: refreshedTransaction.id,
+        buyerId: refreshedTransaction.buyerId,
+        produceId: refreshedTransaction.produceId,
       });
 
-      return updatedTransaction;
+      return refreshedTransaction;
     } catch (error) {
       throw new BadRequestException('Failed to update transaction');
     }
@@ -222,20 +228,24 @@ export class TransactionsService {
     }
 
     try {
-      transaction.status = TransactionStatus.CANCELLED;
-      transaction.cancelledAt = new Date();
-      transaction.cancellationReason = reason;
+      const updatedData: DeepPartial<Transaction> = {
+        id: transaction.id,
+        status: TransactionStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+      };
 
-      const cancelledTransaction = await this.transactionRepository.save(transaction);
+      const cancelledTransaction = await this.transactionRepository.save(updatedData);
+      const refreshedTransaction = await this.findOne(cancelledTransaction.id);
 
       this.eventEmitter.emit('transaction.cancelled', {
-        transactionId: cancelledTransaction.id,
-        buyerId: cancelledTransaction.buyerId,
-        produceId: cancelledTransaction.produceId,
+        transactionId: refreshedTransaction.id,
+        buyerId: refreshedTransaction.buyerId,
+        produceId: refreshedTransaction.produceId,
         reason,
       });
 
-      return cancelledTransaction;
+      return refreshedTransaction;
     } catch (error) {
       throw new BadRequestException('Failed to cancel transaction');
     }
@@ -249,18 +259,22 @@ export class TransactionsService {
     }
 
     try {
-      transaction.status = TransactionStatus.COMPLETED;
-      transaction.completedAt = new Date();
+      const updatedData: DeepPartial<Transaction> = {
+        id: transaction.id,
+        status: TransactionStatus.COMPLETED,
+        completedAt: new Date(),
+      };
 
-      const completedTransaction = await this.transactionRepository.save(transaction);
+      const completedTransaction = await this.transactionRepository.save(updatedData);
+      const refreshedTransaction = await this.findOne(completedTransaction.id);
 
       this.eventEmitter.emit('transaction.completed', {
-        transactionId: completedTransaction.id,
-        buyerId: completedTransaction.buyerId,
-        produceId: completedTransaction.produceId,
+        transactionId: refreshedTransaction.id,
+        buyerId: refreshedTransaction.buyerId,
+        produceId: refreshedTransaction.produceId,
       });
 
-      return completedTransaction;
+      return refreshedTransaction;
     } catch (error) {
       throw new BadRequestException('Failed to complete transaction');
     }

@@ -1,34 +1,20 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query, Req } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards } from '@nestjs/common';
 import { BuyerPricesService } from '../services/buyer-prices.service';
-import { CreateBuyerPriceDto } from '../dto/create-buyer-price.dto';
-import { UpdateBuyerPriceDto } from '../dto/update-buyer-price.dto';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../auth/guards/roles.guard';
+import { Roles } from '../../auth/decorators/roles.decorator';
+import { UserRole } from '../../users/entities/user.entity';
 
 @Controller('buyer-prices')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class BuyerPricesController {
   constructor(private readonly buyerPricesService: BuyerPricesService) {}
 
-  @Post()
-  create(@Body() createBuyerPriceDto: CreateBuyerPriceDto, @Req() req) {
-    return this.buyerPricesService.create(req.user.id, createBuyerPriceDto);
-  }
-
-  @Get()
-  findAll() {
-    return this.buyerPricesService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.buyerPricesService.findOne(id);
-  }
-
-  @Put(':id')
-  update(@Param('id') id: string, @Body() updateBuyerPriceDto: UpdateBuyerPriceDto) {
-    return this.buyerPricesService.update(id, updateBuyerPriceDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.buyerPricesService.remove(id);
+  @Post('price-change')
+  @Roles(UserRole.BUYER)
+  async handlePriceChange(
+    @Body() body: { produceId: string; newPrice: number }
+  ): Promise<void> {
+    return this.buyerPricesService.handlePriceChange(body.produceId, body.newPrice);
   }
 } 
