@@ -1,57 +1,24 @@
-import { IsString, IsOptional, IsObject, IsNumber, Min, Max, IsEmail, IsPhoneNumber } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-export class LocationDto {
-  @ApiProperty({ description: 'Latitude coordinate' })
-  @IsNumber()
-  @Min(-90)
-  @Max(90)
-  lat: number;
-
-  @ApiProperty({ description: 'Longitude coordinate' })
-  @IsNumber()
-  @Min(-180)
-  @Max(180)
-  lng: number;
-}
-
-export class FarmDetailsDto {
-  @ApiPropertyOptional({ description: 'Size of the farm in acres' })
-  @IsOptional()
-  @IsString()
-  size?: string;
-
-  @ApiPropertyOptional({ description: 'Types of crops grown' })
-  @IsOptional()
-  @IsString({ each: true })
-  crops?: string[];
-}
+import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsObject, ValidateNested, IsArray } from 'class-validator';
+import { Type } from 'class-transformer';
+import { CreateFarmDetailsDto } from './farm-details.dto';
+import { BankDetailsDto } from './bank-details.dto';
 
 export class CreateFarmerDto {
-  @ApiProperty({ description: 'Farmer\'s user ID' })
-  @IsString()
+  @ApiProperty({ description: 'User ID associated with this farmer' })
   userId: string;
 
-  @ApiProperty({ description: 'Farmer\'s name' })
-  @IsString()
-  name: string;
-
-  @ApiProperty({ description: 'Farmer\'s phone number' })
-  @IsPhoneNumber()
-  phoneNumber: string;
-
-  @ApiPropertyOptional({ description: 'Farmer\'s email' })
+  @ApiProperty({ description: 'Farm details array', type: [CreateFarmDetailsDto] })
   @IsOptional()
-  @IsEmail()
-  email?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateFarmDetailsDto)
+  farms?: CreateFarmDetailsDto[];
 
-  @ApiPropertyOptional({ type: LocationDto })
+  @ApiProperty({ description: 'Bank account details' })
   @IsOptional()
   @IsObject()
-  location?: LocationDto;
-
-  @ApiPropertyOptional({ type: FarmDetailsDto })
-  @IsOptional()
-  @IsObject()
-  farmDetails?: FarmDetailsDto;
+  @ValidateNested()
+  @Type(() => BankDetailsDto)
+  bankDetails?: BankDetailsDto;
 } 
