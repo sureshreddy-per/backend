@@ -9,7 +9,7 @@ export enum QualityGrade {
   REJECTED = 'REJECTED'
 }
 
-@Entity()
+@Entity('quality_assessments')
 export class QualityAssessment {
   @PrimaryGeneratedColumn('uuid')
   id: string;

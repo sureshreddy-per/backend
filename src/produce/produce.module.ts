@@ -7,10 +7,11 @@ import { QualityModule } from '../quality/quality.module';
 import { AuthModule } from '../auth/auth.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { User } from '../auth/entities/user.entity';
+import { Farmer } from '../farmers/entities/farmer.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Produce, User]),
+    TypeOrmModule.forFeature([Produce, User, Farmer]),
     QualityModule,
     AuthModule,
     EventEmitterModule.forRoot(),

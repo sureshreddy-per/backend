@@ -11,7 +11,7 @@ export enum TransactionStatus {
   FAILED = 'FAILED'
 }
 
-@Entity()
+@Entity('transactions')
 export class Transaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;

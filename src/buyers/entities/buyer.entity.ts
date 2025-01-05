@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 
-@Entity()
+@Entity('buyers')
 export class Buyer {
   @PrimaryGeneratedColumn('uuid')
   id: string;

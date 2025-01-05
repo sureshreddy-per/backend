@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import { ThrottlerModule, ThrottlerModuleOptions } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ProduceModule } from './produce/produce.module';
 import { UsersModule } from './users/users.module';
@@ -25,9 +25,9 @@ import { TasksModule } from './tasks/tasks.module';
       ttl: 60000,
       limit: 10,
     }]),
-    ProduceModule,
-    UsersModule,
     AuthModule,
+    UsersModule,
+    ProduceModule,
     OffersModule,
     TransactionsModule,
     QualityModule,
