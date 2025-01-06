@@ -147,17 +147,15 @@ await updateProduceStatus('produce-id', ProduceStatus.UNDER_OFFER);
 Handle produce photos and videos.
 
 \`\`\`typescript
-// Upload additional photos
-const uploadPhotos = async (produceId: string, photos: File[]) => {
+// Upload a single image and get URL
+const uploadImage = async (photo: File) => {
   const formData = new FormData();
-  photos.forEach(photo => {
-    formData.append('photos', photo);
-  });
+  formData.append('image', photo);
 
-  const response = await fetch(\`/produce/\${produceId}/photos\`, {
+  const response = await fetch('/produce/image', {
     method: 'POST',
     headers: {
-      'Authorization': \`Bearer \${token}\`,
+      'Authorization': `Bearer ${token}`,
     },
     body: formData,
   });
@@ -165,19 +163,86 @@ const uploadPhotos = async (produceId: string, photos: File[]) => {
   return response.json();
 };
 
-// Delete a photo
-const deletePhoto = async (produceId: string, photoId: string) => {
+// Upload a single video and get URL
+const uploadVideo = async (video: File) => {
+  const formData = new FormData();
+  formData.append('video', video);
+
+  const response = await fetch('/produce/video', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+    body: formData,
+  });
+
+  return response.json();
+};
+
+// Delete a media file
+const deleteMedia = async (url: string) => {
   const response = await fetch(
-    \`/produce/\${produceId}/photos/\${photoId}\`,
+    '/produce/media',
     {
       method: 'DELETE',
       headers: {
-        'Authorization': \`Bearer \${token}\`,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({ url }),
     }
   );
 
-  return response.ok;
+  return response.json();
+};
+
+// Example usage in produce creation
+const createProduceWithMedia = async (photos: File[], video?: File) => {
+  // Upload images
+  const imageUrls = [];
+  for (const photo of photos) {
+    try {
+      const { imageUrl } = await uploadImage(photo);
+      imageUrls.push(imageUrl);
+    } catch (error) {
+      console.error(`Failed to upload image: ${photo.name}`, error);
+      // Continue with other images even if one fails
+    }
+  }
+
+  // Upload video if provided
+  let videoUrl = null;
+  if (video) {
+    try {
+      const { videoUrl: url } = await uploadVideo(video);
+      videoUrl = url;
+    } catch (error) {
+      console.error('Failed to upload video', error);
+    }
+  }
+
+  // Create the produce with the media URLs
+  const produceData = {
+    name: 'Fresh Tomatoes',
+    description: 'Organic tomatoes',
+    quantity: 100,
+    unit: 'kg',
+    price: 2.5,
+    imageUrls,
+    videoUrl,
+    // ... other produce data
+  };
+
+  const response = await fetch('/produce', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(produceData),
+  });
+
+  return response.json();
 };
 \`\`\`
 

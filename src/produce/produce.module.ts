@@ -1,5 +1,8 @@
 import { Module, MiddlewareConsumer } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { MulterModule } from '@nestjs/platform-express';
+import { ConfigModule } from '@nestjs/config';
+import { memoryStorage } from 'multer';
 import { ProduceController } from './produce.controller';
 import { ProduceService } from './produce.service';
 import { Produce } from './entities/produce.entity';
@@ -16,6 +19,7 @@ import { Sugarcane } from './entities/produce-categories/sugarcane.entity';
 import { Flowers } from './entities/produce-categories/flowers.entity';
 import { MedicinalPlants } from './entities/produce-categories/medicinal-plants.entity';
 import { FarmersModule } from '../farmers/farmers.module';
+import { S3Service } from '../common/services/s3.service';
 
 @Module({
   imports: [
@@ -33,10 +37,14 @@ import { FarmersModule } from '../farmers/farmers.module';
       Flowers,
       MedicinalPlants
     ]),
+    MulterModule.register({
+      storage: memoryStorage(),
+    }),
+    ConfigModule,
     FarmersModule
   ],
   controllers: [ProduceController],
-  providers: [ProduceService],
+  providers: [ProduceService, S3Service],
   exports: [ProduceService]
 })
 export class ProduceModule {

@@ -218,3 +218,117 @@ Farm Not Found (404 Not Found):
   "statusCode": 404,
   "message": "Farm not found or does not belong to farmer"
 } 
+
+## Media Management
+
+### Upload Image
+`POST /produce/image`
+
+Upload a single image and get its URL. This URL can then be used when creating or updating a produce listing.
+
+#### Request
+- Content-Type: `multipart/form-data`
+- Required Role: `FARMER`
+- Max File Size: 5MB
+- Supported Formats: jpg, jpeg, png, gif
+
+```bash
+curl -X POST http://your-api/produce/image \
+  -H "Authorization: Bearer {token}" \
+  -F "image=@image1.jpg"
+```
+
+#### Response (200 OK)
+```json
+{
+  "imageUrl": "https://your-bucket.s3.region.amazonaws.com/produce/images/image1-uuid.jpg"
+}
+```
+
+### Upload Video
+`POST /produce/video`
+
+Upload a single video and get its URL. This URL can then be used when creating or updating a produce listing.
+
+#### Request
+- Content-Type: `multipart/form-data`
+- Required Role: `FARMER`
+- Max File Size: 50MB
+- Supported Formats: mp4, mov, avi
+
+```bash
+curl -X POST http://your-api/produce/video \
+  -H "Authorization: Bearer {token}" \
+  -F "video=@video1.mp4"
+```
+
+#### Response (200 OK)
+```json
+{
+  "videoUrl": "https://your-bucket.s3.region.amazonaws.com/produce/videos/video1-uuid.mp4"
+}
+```
+
+### Delete Media
+`DELETE /produce/media`
+
+Delete a specific media file (image or video) by its URL.
+
+#### Request
+- Content-Type: `application/json`
+- Required Role: `FARMER`
+
+```json
+{
+  "url": "https://your-bucket.s3.region.amazonaws.com/produce/images/image1-uuid.jpg"
+}
+```
+
+#### Response (200 OK)
+```json
+{
+  "success": true
+}
+```
+
+### Error Responses
+
+Invalid Image Format (400 Bad Request):
+```json
+{
+  "statusCode": 400,
+  "message": "Only image files are allowed!"
+}
+```
+
+Invalid Video Format (400 Bad Request):
+```json
+{
+  "statusCode": 400,
+  "message": "Only video files (mp4, mov, avi) are allowed!"
+}
+```
+
+No File Uploaded (400 Bad Request):
+```json
+{
+  "statusCode": 400,
+  "message": "No file uploaded"
+}
+```
+
+File Too Large (413 Payload Too Large):
+```json
+{
+  "statusCode": 413,
+  "message": "File size exceeds the limit"
+}
+```
+
+Unauthorized (401 Unauthorized):
+```json
+{
+  "statusCode": 401,
+  "message": "Unauthorized"
+}
+``` 

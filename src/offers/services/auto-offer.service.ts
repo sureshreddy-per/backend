@@ -22,8 +22,8 @@ export class AutoOfferService {
     }
 
     const nearbyBuyers = await this.buyersService.findNearby(
-      produce.location.lat,
-      produce.location.lng,
+      produce.location.latitude,
+      produce.location.longitude,
       100
     );
 
@@ -63,8 +63,8 @@ export class AutoOfferService {
     }
 
     const matchingProduce = await this.produceService.findNearby({
-      latitude: buyer.location.lat,
-      longitude: buyer.location.lng,
+      latitude: buyer.location.latitude,
+      longitude: buyer.location.longitude,
       radiusInKm: 100
     });
 
