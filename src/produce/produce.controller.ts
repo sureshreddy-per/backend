@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Body, Put, Delete, Param, Query, UseGuards, Request, ValidationPipe } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Put, Delete, Param, Query, UseGuards, Request, ValidationPipe, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { ProduceService } from './produce.service';
 import { CreateProduceDto } from './dto/create-produce.dto';
 import { UpdateProduceDto } from './dto/update-produce.dto';
@@ -10,6 +10,8 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { GetFarmer } from '../auth/decorators/get-farmer.decorator';
 import { Role } from '../auth/enums/role.enum';
 import { Farmer } from '../farmers/entities/farmer.entity';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { imageConfig, videoConfig } from '../config/upload.config';
 
 @ApiTags('Produce')
 @ApiBearerAuth()
@@ -88,5 +90,72 @@ export class ProduceController {
   async remove(@Request() req, @Param('id') id: string) {
     const farmer = await this.produceService.getFarmerByUserId(req.user.id);
     return this.produceService.remove(id, farmer.id);
+  }
+
+  @Post('image')
+  @Roles(Role.FARMER)
+  @UseInterceptors(FileInterceptor('image', imageConfig))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload a single image and get URL' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  async uploadImage(
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.produceService.uploadImage(file);
+  }
+
+  @Post('video')
+  @Roles(Role.FARMER)
+  @UseInterceptors(FileInterceptor('video', videoConfig))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload a single video and get URL' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        video: {
+          type: 'string',
+          format: 'binary',
+          description: 'Video file (mp4, mov, avi) max 50MB',
+        },
+      },
+    },
+  })
+  async uploadVideo(
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.produceService.uploadVideo(file);
+  }
+
+  @Delete('media')
+  @Roles(Role.FARMER)
+  @ApiOperation({ summary: 'Delete a media file by URL' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        url: {
+          type: 'string',
+          description: 'URL of the media file to delete',
+        },
+      },
+    },
+  })
+  async deleteMedia(
+    @Request() req,
+    @Body('url') url: string,
+  ) {
+    const farmer = await this.produceService.getFarmerByUserId(req.user.id);
+    return this.produceService.deleteMedia(url, farmer.id);
   }
 } 

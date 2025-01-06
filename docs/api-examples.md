@@ -1268,3 +1268,57 @@ Response (200 OK):
 > 8. Farm size units can be: acres, hectares, square_meters
 > 9. When creating produce, you can optionally specify which farm it belongs to
 > 10. Farm details are included in produce responses when farmId is specified
+
+## File Upload Service
+
+### Upload Produce Images
+```http
+POST /produce/images/{produceId}
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: multipart/form-data
+
+Form Data:
+- images: [File1, File2, ...]
+
+Response (200 OK):
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "imageUrls": [
+    "https://your-bucket.s3.region.amazonaws.com/produce/image1-uuid.jpg",
+    "https://your-bucket.s3.region.amazonaws.com/produce/image2-uuid.jpg"
+  ],
+  "updatedAt": "2024-01-20T12:00:00Z"
+}
+```
+
+### Delete Produce Image
+```http
+DELETE /produce/images/{produceId}
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "imageUrl": "https://your-bucket.s3.region.amazonaws.com/produce/image1-uuid.jpg"
+}
+
+Response (200 OK):
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "imageUrls": [
+    "https://your-bucket.s3.region.amazonaws.com/produce/image2-uuid.jpg"
+  ],
+  "updatedAt": "2024-01-20T12:00:00Z"
+}
+```
+
+> **File Upload Notes**:
+> 1. All file uploads require authentication
+> 2. Images are stored in AWS S3 and served via HTTPS
+> 3. Maximum file size: 5MB per image
+> 4. Supported image formats: jpg, jpeg, png, gif
+> 5. Maximum 5 images per upload request
+> 6. Images are automatically resized and optimized
+> 7. Original filenames are preserved in the metadata
+> 8. URLs are publicly accessible but tamper-proof
+> 9. Failed uploads are automatically retried
+> 10. Old images are automatically cleaned up

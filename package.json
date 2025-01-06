@@ -19,9 +19,12 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "typeorm": "typeorm-ts-node-commonjs"
+    "typeorm": "typeorm-ts-node-commonjs",
+    "recreate-tables": "ts-node scripts/recreate-tables.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.722.0",
+    "@aws-sdk/lib-storage": "^3.722.0",
     "@nestjs/common": "^9.0.0",
     "@nestjs/config": "^2.2.0",
     "@nestjs/core": "^9.0.0",
@@ -35,6 +38,7 @@
     "@nestjs/throttler": "^6.3.0",
     "@nestjs/typeorm": "^9.0.1",
     "@nestjs/websockets": "^9.4.3",
+    "@types/aws-sdk": "^0.0.42",
     "@types/helmet": "^0.0.48",
     "@types/multer": "^1.4.12",
     "@types/passport-local": "^1.0.38",

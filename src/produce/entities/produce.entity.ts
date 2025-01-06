@@ -94,8 +94,8 @@ export class Produce {
   @Column('json')
   @ApiProperty({ description: 'Location coordinates of the produce' })
   location: {
-    lat: number;
-    lng: number;
+    latitude: number;
+    longitude: number;
   };
 
   @Column({ nullable: true })
@@ -105,6 +105,18 @@ export class Produce {
   @Column('json', { nullable: true })
   @ApiProperty({ description: 'Additional metadata for the produce', required: false })
   metadata?: Record<string, any>;
+
+  @Column('text', { array: true, default: [] })
+  @ApiProperty({ type: [String], description: 'Array of image URLs' })
+  imageUrls: string[];
+
+  @Column({ nullable: true })
+  @ApiProperty({ description: 'Primary image URL for the produce' })
+  primaryImageUrl: string;
+
+  @Column({ nullable: true })
+  @ApiProperty({ description: 'URL of the video file' })
+  videoUrl?: string;
 
   @ManyToOne(() => Farmer, farmer => farmer.produce)
   @ApiProperty({ description: 'Farmer who listed this produce', type: () => Farmer })

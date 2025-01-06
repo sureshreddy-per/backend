@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsOptional, IsEnum, ValidateNested, Min, IsObject } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsEnum, ValidateNested, Min, IsObject, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 import { ProduceCategory } from '../entities/produce.entity';
@@ -114,4 +114,19 @@ export class CreateProduceDto {
   @IsOptional()
   @IsObject()
   medicinalPlants?: any;
+
+  @ApiProperty({ type: [String], description: 'Array of image URLs' })
+  @IsArray()
+  @IsString({ each: true })
+  imageUrls: string[];
+
+  @ApiProperty({ description: 'Primary image URL from imageUrls array', required: false })
+  @IsString()
+  @IsOptional()
+  primaryImageUrl?: string;
+
+  @ApiProperty({ description: 'URL of the video file', required: false })
+  @IsString()
+  @IsOptional()
+  videoUrl?: string;
 } 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Produce, ProduceCategory } from './entities/produce.entity';
@@ -17,6 +17,8 @@ import { Fibers } from './entities/produce-categories/fibers.entity';
 import { Sugarcane } from './entities/produce-categories/sugarcane.entity';
 import { Flowers } from './entities/produce-categories/flowers.entity';
 import { MedicinalPlants } from './entities/produce-categories/medicinal-plants.entity';
+import { S3Service } from '../common/services/s3.service';
+import { Raw } from 'typeorm';
 
 @Injectable()
 export class ProduceService {
@@ -44,7 +46,8 @@ export class ProduceService {
     @InjectRepository(Flowers)
     private readonly flowersRepository: Repository<Flowers>,
     @InjectRepository(MedicinalPlants)
-    private readonly medicinalPlantsRepository: Repository<MedicinalPlants>
+    private readonly medicinalPlantsRepository: Repository<MedicinalPlants>,
+    private readonly s3Service: S3Service,
   ) {}
 
   async getFarmerByUserId(userId: string): Promise<Farmer> {
@@ -81,8 +84,8 @@ export class ProduceService {
       currency: createProduceDto.currency || 'INR',
       farmerId,
       location: {
-        lat: createProduceDto.location.latitude,
-        lng: createProduceDto.location.longitude
+        latitude: createProduceDto.location.latitude,
+        longitude: createProduceDto.location.longitude
       }
     });
 
@@ -513,8 +516,8 @@ export class ProduceService {
       ...updateProduceDto,
       price: updatedPrice,
       location: updateProduceDto.location ? {
-        lat: updateProduceDto.location.latitude,
-        lng: updateProduceDto.location.longitude
+        latitude: updateProduceDto.location.latitude,
+        longitude: updateProduceDto.location.longitude
       } : produce.location
     });
 
@@ -593,5 +596,56 @@ export class ProduceService {
       .limit(limit);
 
     return query.getMany();
+  }
+
+  async uploadImage(file: Express.Multer.File): Promise<{ imageUrl: string }> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Upload file to S3 and get URL
+    const imageUrl = await this.s3Service.uploadFile(file, 'images');
+    return { imageUrl };
+  }
+
+  async deleteMedia(url: string, farmerId: string): Promise<{ success: boolean }> {
+    // Find all produces by this farmer that have this image or video
+    const produces = await this.produceRepository.find({
+      where: [
+        { farmerId, imageUrls: Raw(alias => `${alias} @> ARRAY[:url]`, { url }) },
+        { farmerId, videoUrl: url }
+      ]
+    });
+
+    // Update all produces that reference this media
+    for (const produce of produces) {
+      // If it's an image
+      if (produce.imageUrls.includes(url)) {
+        produce.imageUrls = produce.imageUrls.filter(imgUrl => imgUrl !== url);
+        // If it was the primary image, clear that reference
+        if (produce.primaryImageUrl === url) {
+          produce.primaryImageUrl = produce.imageUrls[0] || null;
+        }
+      }
+      // If it's a video
+      if (produce.videoUrl === url) {
+        produce.videoUrl = null;
+      }
+      await this.produceRepository.save(produce);
+    }
+
+    // Delete the file from S3
+    await this.s3Service.deleteFile(url);
+    return { success: true };
+  }
+
+  async uploadVideo(file: Express.Multer.File): Promise<{ videoUrl: string }> {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+
+    // Upload file to S3 and get URL
+    const videoUrl = await this.s3Service.uploadFile(file, 'videos');
+    return { videoUrl };
   }
 } 
