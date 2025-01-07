@@ -9,6 +9,10 @@ export class Farm {
   @Column()
   farmer_id: string;
 
+  @ManyToOne(() => Farmer)
+  @JoinColumn({ name: 'farmer_id' })
+  farmer: Farmer;
+
   @Column()
   name: string;
 
@@ -18,15 +22,11 @@ export class Farm {
   @Column()
   address: string;
 
-  @Column()
+  @Column({ nullable: true })
   lat_lng: string;
 
   @Column({ nullable: true })
   image: string;
-
-  @ManyToOne(() => Farmer, farmer => farmer.farms)
-  @JoinColumn({ name: 'farmer_id' })
-  farmer: Farmer;
 
   @CreateDateColumn()
   created_at: Date;

@@ -1,13 +1,14 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseFloatPipe } from '@nestjs/common';
 import { InspectorsService } from './inspectors.service';
-import { Inspector } from './entities/inspector.entity';
+import { CreateInspectorDto } from './dto/create-inspector.dto';
+import { UpdateInspectorDto } from './dto/update-inspector.dto';
 
 @Controller('inspectors')
 export class InspectorsController {
   constructor(private readonly inspectorsService: InspectorsService) {}
 
   @Post()
-  create(@Body() createInspectorDto: Partial<Inspector>) {
+  create(@Body() createInspectorDto: CreateInspectorDto) {
     return this.inspectorsService.create(createInspectorDto);
   }
 
@@ -18,9 +19,9 @@ export class InspectorsController {
 
   @Get('nearby')
   findNearby(
-    @Query('lat') lat: number,
-    @Query('lng') lng: number,
-    @Query('radius') radiusKm: number = 50,
+    @Query('lat', ParseFloatPipe) lat: number,
+    @Query('lng', ParseFloatPipe) lng: number,
+    @Query('radius', ParseFloatPipe) radiusKm: number,
   ) {
     return this.inspectorsService.findNearby(lat, lng, radiusKm);
   }
@@ -31,10 +32,7 @@ export class InspectorsController {
   }
 
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateInspectorDto: Partial<Inspector>,
-  ) {
+  update(@Param('id') id: string, @Body() updateInspectorDto: UpdateInspectorDto) {
     return this.inspectorsService.update(id, updateInspectorDto);
   }
 

@@ -1,322 +1,67 @@
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DeepPartial } from 'typeorm';
-import { Transaction, TransactionStatus } from './entities/transaction.entity';
-import { ProduceStatus } from '../produce/enums/produce-status.enum';
+import { Repository } from 'typeorm';
+import { Transaction } from './entities/transaction.entity';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
-import { UpdateTransactionDto } from './dto/update-transaction.dto';
-import { ProduceService } from '../produce/produce.service';
-import { TransactionsGateway } from './transactions.gateway';
-import { EventEmitter2 } from '@nestjs/event-emitter';
-import { TransactionMetadata } from './interfaces/transaction-metadata.interface';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class TransactionsService {
-  private readonly MAX_ACTIVE_TRANSACTIONS = 10;
-  private readonly MIN_QUANTITY = 0.01;
-  private readonly MAX_QUANTITY = 1000000; // 1 million units
-  private readonly MAX_TRANSACTIONS_PER_PAGE = 50;
-
   constructor(
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
-    private readonly produceService: ProduceService,
-    private readonly transactionsGateway: TransactionsGateway,
-    private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(createTransactionDto: CreateTransactionDto, buyer_id: string): Promise<Transaction> {
-    // Validate quantity
-    if (createTransactionDto.quantity <= this.MIN_QUANTITY) {
-      throw new BadRequestException(`Quantity must be greater than ${this.MIN_QUANTITY}`);
-    }
-
-    if (createTransactionDto.quantity > this.MAX_QUANTITY) {
-      throw new BadRequestException(`Quantity cannot exceed ${this.MAX_QUANTITY}`);
-    }
-
-    // Check active transactions limit
-    const activeTransactions = await this.transactionRepository.count({
-      where: {
-        buyer_id,
-        status: TransactionStatus.PENDING,
-      },
-    });
-
-    if (activeTransactions >= this.MAX_ACTIVE_TRANSACTIONS) {
-      throw new BadRequestException(
-        `Maximum limit of ${this.MAX_ACTIVE_TRANSACTIONS} active transactions reached`
-      );
-    }
-
-    try {
-      const produce = await this.produceService.findOne(createTransactionDto.produce_id);
-
-      // Validate produce status
-      if (produce.status !== ProduceStatus.IN_PROGRESS) {
-        throw new BadRequestException('Cannot create transaction for this produce');
-      }
-
-      // Validate quantity against available produce
-      if (createTransactionDto.quantity > produce.quantity) {
-        throw new BadRequestException('Requested quantity exceeds available produce quantity');
-      }
-
-      // Check for existing transaction
-      const existingTransaction = await this.transactionRepository.findOne({
-        where: {
-          buyer_id,
-          produce_id: createTransactionDto.produce_id,
-          status: TransactionStatus.PENDING,
-        },
-      });
-
-      if (existingTransaction) {
-        throw new ConflictException('An active transaction already exists for this produce');
-      }
-
-      const metadata: TransactionMetadata = {
-        price_at_transaction: produce.price_per_unit,
-        quality_grade_at_transaction: produce.quality_grade,
-        location_at_transaction: {
-          latitude: produce.latitude,
-          longitude: produce.longitude,
-        },
-      };
-
-      const transactionData: DeepPartial<Transaction> = {
-        ...createTransactionDto,
-        buyer_id,
-        status: TransactionStatus.PENDING,
-        metadata,
-        notes: createTransactionDto.notes,
-      };
-
-      const transaction = this.transactionRepository.create(transactionData);
-      const savedTransaction = await this.transactionRepository.save(transaction);
-      const transactionWithRelations = await this.findOne(savedTransaction.id);
-
-      // Emit events
-      this.eventEmitter.emit('transaction.created', {
-        transaction_id: transactionWithRelations.id,
-        buyer_id,
-        produce_id: produce.id,
-        quantity: createTransactionDto.quantity,
-      });
-
-      // Notify through WebSocket
-      this.transactionsGateway.notifyNewTransaction(transactionWithRelations);
-
-      return transactionWithRelations;
-    } catch (error) {
-      if (error instanceof NotFoundException || error instanceof ConflictException) {
-        throw error;
-      }
-      throw new BadRequestException('Failed to create transaction');
-    }
+  async create(createTransactionDto: CreateTransactionDto): Promise<Transaction> {
+    const transaction = this.transactionRepository.create(createTransactionDto);
+    return this.transactionRepository.save(transaction);
   }
 
-  async findAll(page = 1, limit = 10): Promise<{ items: Transaction[]; meta: any }> {
-    if (page < 1) {
-      throw new BadRequestException('Page number must be greater than 0');
-    }
+  async findAll(page = 1, limit = 10): Promise<PaginatedResponse<Transaction>> {
+    const [items, total] = await this.transactionRepository.findAndCount({
+      skip: (page - 1) * limit,
+      take: limit,
+      relations: ['farmer', 'buyer', 'produce', 'offer'],
+      order: { created_at: 'DESC' },
+    });
 
-    if (limit < 1 || limit > this.MAX_TRANSACTIONS_PER_PAGE) {
-      throw new BadRequestException(`Limit must be between 1 and ${this.MAX_TRANSACTIONS_PER_PAGE}`);
-    }
-
-    try {
-      const [items, total] = await this.transactionRepository.findAndCount({
-        relations: ['buyer', 'produce'],
-        skip: (page - 1) * limit,
-        take: limit,
-        order: { created_at: 'DESC' },
-      });
-
-      const totalPages = Math.ceil(total / limit);
-
-      return {
-        items,
-        meta: {
-          total,
-          page,
-          limit,
-          total_pages: totalPages,
-          has_next: page < totalPages,
-          has_previous: page > 1,
-        },
-      };
-    } catch (error) {
-      throw new BadRequestException('Failed to fetch transactions');
-    }
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findOne(id: string): Promise<Transaction> {
-    if (!id) {
-      throw new BadRequestException('Transaction ID is required');
+    const transaction = await this.transactionRepository.findOne({
+      where: { id },
+      relations: ['farmer', 'buyer', 'produce', 'offer'],
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(`Transaction with ID ${id} not found`);
     }
 
-    try {
-      const transaction = await this.transactionRepository.findOne({
-        where: { id },
-        relations: ['buyer', 'produce', 'produce.farmer'],
-      });
-
-      if (!transaction) {
-        throw new NotFoundException(`Transaction with ID ${id} not found`);
-      }
-
-      return transaction;
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new BadRequestException('Failed to fetch transaction details');
-    }
+    return transaction;
   }
 
-  async update(id: string, updateTransactionDto: UpdateTransactionDto): Promise<Transaction> {
-    const transaction = await this.findOne(id);
+  async findByBuyer(buyerId: string, page = 1, limit = 10): Promise<PaginatedResponse<Transaction>> {
+    const [items, total] = await this.transactionRepository.findAndCount({
+      where: { buyer_id: buyerId },
+      skip: (page - 1) * limit,
+      take: limit,
+      relations: ['farmer', 'buyer', 'produce', 'offer'],
+      order: { created_at: 'DESC' },
+    });
 
-    if (transaction.status !== TransactionStatus.PENDING) {
-      throw new BadRequestException('Can only update pending transactions');
-    }
-
-    // Validate quantity if provided
-    if (updateTransactionDto.quantity !== undefined) {
-      if (updateTransactionDto.quantity <= this.MIN_QUANTITY) {
-        throw new BadRequestException(`Quantity must be greater than ${this.MIN_QUANTITY}`);
-      }
-
-      if (updateTransactionDto.quantity > this.MAX_QUANTITY) {
-        throw new BadRequestException(`Quantity cannot exceed ${this.MAX_QUANTITY}`);
-      }
-
-      // Validate against available produce quantity
-      if (updateTransactionDto.quantity > transaction.produce.quantity) {
-        throw new BadRequestException('Requested quantity exceeds available produce quantity');
-      }
-    }
-
-    try {
-      const updatedData: DeepPartial<Transaction> = {
-        id: transaction.id,
-        ...updateTransactionDto,
-        status: transaction.status,
-      };
-
-      const updatedTransaction = await this.transactionRepository.save(updatedData);
-      const refreshedTransaction = await this.findOne(updatedTransaction.id);
-
-      this.eventEmitter.emit('transaction.updated', {
-        transaction_id: refreshedTransaction.id,
-        buyer_id: refreshedTransaction.buyer_id,
-        produce_id: refreshedTransaction.produce_id,
-      });
-
-      return refreshedTransaction;
-    } catch (error) {
-      throw new BadRequestException('Failed to update transaction');
-    }
-  }
-
-  async cancel(id: string, reason: string): Promise<Transaction> {
-    if (!reason) {
-      throw new BadRequestException('Cancellation reason is required');
-    }
-
-    const transaction = await this.findOne(id);
-
-    if (transaction.status !== TransactionStatus.PENDING) {
-      throw new BadRequestException('Can only cancel pending transactions');
-    }
-
-    try {
-      const updatedData: DeepPartial<Transaction> = {
-        id: transaction.id,
-        status: TransactionStatus.CANCELLED,
-        cancelled_at: new Date(),
-        cancellation_reason: reason,
-      };
-
-      const cancelledTransaction = await this.transactionRepository.save(updatedData);
-      const refreshedTransaction = await this.findOne(cancelledTransaction.id);
-
-      this.eventEmitter.emit('transaction.cancelled', {
-        transaction_id: refreshedTransaction.id,
-        buyer_id: refreshedTransaction.buyer_id,
-        produce_id: refreshedTransaction.produce_id,
-        reason,
-      });
-
-      return refreshedTransaction;
-    } catch (error) {
-      throw new BadRequestException('Failed to cancel transaction');
-    }
-  }
-
-  async complete(id: string): Promise<Transaction> {
-    const transaction = await this.findOne(id);
-
-    if (transaction.status !== TransactionStatus.PENDING) {
-      throw new BadRequestException('Can only complete pending transactions');
-    }
-
-    try {
-      const updatedData: DeepPartial<Transaction> = {
-        id: transaction.id,
-        status: TransactionStatus.COMPLETED,
-        completed_at: new Date(),
-      };
-
-      const completedTransaction = await this.transactionRepository.save(updatedData);
-      const refreshedTransaction = await this.findOne(completedTransaction.id);
-
-      this.eventEmitter.emit('transaction.completed', {
-        transaction_id: refreshedTransaction.id,
-        buyer_id: refreshedTransaction.buyer_id,
-        produce_id: refreshedTransaction.produce_id,
-      });
-
-      return refreshedTransaction;
-    } catch (error) {
-      throw new BadRequestException('Failed to complete transaction');
-    }
-  }
-
-  async findByBuyer(buyer_id: string, page = 1, limit = 10): Promise<{ items: Transaction[]; meta: any }> {
-    if (page < 1) {
-      throw new BadRequestException('Page number must be greater than 0');
-    }
-
-    if (limit < 1 || limit > this.MAX_TRANSACTIONS_PER_PAGE) {
-      throw new BadRequestException(`Limit must be between 1 and ${this.MAX_TRANSACTIONS_PER_PAGE}`);
-    }
-
-    try {
-      const [items, total] = await this.transactionRepository.findAndCount({
-        where: { buyer_id },
-        relations: ['produce'],
-        skip: (page - 1) * limit,
-        take: limit,
-        order: { created_at: 'DESC' },
-      });
-
-      const totalPages = Math.ceil(total / limit);
-
-      return {
-        items,
-        meta: {
-          total,
-          page,
-          limit,
-          total_pages: totalPages,
-          has_next: page < totalPages,
-          has_previous: page > 1,
-        },
-      };
-    } catch (error) {
-      throw new BadRequestException('Failed to fetch buyer transactions');
-    }
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 } 

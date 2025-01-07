@@ -1,34 +1,42 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Buyer } from '../../buyers/entities/buyer.entity';
 
 @Entity('auto_offer_rules')
 export class AutoOfferRules {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ name: 'buyer_id' })
+  buyer_id: string;
+
+  @ManyToOne(() => Buyer)
+  @JoinColumn({ name: 'buyer_id' })
+  buyer: Buyer;
+
+  @Column()
+  produce_category: string;
+
+  @Column({ type: 'decimal', nullable: true })
+  min_quantity: number;
+
+  @Column({ type: 'decimal', nullable: true })
+  max_quantity: number;
+
+  @Column({ type: 'decimal', nullable: true })
+  min_price: number;
+
+  @Column({ type: 'decimal', nullable: true })
+  max_price: number;
+
+  @Column({ nullable: true })
+  preferred_grade: string;
+
   @Column({ default: true })
-  priceChangeExpiry: boolean;
-
-  @Column({ type: 'decimal', precision: 5, scale: 2, default: 10.00 })
-  significantPriceChangePercent: number;
-
-  @Column({ type: 'int', default: 24 })
-  defaultExpiryHours: number;
-
-  @Column({ type: 'int', default: 5 })
-  maxActiveOffersPerProduce: number;
-
-  @Column({ default: 15 })
-  graceMinutes: number;
-
-  @Column({ default: 3 })
-  maxSimultaneousOffers: number;
-
-  @Column('simple-array', { default: 'rating,distance,historicalTransactions' })
-  priorityOrder: string[];
+  is_active: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  created_at: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updated_at: Date;
 } 

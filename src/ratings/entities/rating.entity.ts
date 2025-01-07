@@ -1,42 +1,32 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
-import { Offer } from '../../offers/entities/offer.entity';
-
-export interface RatingCategories {
-  communication?: number;
-  reliability?: number;
-  quality?: number;
-}
 
 @Entity('ratings')
 export class Rating {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ name: 'rated_user_id' })
   rated_user_id: string;
 
-  @Column()
+  @Column({ name: 'rating_user_id' })
   rating_user_id: string;
 
-  @Column({ nullable: true })
-  transaction_id?: string;
-
-  @Column({ nullable: true })
-  offer_id?: string;
+  @Column({ name: 'transaction_id' })
+  transaction_id: string;
 
   @Column('decimal', { precision: 2, scale: 1 })
   stars: number;
 
   @Column({ type: 'text', nullable: true })
-  review_text?: string;
+  comment: string;
 
-  @Column({ type: 'jsonb', nullable: true })
-  categories?: RatingCategories;
+  @CreateDateColumn({ name: 'created_at' })
+  created_at: Date;
 
-  @Column('simple-array', { nullable: true })
-  tags?: string[];
+  @UpdateDateColumn({ name: 'updated_at' })
+  updated_at: Date;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'rated_user_id' })
@@ -48,15 +38,5 @@ export class Rating {
 
   @ManyToOne(() => Transaction)
   @JoinColumn({ name: 'transaction_id' })
-  transaction?: Transaction;
-
-  @ManyToOne(() => Offer)
-  @JoinColumn({ name: 'offer_id' })
-  offer?: Offer;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
+  transaction: Transaction;
 } 

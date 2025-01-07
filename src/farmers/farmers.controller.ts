@@ -1,36 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseFloatPipe } from '@nestjs/common';
 import { FarmersService } from './farmers.service';
 import { CreateFarmDto } from './dto/create-farm.dto';
+import { UpdateFarmDto } from './dto/update-farm.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { UserRole } from '../users/entities/user.entity';
+import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 
 @Controller('farmers')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class FarmersController {
   constructor(private readonly farmersService: FarmersService) {}
 
-  @Post()
-  @Roles([UserRole.ADMIN])
-  createFarmer(@Body('user_id') userId: string) {
+  @Post(':userId')
+  createFarmer(@Param('userId') userId: string) {
     return this.farmersService.createFarmer(userId);
-  }
-
-  @Get()
-  @Roles([UserRole.ADMIN])
-  findAll() {
-    return this.farmersService.findAll();
-  }
-
-  @Get('nearby')
-  findNearby(
-    @Query('lat') lat: number,
-    @Query('lng') lng: number,
-    @Query('radius') radiusKm: number = 50,
-  ) {
-    return this.farmersService.findNearbyFarmers(lat, lng, radiusKm);
   }
 
   @Get(':id')
@@ -43,53 +24,54 @@ export class FarmersController {
     return this.farmersService.findByUserId(userId);
   }
 
-  // Farm management endpoints
-  @Post(':id/farms')
-  @Roles([UserRole.FARMER, UserRole.ADMIN])
+  @Get('nearby')
+  findNearbyFarmers(
+    @Query('lat', ParseFloatPipe) lat: number,
+    @Query('lng', ParseFloatPipe) lng: number,
+    @Query('radius', ParseFloatPipe) radiusKm: number,
+  ) {
+    return this.farmersService.findNearbyFarmers(lat, lng, radiusKm);
+  }
+
+  @Post(':farmerId/farms')
   addFarm(
-    @Param('id') farmerId: string,
+    @Param('farmerId') farmerId: string,
     @Body() farmData: CreateFarmDto,
   ) {
     return this.farmersService.addFarm(farmerId, farmData);
   }
 
-  @Patch('farms/:id')
-  @Roles([UserRole.FARMER, UserRole.ADMIN])
+  @Patch('farms/:farmId')
   updateFarm(
-    @Param('id') farmId: string,
-    @Body() farmData: Partial<CreateFarmDto>,
+    @Param('farmId') farmId: string,
+    @Body() farmData: UpdateFarmDto,
   ) {
     return this.farmersService.updateFarm(farmId, farmData);
   }
 
-  @Delete('farms/:id')
-  @Roles([UserRole.FARMER, UserRole.ADMIN])
-  removeFarm(@Param('id') farmId: string) {
-    return this.farmersService.removeFarm(farmId);
+  @Get('farms/:farmId')
+  findFarm(@Param('farmId') farmId: string) {
+    return this.farmersService.findFarm(farmId);
   }
 
-  // Bank account management endpoints
-  @Post(':id/bank-accounts')
-  @Roles([UserRole.FARMER, UserRole.ADMIN])
+  @Post(':farmerId/bank-accounts')
   addBankAccount(
-    @Param('id') farmerId: string,
+    @Param('farmerId') farmerId: string,
     @Body() bankData: CreateBankAccountDto,
   ) {
     return this.farmersService.addBankAccount(farmerId, bankData);
   }
 
-  @Patch('bank-accounts/:id')
-  @Roles([UserRole.FARMER, UserRole.ADMIN])
+  @Patch('bank-accounts/:accountId')
   updateBankAccount(
-    @Param('id') accountId: string,
-    @Body() bankData: Partial<CreateBankAccountDto>,
+    @Param('accountId') accountId: string,
+    @Body() bankData: UpdateBankAccountDto,
   ) {
     return this.farmersService.updateBankAccount(accountId, bankData);
   }
 
-  @Delete('bank-accounts/:id')
-  @Roles([UserRole.FARMER, UserRole.ADMIN])
-  removeBankAccount(@Param('id') accountId: string) {
-    return this.farmersService.removeBankAccount(accountId);
+  @Get('bank-accounts/:accountId')
+  findBankAccount(@Param('accountId') accountId: string) {
+    return this.farmersService.findBankAccount(accountId);
   }
 } 

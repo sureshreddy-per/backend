@@ -1,39 +1,47 @@
-import { Controller, Get, Post, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, DefaultValuePipe, Patch } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { CreateNotificationDto } from './dto/create-notification.dto';
+import { Notification } from './entities/notification.entity';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
-@ApiTags('Notifications')
-@ApiBearerAuth()
 @Controller('notifications')
-@UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
+  @Post()
+  create(@Body() createNotificationDto: CreateNotificationDto): Promise<Notification> {
+    return this.notificationsService.create(createNotificationDto);
+  }
+
   @Get()
-  @ApiOperation({ summary: 'Get user notifications' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
-  async findByUser(
-    @CurrentUser() user: { id: string },
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
-  ) {
-    return this.notificationsService.findByUser(user.id, page, limit);
+  findAll(
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
+  ): Promise<PaginatedResponse<Notification>> {
+    return this.notificationsService.findAll(page, limit);
   }
 
-  @Get('unread-count')
-  @ApiOperation({ summary: 'Get unread notifications count' })
-  @ApiResponse({ status: 200, description: 'Returns the number of unread notifications' })
-  async getUnreadCount(@CurrentUser() user: { id: string }) {
-    return this.notificationsService.getUnreadCount(user.id);
+  @Get(':id')
+  findOne(@Param('id') id: string): Promise<Notification> {
+    return this.notificationsService.findOne(id);
   }
 
-  @Post(':id/read')
-  @ApiOperation({ summary: 'Mark notification as read' })
-  @ApiResponse({ status: 200, description: 'Notification marked as read' })
-  async markAsRead(@Param('id') id: string) {
+  @Get('user/:userId')
+  findByUser(
+    @Param('userId') userId: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
+  ): Promise<PaginatedResponse<Notification>> {
+    return this.notificationsService.findByUser(userId, page, limit);
+  }
+
+  @Patch(':id/read')
+  markAsRead(@Param('id') id: string): Promise<Notification> {
     return this.notificationsService.markAsRead(id);
+  }
+
+  @Patch('user/:userId/read-all')
+  markAllAsRead(@Param('userId') userId: string): Promise<void> {
+    return this.notificationsService.markAllAsRead(userId);
   }
 } 

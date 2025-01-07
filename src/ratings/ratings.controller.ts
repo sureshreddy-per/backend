@@ -14,6 +14,9 @@ export class RatingsController {
   @Post()
   @Roles(UserRole.FARMER)
   create(@Body() createRatingDto: CreateRatingDto, @Req() req: any) {
-    return this.ratingsService.create(createRatingDto, req.user.id);
+    return this.ratingsService.create({
+      ...createRatingDto,
+      user_id: req.user.id
+    });
   }
 } 

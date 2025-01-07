@@ -1,23 +1,34 @@
-import { IsUUID, IsNumber, IsString, Min, IsOptional, MaxLength } from 'class-validator';
+import { IsString, IsUUID, IsNumber, IsEnum, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { TransactionStatus } from '../entities/transaction.entity';
 
 export class CreateTransactionDto {
-  @ApiProperty({ description: 'ID of the produce being transacted' })
+  @ApiProperty()
+  @IsUUID()
+  offer_id: string;
+
+  @ApiProperty()
+  @IsUUID()
+  farmer_id: string;
+
+  @ApiProperty()
+  @IsUUID()
+  buyer_id: string;
+
+  @ApiProperty()
   @IsUUID()
   produce_id: string;
 
-  @ApiProperty({ description: 'Quantity of produce being transacted' })
+  @ApiPropertyOptional({ enum: TransactionStatus })
+  @IsEnum(TransactionStatus)
+  @IsOptional()
+  status?: TransactionStatus;
+
+  @ApiProperty()
   @IsNumber()
-  @Min(0)
+  final_price: number;
+
+  @ApiProperty()
+  @IsNumber()
   quantity: number;
-
-  @ApiPropertyOptional({ description: 'Notes about the transaction' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  notes?: string;
-
-  @ApiPropertyOptional({ description: 'Additional metadata for the transaction' })
-  @IsOptional()
-  metadata?: Record<string, any>;
 } 

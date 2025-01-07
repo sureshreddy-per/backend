@@ -4,6 +4,7 @@ import { User, UserRole, UserStatus } from './entities/user.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -11,8 +12,8 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @Roles([UserRole.ADMIN])
-  findAll(): Promise<User[]> {
+  @Roles(UserRole.ADMIN)
+  async findAll(): Promise<PaginatedResponse<User>> {
     return this.usersService.findAll();
   }
 
@@ -22,7 +23,7 @@ export class UsersController {
   }
 
   @Put(':id/verify')
-  @Roles([UserRole.ADMIN])
+  @Roles(UserRole.ADMIN)
   async verifyUser(
     @Param('id') id: string,
     @Body('status') status: UserStatus,
@@ -31,7 +32,7 @@ export class UsersController {
   }
 
   @Put(':id/roles')
-  @Roles([UserRole.ADMIN])
+  @Roles(UserRole.ADMIN)
   async updateRoles(
     @Param('id') id: string,
     @Body('role') role: UserRole,
@@ -45,7 +46,7 @@ export class UsersController {
   }
 
   @Put(':id/block')
-  @Roles([UserRole.ADMIN])
+  @Roles(UserRole.ADMIN)
   async blockUser(
     @Param('id') id: string,
     @Body('reason') reason: string,
@@ -54,7 +55,7 @@ export class UsersController {
   }
 
   @Put(':id/unblock')
-  @Roles([UserRole.ADMIN])
+  @Roles(UserRole.ADMIN)
   async unblockUser(@Param('id') id: string): Promise<User> {
     return this.usersService.unblock(id);
   }

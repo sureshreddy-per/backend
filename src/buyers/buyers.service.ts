@@ -113,4 +113,11 @@ export class BuyersService {
     });
     return !!buyer && buyer.user.status === 'ACTIVE';
   }
+
+  async findByPriceRange(price: number): Promise<Buyer[]> {
+    // For now, return all buyers since we don't have price range fields yet
+    return this.buyersRepository.find({
+      relations: ['user'],
+    });
+  }
 } 

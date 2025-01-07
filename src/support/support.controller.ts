@@ -1,42 +1,51 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
 import { SupportService } from './support.service';
-import { CreateSupportDto } from './dto/create-support.dto';
-import { UpdateSupportDto } from './dto/update-support.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '../auth/enums/role.enum';
+import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
+import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
+import { SupportTicket } from './entities/support-ticket.entity';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Controller('support')
-@UseGuards(JwtAuthGuard, RolesGuard)
 export class SupportController {
   constructor(private readonly supportService: SupportService) {}
 
   @Post()
-  create(@Request() req, @Body() createSupportDto: CreateSupportDto) {
-    return this.supportService.create(req.user.id, createSupportDto);
+  create(@Body() createSupportTicketDto: CreateSupportTicketDto): Promise<SupportTicket> {
+    return this.supportService.create(createSupportTicketDto);
   }
 
   @Get()
-  @Roles(Role.ADMIN)
-  findAll() {
-    return this.supportService.findAll();
+  findAll(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+  ): Promise<PaginatedResponse<SupportTicket>> {
+    return this.supportService.findAll(page, limit);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id') id: string): Promise<SupportTicket> {
     return this.supportService.findOne(id);
   }
 
-  @Patch(':id')
-  @Roles(Role.ADMIN)
-  update(@Param('id') id: string, @Body() updateSupportDto: UpdateSupportDto) {
-    return this.supportService.update(id, updateSupportDto);
+  @Put(':id')
+  update(
+    @Param('id') id: string,
+    @Body() updateSupportTicketDto: UpdateSupportTicketDto,
+  ): Promise<SupportTicket> {
+    return this.supportService.update(id, updateSupportTicketDto);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
-  remove(@Param('id') id: string) {
+  remove(@Param('id') id: string): Promise<void> {
     return this.supportService.remove(id);
+  }
+
+  @Get('user/:userId')
+  findByUser(
+    @Param('userId') userId: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+  ): Promise<PaginatedResponse<SupportTicket>> {
+    return this.supportService.findByUser(userId, page, limit);
   }
 } 

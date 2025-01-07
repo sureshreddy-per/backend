@@ -1,9 +1,10 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 export enum UserRole {
+  ADMIN = 'ADMIN',
   FARMER = 'FARMER',
   BUYER = 'BUYER',
-  ADMIN = 'ADMIN',
+  INSPECTOR = 'INSPECTOR'
 }
 
 export enum UserStatus {
@@ -12,6 +13,7 @@ export enum UserStatus {
   SUSPENDED = 'SUSPENDED',
   PENDING_VERIFICATION = 'PENDING_VERIFICATION',
   DELETED = 'DELETED',
+  BLOCKED = 'BLOCKED'
 }
 
 @Entity('users')
@@ -33,14 +35,14 @@ export class User {
 
   @Column({
     type: 'enum',
-    enum: UserRole,
+    enum: UserRole
   })
   role: UserRole;
 
   @Column({
     type: 'enum',
     enum: UserStatus,
-    default: UserStatus.PENDING_VERIFICATION,
+    default: UserStatus.PENDING_VERIFICATION
   })
   status: UserStatus;
 
@@ -59,9 +61,9 @@ export class User {
   @Column({ nullable: true })
   last_login_attempt: Date;
 
-  @CreateDateColumn()
+  @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
 } 

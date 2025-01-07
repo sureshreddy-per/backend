@@ -1,31 +1,32 @@
-import { IsString, IsNumber, IsOptional, IsDate } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { IsNotEmpty, IsNumber, IsOptional, IsUUID, Min } from 'class-validator';
 
 export class CreateOfferDto {
-  @ApiProperty()
-  @IsString()
+  @IsUUID()
+  @IsNotEmpty()
   buyer_id: string;
 
-  @ApiProperty()
-  @IsString()
+  @IsUUID()
+  @IsNotEmpty()
   produce_id: string;
 
-  @ApiProperty()
   @IsNumber()
+  @Min(0)
   price: number;
 
-  @ApiProperty()
   @IsNumber()
+  @Min(0)
   quantity: number;
 
-  @ApiPropertyOptional()
-  @IsString()
   @IsOptional()
   message?: string;
 
-  @ApiProperty()
-  @Type(() => Date)
-  @IsDate()
-  valid_until: Date;
+  @IsOptional()
+  valid_until?: Date;
+
+  @IsOptional()
+  metadata?: {
+    daily_price_id?: string;
+    inspection_result?: any;
+    [key: string]: any;
+  };
 } 
