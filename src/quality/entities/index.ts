@@ -1,1 +1,1 @@
-export * from './quality.entity'; 
+export * from './quality-assessment.entity'; 

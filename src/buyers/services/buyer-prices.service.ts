@@ -9,15 +9,12 @@ export class BuyerPricesService {
     private readonly autoOfferManager: AutoOfferManagerService,
   ) {}
 
-  async handlePriceChange(produceId: string, newPrice: number): Promise<void> {
+  async handlePriceChange(produce_id: string, new_price: number): Promise<void> {
     const expiredOffers = await this.autoOfferManager.findExpiredOffers();
     
     for (const offer of expiredOffers) {
-      if (offer.produceId === produceId) {
-        await this.autoOfferManager.expireOffer(
-          offer,
-          `Price changed from ${offer.pricePerUnit} to ${newPrice}`
-        );
+      if (offer.produce_id === produce_id) {
+        await this.autoOfferManager.expireOffer(offer);
       }
     }
   }

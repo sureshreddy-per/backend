@@ -13,6 +13,9 @@ import { QualityModule } from './quality/quality.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { TasksModule } from './tasks/tasks.module';
 import { FarmersModule } from './farmers/farmers.module';
+import { BuyersModule } from './buyers/buyers.module';
+import { RatingsModule } from './ratings/ratings.module';
+import { InspectorsModule } from './inspectors/inspectors.module';
 
 @Module({
   imports: [
@@ -35,6 +38,9 @@ import { FarmersModule } from './farmers/farmers.module';
     NotificationsModule,
     TasksModule,
     FarmersModule,
+    BuyersModule,
+    RatingsModule,
+    InspectorsModule,
   ],
 })
 export class AppModule {}

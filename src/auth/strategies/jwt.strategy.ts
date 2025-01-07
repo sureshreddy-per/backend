@@ -1,14 +1,17 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { PassportStrategy } from '@nestjs/passport';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
+import { AuthService } from '../auth.service';
+import { UserStatus } from '../../users/entities/user.entity';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
+    private readonly authService: AuthService,
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -23,14 +26,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User not found');
     }
 
-    if (user.isBlocked) {
-      throw new UnauthorizedException('User is blocked');
+    if (user.status === UserStatus.DELETED) {
+      throw new UnauthorizedException('User account has been deleted');
     }
 
     return {
       id: user.id,
-      mobileNumber: user.mobileNumber,
-      roles: user.roles,
+      mobile_number: user.mobile_number,
+      role: user.role,
       status: user.status,
     };
   }

@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { AutoOfferService } from './auto-offer.service';
 import { ProduceService } from '../../produce/produce.service';
+import { BuyersService } from '../../buyers/buyers.service';
 
 @Injectable()
 export class AutoOfferTriggerService {
   constructor(
     private readonly autoOfferService: AutoOfferService,
-    private readonly produceService: ProduceService
+    private readonly produceService: ProduceService,
+    private readonly buyersService: BuyersService
   ) {}
 
   @OnEvent('quality.grade.finalized')
@@ -20,6 +22,9 @@ export class AutoOfferTriggerService {
 
   @OnEvent('buyer.price.created')
   async onBuyerPriceCreated(payload: { buyerId: string; price: any }) {
-    await this.autoOfferService.generateOffersForBuyer(payload);
+    const buyer = await this.buyersService.findOne(payload.buyerId);
+    if (buyer) {
+      await this.autoOfferService.generateOffersForBuyer(buyer);
+    }
   }
 } 

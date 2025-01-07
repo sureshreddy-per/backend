@@ -1,47 +1,33 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { ApiProperty } from '@nestjs/swagger';
-import { BankDetails } from './bank-details.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn, OneToMany } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
+import { Farm } from './farm.entity';
+import { BankAccount } from './bank-account.entity';
 import { Produce } from '../../produce/entities/produce.entity';
-import { FarmDetails } from './farm-details.entity';
 
 @Entity('farmers')
 export class Farmer {
   @PrimaryGeneratedColumn('uuid')
-  @ApiProperty({ description: 'Unique identifier for farmer' })
   id: string;
 
-  @Column({ unique: true })
-  @ApiProperty({ description: 'User ID associated with this farmer' })
-  userId: string;
+  @Column()
+  user_id: string;
 
-  @Column('decimal', { precision: 3, scale: 2, default: 0 })
-  @ApiProperty({ description: 'Farmer\'s rating' })
-  rating: number;
+  @OneToOne(() => User)
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 
-  @Column({ default: 0 })
-  @ApiProperty({ description: 'Total number of ratings' })
-  totalRatings: number;
+  @OneToMany(() => Farm, farm => farm.farmer)
+  farms: Farm[];
 
-  @OneToMany(() => BankDetails, bankDetails => bankDetails.farmer, { eager: true })
-  @ApiProperty({ description: 'Bank account details', type: [BankDetails] })
-  bankAccounts: BankDetails[];
-
-  @OneToMany(() => FarmDetails, farmDetails => farmDetails.farmer, { eager: true })
-  @ApiProperty({ description: 'Farm details', type: [FarmDetails] })
-  farms: FarmDetails[];
+  @OneToMany(() => BankAccount, bankAccount => bankAccount.farmer)
+  bank_accounts: BankAccount[];
 
   @OneToMany(() => Produce, produce => produce.farmer)
-  @ApiProperty({ description: 'Produce listings by this farmer', type: [Produce] })
-  produce: Produce[];
+  produces: Produce[];
 
   @CreateDateColumn()
-  @ApiProperty({ description: 'When the farmer profile was created' })
-  createdAt: Date;
+  created_at: Date;
 
   @UpdateDateColumn()
-  @ApiProperty({ description: 'When the farmer profile was last updated' })
-  updatedAt: Date;
-
-  @ApiProperty({ description: 'Number of produce listings by this farmer' })
-  produceCount?: number;
+  updated_at: Date;
 } 

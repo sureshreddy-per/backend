@@ -8,39 +8,39 @@ export class BankDetails {
   @ApiProperty({ description: 'Unique identifier for bank details' })
   id: string;
 
-  @Column()
+  @Column({ name: 'account_name' })
   @ApiProperty({ description: 'Name on the bank account' })
-  accountName: string;
+  account_name: string;
 
-  @Column()
+  @Column({ name: 'account_number' })
   @ApiProperty({ description: 'Bank account number' })
-  accountNumber: string;
+  account_number: string;
 
-  @Column()
+  @Column({ name: 'bank_name' })
   @ApiProperty({ description: 'Name of the bank' })
-  bankName: string;
+  bank_name: string;
 
-  @Column()
+  @Column({ name: 'branch_code' })
   @ApiProperty({ description: 'Branch code or routing number' })
-  branchCode: string;
+  branch_code: string;
 
-  @Column({ type: 'uuid' })
+  @Column({ type: 'uuid', name: 'farmer_id' })
   @ApiProperty({ description: 'ID of the farmer this bank account belongs to' })
-  farmerId: string;
+  farmer_id: string;
 
-  @Column({ default: false })
+  @Column({ default: false, name: 'is_primary' })
   @ApiProperty({ description: 'Whether this is the primary bank account' })
-  isPrimary: boolean;
+  is_primary: boolean;
 
-  @ManyToOne(() => Farmer, farmer => farmer.bankAccounts)
-  @JoinColumn({ name: 'farmerId' })
+  @ManyToOne(() => Farmer, farmer => farmer.bank_accounts)
+  @JoinColumn({ name: 'farmer_id' })
   farmer: Farmer;
 
   @CreateDateColumn()
   @ApiProperty({ description: 'When the bank details were created' })
-  createdAt: Date;
+  created_at: Date;
 
   @UpdateDateColumn()
   @ApiProperty({ description: 'When the bank details were last updated' })
-  updatedAt: Date;
+  updated_at: Date;
 } 

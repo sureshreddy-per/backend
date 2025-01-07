@@ -22,7 +22,7 @@ export class CleanupService {
       const usersToDelete = await this.userRepository.find({
         where: {
           status: UserStatus.DELETED,
-          scheduledForDeletionAt: LessThan(now),
+          scheduled_for_deletion_at: LessThan(now),
         },
       });
 

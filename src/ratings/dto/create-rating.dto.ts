@@ -4,7 +4,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateRatingDto {
   @ApiProperty({ description: 'ID of the offer being rated' })
   @IsUUID()
-  offerId: string;
+  offer_id: string;
 
   @ApiProperty({ description: 'Star rating (1-5)' })
   @IsNumber()
@@ -15,7 +15,7 @@ export class CreateRatingDto {
   @ApiPropertyOptional({ description: 'Review text' })
   @IsOptional()
   @IsString()
-  reviewText?: string;
+  review_text?: string;
 
   @ApiPropertyOptional({
     description: 'Detailed category ratings',

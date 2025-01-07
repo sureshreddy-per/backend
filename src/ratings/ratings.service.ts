@@ -14,8 +14,8 @@ export class RatingsService {
     private readonly offersService: OffersService,
   ) {}
 
-  async create(createRatingDto: CreateRatingDto, ratedByUserId: string): Promise<Rating> {
-    const offer = await this.offersService.findOne(createRatingDto.offerId);
+  async create(createRatingDto: CreateRatingDto, rating_user_id: string): Promise<Rating> {
+    const offer = await this.offersService.findOne(createRatingDto.offer_id);
 
     if (!offer || offer.status === OfferStatus.PENDING || 
         offer.status === OfferStatus.CANCELLED || 
@@ -26,8 +26,8 @@ export class RatingsService {
 
     const existingRating = await this.ratingRepository.findOne({
       where: {
-        offerId: createRatingDto.offerId,
-        ratedByUserId,
+        offer_id: createRatingDto.offer_id,
+        rating_user_id,
       },
     });
 
@@ -37,9 +37,9 @@ export class RatingsService {
 
     const rating = this.ratingRepository.create({
       ...createRatingDto,
-      ratedByUserId,
-      ratedUserId: offer.buyerId,
-      offerId: offer.id,
+      rating_user_id,
+      rated_user_id: offer.buyer_id,
+      offer_id: offer.id,
     });
 
     return this.ratingRepository.save(rating);

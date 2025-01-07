@@ -1,26 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, OneToMany, OneToOne } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Farmer } from '../../farmers/entities/farmer.entity';
-import { Offer } from '../../offers/entities/offer.entity';
-import { Transaction } from '../../transactions/entities/transaction.entity';
-import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
-import { FarmDetails } from '../../farmers/entities/farm-details.entity';
-import { FoodGrains } from './produce-categories/food-grains.entity';
-import { Oilseeds } from './produce-categories/oilseeds.entity';
-import { Fruits } from './produce-categories/fruits.entity';
-import { Vegetables } from './produce-categories/vegetables.entity';
-import { Spices } from './produce-categories/spices.entity';
-import { Fibers } from './produce-categories/fibers.entity';
-import { Sugarcane } from './produce-categories/sugarcane.entity';
-import { Flowers } from './produce-categories/flowers.entity';
-import { MedicinalPlants } from './produce-categories/medicinal-plants.entity';
-
-export enum ProduceStatus {
-  AVAILABLE = 'AVAILABLE',
-  IN_PROGRESS = 'IN_PROGRESS',
-  SOLD = 'SOLD',
-  CANCELLED = 'CANCELLED'
-}
+import { Farm } from '../../farmers/entities/farm.entity';
 
 export enum ProduceCategory {
   FOOD_GRAINS = 'FOOD_GRAINS',
@@ -31,154 +12,106 @@ export enum ProduceCategory {
   FIBERS = 'FIBERS',
   SUGARCANE = 'SUGARCANE',
   FLOWERS = 'FLOWERS',
-  MEDICINAL_PLANTS = 'MEDICINAL_PLANTS'
+  MEDICINAL_AND_AROMATIC_PLANTS = 'MEDICINAL_AND_AROMATIC_PLANTS',
 }
 
-@Entity('produces')
+export enum ProduceStatus {
+  AVAILABLE = 'available',
+  IN_PROGRESS = 'in_progress',
+  SOLD = 'sold',
+  RESERVED = 'reserved',
+  EXPIRED = 'expired',
+  REMOVED = 'removed',
+}
+
+@Entity('produce')
 export class Produce {
+  @ApiProperty()
   @PrimaryGeneratedColumn('uuid')
-  @ApiProperty({ description: 'Unique identifier for produce' })
   id: string;
 
+  @ApiProperty()
   @Column()
-  @ApiProperty({ description: 'ID of the farmer who listed this produce' })
-  farmerId: string;
-
-  @Column({ nullable: true })
-  @ApiProperty({ description: 'ID of the farm where this produce was grown', required: false })
-  farmId: string;
-
-  @Column()
-  @ApiProperty({ description: 'Name of the produce' })
   name: string;
 
-  @Column()
-  @ApiProperty({ description: 'Description of the produce' })
-  description: string;
+  @ApiProperty({ enum: ProduceCategory })
+  @Column({
+    type: 'enum',
+    enum: ProduceCategory,
+  })
+  category: ProduceCategory;
 
-  @Column('decimal', { precision: 10, scale: 2, transformer: { to: (value) => value, from: (value) => parseFloat(value) } })
-  @ApiProperty({ description: 'Quantity of the produce' })
-  quantity: number;
+  @ApiProperty()
+  @Column('decimal', { precision: 10, scale: 2, name: 'price_per_unit' })
+  price_per_unit: number;
 
+  @ApiProperty()
   @Column()
-  @ApiProperty({ description: 'Unit of measurement for the quantity' })
   unit: string;
 
-  @Column('decimal', { precision: 10, scale: 2, transformer: { to: (value) => value, from: (value) => parseFloat(value) } })
-  @ApiProperty({ description: 'Total price for the produce' })
-  price: number;
+  @ApiProperty()
+  @Column('decimal', { precision: 10, scale: 2, name: 'available_quantity' })
+  quantity: number;
 
-  @Column('decimal', { precision: 10, scale: 2, transformer: { to: (value) => value, from: (value) => parseFloat(value) } })
-  @ApiProperty({ description: 'Price per unit of the produce' })
-  pricePerUnit: number;
+  @ApiProperty({ required: false })
+  @Column({ nullable: true })
+  description?: string;
 
-  @Column()
-  @ApiProperty({ description: 'Currency of the price' })
-  currency: string;
+  @ApiProperty({ type: [String], required: false })
+  @Column('simple-array', { nullable: true })
+  images?: string[];
 
+  @ApiProperty({ required: false })
+  @Column({ nullable: true })
+  video?: string;
+
+  @ApiProperty({ required: false })
+  @Column({ nullable: true, name: 'produce_tag' })
+  produce_tag?: string;
+
+  @ApiProperty({ enum: ProduceStatus })
   @Column({
     type: 'enum',
     enum: ProduceStatus,
-    default: ProduceStatus.AVAILABLE
+    default: ProduceStatus.AVAILABLE,
   })
-  @ApiProperty({ description: 'Current status of the produce listing', enum: ProduceStatus })
   status: ProduceStatus;
 
-  @Column({
-    type: 'enum',
-    enum: ProduceCategory
-  })
-  @ApiProperty({ description: 'Category of the produce', enum: ProduceCategory })
-  category: ProduceCategory;
+  @ApiProperty({ required: false })
+  @Column({ nullable: true, name: 'quality_grade' })
+  quality_grade?: string;
 
-  @Column('json')
-  @ApiProperty({ description: 'Location coordinates of the produce' })
-  location: {
-    latitude: number;
-    longitude: number;
-  };
+  @ApiProperty()
+  @Column('decimal', { precision: 10, scale: 8 })
+  latitude: number;
 
-  @Column({ nullable: true })
-  @ApiProperty({ description: 'Quality grade of the produce', required: false })
-  qualityGrade: string;
+  @ApiProperty()
+  @Column('decimal', { precision: 11, scale: 8 })
+  longitude: number;
 
-  @Column('json', { nullable: true })
-  @ApiProperty({ description: 'Additional metadata for the produce', required: false })
-  metadata?: Record<string, any>;
+  @ApiProperty()
+  @Column({ name: 'farmer_id' })
+  farmer_id: string;
 
-  @Column('text', { array: true, default: [] })
-  @ApiProperty({ type: [String], description: 'Array of image URLs' })
-  imageUrls: string[];
-
-  @Column({ nullable: true })
-  @ApiProperty({ description: 'Primary image URL for the produce' })
-  primaryImageUrl: string;
-
-  @Column({ nullable: true })
-  @ApiProperty({ description: 'URL of the video file' })
-  videoUrl?: string;
-
-  @ManyToOne(() => Farmer, farmer => farmer.produce)
-  @ApiProperty({ description: 'Farmer who listed this produce', type: () => Farmer })
+  @ApiProperty({ type: () => Farmer })
+  @ManyToOne(() => Farmer, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'farmer_id' })
   farmer: Farmer;
 
-  @ManyToOne(() => FarmDetails, farm => farm.produce)
-  @ApiProperty({ description: 'Farm where this produce was grown', type: () => FarmDetails })
-  farm: FarmDetails;
+  @ApiProperty({ required: false })
+  @Column({ name: 'farm_id', nullable: true })
+  farm_id?: string;
 
-  @OneToMany(() => Offer, offer => offer.produce)
-  @ApiProperty({ description: 'Offers made for this produce', type: [Offer] })
-  offers: Offer[];
+  @ApiProperty({ type: () => Farm, required: false })
+  @ManyToOne(() => Farm, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'farm_id' })
+  farm?: Farm;
 
-  @OneToMany(() => Transaction, transaction => transaction.produce)
-  @ApiProperty({ description: 'Transactions involving this produce', type: [Transaction] })
-  transactions: Transaction[];
-
-  @OneToOne(() => QualityAssessment, assessment => assessment.produce)
-  @ApiProperty({ description: 'Quality assessment details', type: () => QualityAssessment })
-  qualityAssessment: QualityAssessment;
-
-  @OneToOne(() => FoodGrains, foodGrains => foodGrains.produce)
-  @ApiProperty({ description: 'Food grain specific details', type: () => FoodGrains, required: false })
-  foodGrains: FoodGrains;
-
-  @OneToOne(() => Oilseeds, oilseeds => oilseeds.produce)
-  @ApiProperty({ description: 'Oilseed specific details', type: () => Oilseeds, required: false })
-  oilseeds: Oilseeds;
-
-  @OneToOne(() => Fruits, fruits => fruits.produce)
-  @ApiProperty({ description: 'Fruit specific details', type: () => Fruits, required: false })
-  fruits: Fruits;
-
-  @OneToOne(() => Vegetables, vegetables => vegetables.produce)
-  @ApiProperty({ description: 'Vegetable specific details', type: () => Vegetables, required: false })
-  vegetables: Vegetables;
-
-  @OneToOne(() => Spices, spices => spices.produce)
-  @ApiProperty({ description: 'Spice specific details', type: () => Spices, required: false })
-  spices: Spices;
-
-  @OneToOne(() => Fibers, fibers => fibers.produce)
-  @ApiProperty({ description: 'Fiber specific details', type: () => Fibers, required: false })
-  fibers: Fibers;
-
-  @OneToOne(() => Sugarcane, sugarcane => sugarcane.produce)
-  @ApiProperty({ description: 'Sugarcane specific details', type: () => Sugarcane, required: false })
-  sugarcane: Sugarcane;
-
-  @OneToOne(() => Flowers, flowers => flowers.produce)
-  @ApiProperty({ description: 'Flower specific details', type: () => Flowers, required: false })
-  flowers: Flowers;
-
-  @OneToOne(() => MedicinalPlants, medicinalPlants => medicinalPlants.produce)
-  @ApiProperty({ description: 'Medicinal plant specific details', type: () => MedicinalPlants, required: false })
-  medicinalPlants: MedicinalPlants;
-
+  @ApiProperty()
   @CreateDateColumn()
-  @ApiProperty({ description: 'When the produce listing was created' })
-  createdAt: Date;
+  created_at: Date;
 
+  @ApiProperty()
   @UpdateDateColumn()
-  @ApiProperty({ description: 'When the produce listing was last updated' })
-  updatedAt: Date;
+  updated_at: Date;
 } 

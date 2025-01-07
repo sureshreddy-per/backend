@@ -17,26 +17,26 @@ export class AuthService {
     private readonly farmersService: FarmersService,
   ) {}
 
-  private hashOtp(otp: string, mobileNumber: string): string {
+  private hashOtp(otp: string, mobile_number: string): string {
     // Create a unique salt using mobile number to prevent rainbow table attacks
-    const salt = crypto.createHash('sha256').update(mobileNumber).digest('hex');
+    const salt = crypto.createHash('sha256').update(mobile_number).digest('hex');
     // Hash OTP with salt using SHA-256
     return crypto.createHash('sha256').update(otp + salt).digest('hex');
   }
 
-  async checkMobile(mobileNumber: string): Promise<{ isRegistered: boolean }> {
-    const user = await this.usersService.findByMobileNumber(mobileNumber);
+  async checkMobile(mobile_number: string): Promise<{ isRegistered: boolean }> {
+    const user = await this.usersService.findByMobileNumber(mobile_number);
     // Consider a user as not registered if they are deleted
     return { isRegistered: !!user && user.status !== UserStatus.DELETED };
   }
 
   async register(userData: {
-    mobileNumber: string;
+    mobile_number: string;
     name: string;
     email?: string;
-    roles: UserRole[];
+    role: UserRole;
   }): Promise<{ requestId: string; message: string }> {
-    const existingUser = await this.usersService.findByMobileNumber(userData.mobileNumber);
+    const existingUser = await this.usersService.findByMobileNumber(userData.mobile_number);
     
     // Check if user exists and is not deleted
     if (existingUser && existingUser.status !== UserStatus.DELETED) {
@@ -55,13 +55,8 @@ export class AuthService {
     });
 
     // If user has FARMER role, create farmer profile
-    if (userData.roles.includes(UserRole.FARMER)) {
-      await this.farmersService.createFromUser({
-        id: user.id,
-        name: userData.name,
-        phone: userData.mobileNumber,
-        email: userData.email
-      });
+    if (userData.role === UserRole.FARMER) {
+      await this.farmersService.createFarmer(user.id);
     }
 
     // Generate OTP and request ID
@@ -69,10 +64,10 @@ export class AuthService {
     const requestId = Math.random().toString(36).substring(2, 15);
     
     // Hash OTP before storing
-    const hashedOtp = this.hashOtp(otp, userData.mobileNumber);
+    const hashedOtp = this.hashOtp(otp, userData.mobile_number);
     
     // Store hashed OTP in Redis with expiration
-    await this.redisService.set(`otp:${userData.mobileNumber}`, hashedOtp, 300); // 5 minutes expiry
+    await this.redisService.set(`otp:${userData.mobile_number}`, hashedOtp, 300); // 5 minutes expiry
 
     // For development, include OTP in message
     return { 
@@ -81,8 +76,8 @@ export class AuthService {
     };
   }
 
-  async requestOtp(mobileNumber: string): Promise<{ message: string; requestId: string }> {
-    const user = await this.usersService.findByMobileNumber(mobileNumber);
+  async requestOtp(mobile_number: string): Promise<{ message: string; requestId: string }> {
+    const user = await this.usersService.findByMobileNumber(mobile_number);
     if (!user) {
       throw new BadRequestException('User not found. Please register first.');
     }
@@ -92,10 +87,10 @@ export class AuthService {
     const requestId = Math.random().toString(36).substring(2, 15);
     
     // Hash OTP before storing
-    const hashedOtp = this.hashOtp(otp, mobileNumber);
+    const hashedOtp = this.hashOtp(otp, mobile_number);
     
     // Store hashed OTP in Redis with expiration
-    await this.redisService.set(`otp:${mobileNumber}`, hashedOtp, 300); // 5 minutes expiry
+    await this.redisService.set(`otp:${mobile_number}`, hashedOtp, 300); // 5 minutes expiry
 
     // For development, return the OTP in the message
     return { 
@@ -104,23 +99,23 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(mobileNumber: string, otp: string): Promise<{ token: string; user: User }> {
-    const storedHashedOtp = await this.redisService.get(`otp:${mobileNumber}`);
+  async verifyOtp(mobile_number: string, otp: string): Promise<{ token: string; user: User }> {
+    const storedHashedOtp = await this.redisService.get(`otp:${mobile_number}`);
     
     if (!storedHashedOtp) {
       throw new UnauthorizedException('OTP expired or not found');
     }
 
     // Hash the received OTP and compare with stored hash
-    const hashedInputOtp = this.hashOtp(otp, mobileNumber);
+    const hashedInputOtp = this.hashOtp(otp, mobile_number);
     if (hashedInputOtp !== storedHashedOtp) {
       throw new UnauthorizedException('Invalid OTP');
     }
 
     // Delete the used OTP
-    await this.redisService.del(`otp:${mobileNumber}`);
+    await this.redisService.del(`otp:${mobile_number}`);
 
-    const user = await this.usersService.findByMobileNumber(mobileNumber);
+    const user = await this.usersService.findByMobileNumber(mobile_number);
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
@@ -132,7 +127,7 @@ export class AuthService {
     }
 
     // Generate JWT token
-    const payload = { sub: user.id, mobileNumber: user.mobileNumber, roles: user.roles };
+    const payload = { sub: user.id, mobile_number: user.mobile_number, role: user.role };
     const token = this.jwtService.sign(payload);
 
     return { token, user };
@@ -197,26 +192,10 @@ export class AuthService {
     }
   }
 
-  async deleteAccount(userId: string): Promise<{ message: string }> {
-    const user = await this.usersService.findOne(userId);
-    if (!user) {
-      throw new NotFoundException('User not found');
+  async deleteAccount(mobile_number: string): Promise<void> {
+    const existingUser = await this.usersService.findByMobileNumber(mobile_number);
+    if (existingUser) {
+      await this.usersService.remove(existingUser);
     }
-
-    // Set deletion schedule date (30 days from now)
-    const scheduledDeletionDate = new Date();
-    scheduledDeletionDate.setDate(scheduledDeletionDate.getDate() + 30);
-
-    // Invalidate all existing tokens
-    const token = await this.jwtService.sign({ sub: userId });
-    await this.logout(token);
-
-    // Update user status and set scheduled deletion date
-    await this.usersService.update(userId, {
-      status: UserStatus.DELETED,
-      scheduledForDeletionAt: scheduledDeletionDate
-    });
-
-    return { message: 'Account scheduled for deletion. Data will be permanently removed after 30 days.' };
   }
 } 

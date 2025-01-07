@@ -1,14 +1,14 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards, Request, Put } from '@nestjs/common';
 import { OffersService } from '../services/offers.service';
 import { CreateOfferDto } from '../dto/create-offer.dto';
+import { UpdateOfferDto } from '../dto/update-offer.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../users/entities/user.entity';
 import { ProduceService } from '../../produce/produce.service';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
+@ApiTags('Offers')
 @Controller('offers')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard)
 export class OffersController {
   constructor(
     private readonly offersService: OffersService,
@@ -16,61 +16,75 @@ export class OffersController {
   ) {}
 
   @Post()
-  @Roles(UserRole.BUYER)
-  create(@Body() createOfferDto: CreateOfferDto, @Request() req) {
-    return this.offersService.create(createOfferDto, req.user.id);
+  async create(@Body() createOfferDto: CreateOfferDto, @Request() req) {
+    createOfferDto.buyer_id = req.user.id;
+    return this.offersService.create(createOfferDto);
+  }
+
+  @Get()
+  async findAll() {
+    return this.offersService.findAll();
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.offersService.findOne(id);
+  async findOne(@Param('id') id: string, @Request() req) {
+    const offer = await this.offersService.findOne(id);
+    const produce = await this.produceService.findOne(offer.produce_id);
+    return { ...offer, produce };
+  }
+
+  @Put(':id')
+  async update(
+    @Param('id') id: string,
+    @Body() updateOfferDto: UpdateOfferDto,
+    @Request() req,
+  ) {
+    const offer = await this.offersService.findOne(id);
+    const produce = await this.produceService.findOne(offer.produce_id);
+    return this.offersService.update(id, updateOfferDto);
   }
 
   @Post(':id/accept')
-  @Roles(UserRole.FARMER)
-  async accept(@Request() req, @Param('id') id: string) {
+  async accept(@Param('id') id: string, @Request() req) {
     const offer = await this.offersService.findOne(id);
-    const farmer = await this.produceService.getFarmerByUserId(req.user.id);
-    const produce = await this.produceService.findOne(offer.produceId);
-
-    if (produce.farmerId !== farmer.id) {
-      throw new ForbiddenException('You can only accept offers for your own produce');
+    if (offer.buyer_id !== req.user.id) {
+      throw new Error('Only the buyer can accept their own offer');
     }
-
     return this.offersService.accept(id);
   }
 
   @Post(':id/reject')
-  @Roles(UserRole.FARMER)
   async reject(
-    @Request() req,
     @Param('id') id: string,
-    @Body('reason') reason: string
+    @Body('reason') reason: string,
+    @Request() req,
   ) {
     const offer = await this.offersService.findOne(id);
-    const farmer = await this.produceService.getFarmerByUserId(req.user.id);
-    const produce = await this.produceService.findOne(offer.produceId);
-
-    if (produce.farmerId !== farmer.id) {
-      throw new ForbiddenException('You can only reject offers for your own produce');
+    if (offer.buyer_id !== req.user.id) {
+      throw new Error('Only the buyer can reject their own offer');
     }
-
     return this.offersService.reject(id, reason);
   }
 
   @Post(':id/cancel')
-  @Roles(UserRole.BUYER)
   async cancel(
-    @Request() req,
     @Param('id') id: string,
-    @Body('reason') reason: string
+    @Body('reason') reason: string,
+    @Request() req,
   ) {
     const offer = await this.offersService.findOne(id);
-
-    if (offer.buyerId !== req.user.id) {
-      throw new ForbiddenException('You can only cancel your own offers');
+    if (offer.buyer_id !== req.user.id) {
+      throw new Error('Only the buyer can cancel their own offer');
     }
-
     return this.offersService.cancel(id, reason);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @Request() req) {
+    const offer = await this.offersService.findOne(id);
+    if (offer.buyer_id !== req.user.id) {
+      throw new Error('Only the buyer can delete their own offer');
+    }
+    return this.offersService.remove(id);
   }
 } 

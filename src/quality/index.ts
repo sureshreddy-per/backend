@@ -1,3 +1,2 @@
-export * from './entities';
-export * from './dto';
+export * from './entities/quality-assessment.entity';
 export * from './quality.service'; 

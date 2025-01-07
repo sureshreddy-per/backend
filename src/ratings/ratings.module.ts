@@ -7,12 +7,14 @@ import { User } from '../auth/entities/user.entity';
 import { Offer } from '../offers/entities/offer.entity';
 import { AuthModule } from '../auth/auth.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { OffersModule } from '../offers/offers.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Rating, User, Offer]),
     AuthModule,
     EventEmitterModule.forRoot(),
+    OffersModule,
   ],
   providers: [RatingsService],
   controllers: [RatingsController],

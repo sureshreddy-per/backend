@@ -24,7 +24,7 @@ export class AuthController {
     type: CheckMobileResponseDto
   })
   async checkMobile(@Body() checkMobileDto: CheckMobileDto): Promise<CheckMobileResponseDto> {
-    return this.authService.checkMobile(checkMobileDto.mobileNumber);
+    return this.authService.checkMobile(checkMobileDto.mobile_number);
   }
 
   @Public()
@@ -48,7 +48,7 @@ export class AuthController {
     type: RequestOtpResponseDto 
   })
   async requestOtp(@Body() requestOtpDto: RequestOtpDto): Promise<RequestOtpResponseDto> {
-    return this.authService.requestOtp(requestOtpDto.mobileNumber);
+    return this.authService.requestOtp(requestOtpDto.mobile_number);
   }
 
   @Public()
@@ -60,7 +60,7 @@ export class AuthController {
   })
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
     return this.authService.verifyOtp(
-      verifyOtpDto.mobileNumber,
+      verifyOtpDto.mobile_number,
       verifyOtpDto.otp
     );
   }
@@ -79,7 +79,7 @@ export class AuthController {
   @Delete('account')
   @UseGuards(JwtAuthGuard)
   async deleteAccount(@Request() req) {
-    return this.authService.deleteAccount(req.user.id);
+    return this.authService.deleteAccount(req.user.mobile_number);
   }
 
   @Get('validate')

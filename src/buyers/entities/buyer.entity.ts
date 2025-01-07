@@ -1,5 +1,5 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany } from 'typeorm';
-import { Transaction } from '../../transactions/entities/transaction.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 @Entity('buyers')
 export class Buyer {
@@ -7,44 +7,33 @@ export class Buyer {
   id: string;
 
   @Column()
-  userId: string;
+  user_id: string;
+
+  @Column({ nullable: true })
+  gst: string;
 
   @Column()
-  name: string;
+  business_name: string;
+
+  @Column({ nullable: true })
+  registration_number: string;
+
+  @Column('decimal', { precision: 10, scale: 8 })
+  latitude: number;
+
+  @Column('decimal', { precision: 11, scale: 8 })
+  longitude: number;
 
   @Column()
-  email: string;
+  address: string;
 
-  @Column()
-  phone: string;
+  @OneToOne(() => User)
+  @JoinColumn({ name: 'user_id' })
+  user: User;
 
-  @Column('json')
-  location: {
-    lat: number;
-    lng: number;
-  };
+  @CreateDateColumn()
+  created_at: Date;
 
-  @Column('json')
-  businessDetails: {
-    type: string;
-    license: string;
-  };
-
-  @Column({ default: true })
-  isActive: boolean;
-
-  @Column('decimal', { precision: 3, scale: 2, default: 0 })
-  rating: number;
-
-  @Column({ default: 0 })
-  totalRatings: number;
-
-  @OneToMany(() => Transaction, transaction => transaction.buyer)
-  transactions: Transaction[];
-
-  @Column()
-  createdAt: Date;
-
-  @Column()
-  updatedAt: Date;
+  @UpdateDateColumn()
+  updated_at: Date;
 } 
