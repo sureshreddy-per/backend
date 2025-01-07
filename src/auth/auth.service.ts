@@ -45,7 +45,7 @@ export class AuthService {
 
     // If user exists but is deleted, remove the old record first
     if (existingUser && existingUser.status === UserStatus.DELETED) {
-      await this.usersService.remove(existingUser);
+      await this.usersService.remove(existingUser.id);
     }
 
     // Create user with pending verification status
@@ -195,7 +195,7 @@ export class AuthService {
   async deleteAccount(mobile_number: string): Promise<void> {
     const existingUser = await this.usersService.findByMobileNumber(mobile_number);
     if (existingUser) {
-      await this.usersService.remove(existingUser);
+      await this.usersService.remove(existingUser.id);
     }
   }
 } 

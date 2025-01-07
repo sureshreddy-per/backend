@@ -1,61 +1,79 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Support } from './entities/support.entity';
-import { User } from '../auth/entities/user.entity';
-import { CreateSupportDto } from './dto/create-support.dto';
-import { UpdateSupportDto } from './dto/update-support.dto';
+import { SupportTicket } from './entities/support-ticket.entity';
+import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
+import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class SupportService {
   constructor(
-    @InjectRepository(Support)
-    private readonly supportRepository: Repository<Support>,
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
+    @InjectRepository(SupportTicket)
+    private readonly supportTicketRepository: Repository<SupportTicket>,
   ) {}
 
-  async create(userId: string, createSupportDto: CreateSupportDto): Promise<Support> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) {
-      throw new NotFoundException(`User with ID ${userId} not found`);
-    }
-
-    const support = this.supportRepository.create({
-      ...createSupportDto,
-      userId,
-    });
-
-    return this.supportRepository.save(support);
+  async create(createSupportTicketDto: CreateSupportTicketDto): Promise<SupportTicket> {
+    const ticket = this.supportTicketRepository.create(createSupportTicketDto);
+    return this.supportTicketRepository.save(ticket);
   }
 
-  async findAll(): Promise<Support[]> {
-    return this.supportRepository.find({
+  async findAll(page = 1, limit = 10): Promise<PaginatedResponse<SupportTicket>> {
+    const [items, total] = await this.supportTicketRepository.findAndCount({
+      skip: (page - 1) * limit,
+      take: limit,
       relations: ['user'],
+      order: { created_at: 'DESC' },
     });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
-  async findOne(id: string): Promise<Support> {
-    const support = await this.supportRepository.findOne({
+  async findOne(id: string): Promise<SupportTicket> {
+    const ticket = await this.supportTicketRepository.findOne({
       where: { id },
       relations: ['user'],
     });
 
-    if (!support) {
+    if (!ticket) {
       throw new NotFoundException(`Support ticket with ID ${id} not found`);
     }
 
-    return support;
+    return ticket;
   }
 
-  async update(id: string, updateSupportDto: UpdateSupportDto): Promise<Support> {
-    const support = await this.findOne(id);
-    Object.assign(support, updateSupportDto);
-    return this.supportRepository.save(support);
+  async update(id: string, updateSupportTicketDto: UpdateSupportTicketDto): Promise<SupportTicket> {
+    const ticket = await this.findOne(id);
+    Object.assign(ticket, updateSupportTicketDto);
+    return this.supportTicketRepository.save(ticket);
   }
 
   async remove(id: string): Promise<void> {
-    const support = await this.findOne(id);
-    await this.supportRepository.remove(support);
+    const ticket = await this.findOne(id);
+    await this.supportTicketRepository.remove(ticket);
+  }
+
+  async findByUser(userId: string, page = 1, limit = 10): Promise<PaginatedResponse<SupportTicket>> {
+    const [items, total] = await this.supportTicketRepository.findAndCount({
+      where: { user_id: userId },
+      skip: (page - 1) * limit,
+      take: limit,
+      relations: ['user'],
+      order: { created_at: 'DESC' },
+    });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 } 

@@ -9,6 +9,10 @@ export class BankAccount {
   @Column()
   farmer_id: string;
 
+  @ManyToOne(() => Farmer)
+  @JoinColumn({ name: 'farmer_id' })
+  farmer: Farmer;
+
   @Column()
   account_name: string;
 
@@ -23,10 +27,6 @@ export class BankAccount {
 
   @Column({ default: false })
   is_primary: boolean;
-
-  @ManyToOne(() => Farmer, farmer => farmer.bank_accounts)
-  @JoinColumn({ name: 'farmer_id' })
-  farmer: Farmer;
 
   @CreateDateColumn()
   created_at: Date;

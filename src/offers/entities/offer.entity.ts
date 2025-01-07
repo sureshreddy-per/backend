@@ -1,14 +1,15 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Produce } from '../../produce/entities/produce.entity';
-import { Buyer } from '../../buyers/entities/buyer.entity';
+import { User } from '../../users/entities/user.entity';
 
 export enum OfferStatus {
   PENDING = 'PENDING',
+  ACTIVE = 'ACTIVE',
   ACCEPTED = 'ACCEPTED',
   REJECTED = 'REJECTED',
-  CANCELLED = 'CANCELLED',
-  CONFIRMED = 'CONFIRMED',
   EXPIRED = 'EXPIRED',
+  CANCELLED = 'CANCELLED',
+  INSPECTION_REQUESTED = 'INSPECTION_REQUESTED'
 }
 
 @Entity('offers')
@@ -16,48 +17,45 @@ export class Offer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
-  produce_id: string;
-
-  @Column()
+  @Column({ name: 'buyer_id' })
   buyer_id: string;
+
+  @Column({ name: 'produce_id' })
+  produce_id: string;
 
   @Column('decimal', { precision: 10, scale: 2 })
   price: number;
 
-  @Column('decimal', { precision: 10, scale: 2, nullable: true })
-  price_of_buyer: number;
-
-  @Column('decimal')
+  @Column('decimal', { precision: 10, scale: 2 })
   quantity: number;
 
   @Column({
     type: 'enum',
     enum: OfferStatus,
-    default: OfferStatus.PENDING,
+    default: OfferStatus.PENDING
   })
   status: OfferStatus;
 
-  @Column()
-  valid_until: Date;
-
-  @Column('jsonb', { nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any>;
 
   @Column({ nullable: true })
-  message: string;
+  rejection_reason: string;
+
+  @Column({ nullable: true })
+  cancellation_reason: string;
+
+  @CreateDateColumn({ name: 'created_at' })
+  created_at: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updated_at: Date;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'buyer_id' })
+  buyer: User;
 
   @ManyToOne(() => Produce)
   @JoinColumn({ name: 'produce_id' })
   produce: Produce;
-
-  @ManyToOne(() => Buyer)
-  @JoinColumn({ name: 'buyer_id' })
-  buyer: Buyer;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
 } 

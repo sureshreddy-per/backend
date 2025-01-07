@@ -1,33 +1,24 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToOne, JoinColumn, OneToMany } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { Farm } from './farm.entity';
 import { BankAccount } from './bank-account.entity';
-import { Produce } from '../../produce/entities/produce.entity';
 
 @Entity('farmers')
 export class Farmer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ name: 'user_id' })
   user_id: string;
 
-  @OneToOne(() => User)
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @CreateDateColumn({ name: 'created_at' })
+  created_at: Date;
+
+  @UpdateDateColumn({ name: 'updated_at' })
+  updated_at: Date;
 
   @OneToMany(() => Farm, farm => farm.farmer)
   farms: Farm[];
 
   @OneToMany(() => BankAccount, bankAccount => bankAccount.farmer)
   bank_accounts: BankAccount[];
-
-  @OneToMany(() => Produce, produce => produce.farmer)
-  produces: Produce[];
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
 } 

@@ -1,24 +1,8 @@
+import { IsString, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsObject, ValidateNested, IsArray } from 'class-validator';
-import { Type } from 'class-transformer';
-import { CreateFarmDetailsDto } from './farm-details.dto';
-import { BankDetailsDto } from './bank-details.dto';
 
 export class CreateFarmerDto {
-  @ApiProperty({ description: 'User ID associated with this farmer' })
-  userId: string;
-
-  @ApiProperty({ description: 'Farm details array', type: [CreateFarmDetailsDto] })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => CreateFarmDetailsDto)
-  farms?: CreateFarmDetailsDto[];
-
-  @ApiProperty({ description: 'Bank account details' })
-  @IsOptional()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => BankDetailsDto)
-  bankDetails?: BankDetailsDto;
+  @ApiProperty()
+  @IsUUID()
+  user_id: string;
 } 

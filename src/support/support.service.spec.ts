@@ -53,7 +53,10 @@ describe('SupportService', () => {
       jest.spyOn(supportRepository, 'create').mockReturnValue(expectedSupport as Support);
       jest.spyOn(supportRepository, 'save').mockResolvedValue(expectedSupport as Support);
 
-      const result = await service.create(userId, createSupportDto);
+      const result = await service.create({
+        ...createSupportDto,
+        user_id: userId
+      });
 
       expect(result).toEqual(expectedSupport);
       expect(userRepository.findOne).toHaveBeenCalledWith({ where: { id: userId } });
@@ -75,7 +78,10 @@ describe('SupportService', () => {
 
       jest.spyOn(userRepository, 'findOne').mockResolvedValue(null);
 
-      await expect(service.create(userId, createSupportDto)).rejects.toThrow(NotFoundException);
+      await expect(service.create({
+        ...createSupportDto,
+        user_id: userId
+      })).rejects.toThrow(NotFoundException);
     });
   });
 

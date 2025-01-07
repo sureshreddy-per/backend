@@ -1,93 +1,62 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Offer } from '../entities/offer.entity';
-import { Produce } from '../../produce/entities/produce.entity';
-import { ProduceService } from '../../produce/produce.service';
 import { BuyersService } from '../../buyers/buyers.service';
-import { OfferStatus } from '../enums/offer-status.enum';
+import { ProduceService } from '../../produce/produce.service';
+import { OffersService } from './offers.service';
+import { OfferStatus } from '../entities/offer.entity';
+import { Produce } from '../../produce/entities/produce.entity';
 import { Buyer } from '../../buyers/entities/buyer.entity';
+import { CreateOfferDto } from '../dto/create-offer.dto';
 
 @Injectable()
 export class AutoOfferService {
   constructor(
-    @InjectRepository(Offer)
-    private readonly offerRepository: Repository<Offer>,
+    private readonly offersService: OffersService,
+    private readonly buyersService: BuyersService,
     private readonly produceService: ProduceService,
-    private readonly buyersService: BuyersService
   ) {}
 
-  async generateOffersForProduce(produce: Produce) {
-    const nearbyBuyers = await this.buyersService.findNearbyBuyers(
-      produce.latitude,
-      produce.longitude,
-      100
-    );
-
-    const offers: Offer[] = [];
-
-    for (const buyer of nearbyBuyers) {
-      const offer = new Offer();
-      Object.assign(offer, {
+  async generateOffersForProduce(produce: Produce): Promise<void> {
+    // Get all buyers since we don't have price range fields yet
+    const buyers = await this.buyersService.findByPriceRange(produce.price_per_unit);
+    
+    // Generate offers for each matching buyer
+    for (const buyer of buyers) {
+      const createOfferDto: CreateOfferDto = {
         buyer_id: buyer.id,
         produce_id: produce.id,
-        price_per_unit: produce.price_per_unit,
+        price: produce.price_per_unit,
         quantity: produce.quantity,
-        status: OfferStatus.PENDING,
+        message: 'Auto-generated offer based on your rules',
+        valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
         metadata: {
-          quality_grade: produce.quality_grade,
-          auto_generated_at: new Date(),
-          price_history: [],
-          last_price_update: {
-            old_price: 0,
-            new_price: produce.price_per_unit,
-            timestamp: new Date()
-          }
-        },
-        created_at: new Date(),
-        updated_at: new Date()
-      });
-
-      offers.push(await this.offerRepository.save(offer));
+          auto_generated: true,
+          initial_status: OfferStatus.PENDING
+        }
+      };
+      await this.offersService.create(createOfferDto);
     }
-
-    return offers;
   }
 
-  async generateOffersForBuyer(buyer: Buyer) {
-    const matchingProduce = await this.produceService.findNearby(
-      buyer.latitude,
-      buyer.longitude,
-      100
-    );
-
-    const offers: Offer[] = [];
-
+  async generateOffersForBuyer(buyer: Buyer): Promise<void> {
+    // For now, we'll use a default max price since we don't have price range fields
+    const DEFAULT_MAX_PRICE = 10000;
+    const matchingProduce = await this.produceService.findByPriceRange(DEFAULT_MAX_PRICE);
+    
+    // Generate offers for each matching produce
     for (const produce of matchingProduce) {
-      const offer = new Offer();
-      Object.assign(offer, {
+      const createOfferDto: CreateOfferDto = {
         buyer_id: buyer.id,
         produce_id: produce.id,
-        price_per_unit: produce.price_per_unit,
+        price: produce.price_per_unit,
         quantity: produce.quantity,
-        status: OfferStatus.PENDING,
+        message: 'Auto-generated offer based on your rules',
+        valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
         metadata: {
-          quality_grade: produce.quality_grade,
-          auto_generated_at: new Date(),
-          price_history: [],
-          last_price_update: {
-            old_price: 0,
-            new_price: produce.price_per_unit,
-            timestamp: new Date()
-          }
-        },
-        created_at: new Date(),
-        updated_at: new Date()
-      });
-
-      offers.push(await this.offerRepository.save(offer));
+          auto_generated: true,
+          initial_status: OfferStatus.PENDING
+        }
+      };
+      await this.offersService.create(createOfferDto);
     }
-
-    return offers;
   }
 } 

@@ -7,26 +7,26 @@ export class CreateUserDto {
   @IsString()
   mobile_number: string;
 
-  @ApiProperty({ example: 'John Doe' })
-  @IsString()
-  name: string;
-
   @ApiPropertyOptional({ example: 'john@example.com' })
   @IsEmail()
   @IsOptional()
   email?: string;
 
-  @ApiProperty({ enum: UserRole, example: UserRole.FARMER })
-  @IsEnum(UserRole)
-  role: UserRole;
-
-  @ApiPropertyOptional({ enum: UserStatus, example: UserStatus.PENDING_VERIFICATION })
-  @IsEnum(UserStatus)
-  @IsOptional()
-  status?: UserStatus;
+  @ApiProperty({ example: 'John Doe' })
+  @IsString()
+  name: string;
 
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   profile_picture?: string;
+
+  @ApiProperty({ enum: UserRole })
+  @IsEnum(UserRole)
+  role: UserRole;
+
+  @ApiPropertyOptional({ enum: UserStatus })
+  @IsEnum(UserStatus)
+  @IsOptional()
+  status?: UserStatus;
 } 

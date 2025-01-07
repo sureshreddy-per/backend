@@ -1,20 +1,34 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNumber, IsEnum, IsOptional, IsUUID, IsLatitude, IsLongitude, Min, IsArray } from 'class-validator';
-import { ProduceCategory } from '../entities/produce.entity';
+import { IsString, IsUUID, IsNumber, IsEnum, IsOptional, IsArray, IsDate } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ProduceCategory, ProduceStatus } from '../entities/produce.entity';
+import { Type } from 'class-transformer';
 
 export class CreateProduceDto {
+  @ApiProperty()
+  @IsUUID()
+  farmer_id: string;
+
+  @ApiPropertyOptional()
+  @IsUUID()
+  @IsOptional()
+  farm_id?: string;
+
   @ApiProperty()
   @IsString()
   name: string;
 
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  description?: string;
+
   @ApiProperty({ enum: ProduceCategory })
   @IsEnum(ProduceCategory)
-  category: ProduceCategory;
+  produce_category: ProduceCategory;
 
   @ApiProperty()
   @IsNumber()
-  @Min(0)
-  pricePerUnit: number;
+  quantity: number;
 
   @ApiProperty()
   @IsString()
@@ -22,33 +36,55 @@ export class CreateProduceDto {
 
   @ApiProperty()
   @IsNumber()
-  @Min(0)
-  availableQuantity: number;
+  price_per_unit: number;
 
-  @ApiProperty({ required: false })
-  @IsOptional()
+  @ApiPropertyOptional()
   @IsString()
-  description?: string;
-
-  @ApiProperty({ required: false })
   @IsOptional()
+  location?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  images?: string[];
+
+  @ApiPropertyOptional({ enum: ProduceStatus })
+  @IsEnum(ProduceStatus)
+  @IsOptional()
+  status?: ProduceStatus;
+
+  @ApiPropertyOptional()
+  @Type(() => Date)
+  @IsDate()
+  @IsOptional()
+  harvested_at?: Date;
+
+  @ApiPropertyOptional()
+  @Type(() => Date)
+  @IsDate()
+  @IsOptional()
+  expiry_date?: Date;
+
+  @ApiPropertyOptional()
   @IsString()
-  produceTag?: string;
-
-  @ApiProperty()
-  @IsLatitude()
-  latitude: number;
-
-  @ApiProperty()
-  @IsLongitude()
-  longitude: number;
-
-  @ApiProperty()
-  @IsUUID()
-  farmerId: string;
-
-  @ApiProperty({ required: false })
   @IsOptional()
-  @IsUUID()
-  farmId?: string;
+  quality_grade?: string;
+
+  @ApiPropertyOptional()
+  @Type(() => Date)
+  @IsDate()
+  @IsOptional()
+  produce_tag?: Date;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  image_urls?: string[];
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  video_url?: string;
 } 

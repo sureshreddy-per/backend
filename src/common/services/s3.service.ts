@@ -4,6 +4,8 @@ import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client
 import { Upload } from '@aws-sdk/lib-storage';
 import { v4 as uuidv4 } from 'uuid';
 
+export type S3UploadType = 'images' | 'videos' | 'thumbnails' | 'reports';
+
 @Injectable()
 export class S3Service {
   private s3Client: S3Client;
@@ -18,9 +20,9 @@ export class S3Service {
     });
   }
 
-  async uploadFile(file: Express.Multer.File, type: 'images' | 'videos' = 'images'): Promise<string> {
+  async uploadFile(file: Express.Multer.File, type: S3UploadType = 'images'): Promise<string> {
     const bucket = this.configService.get('aws.s3.bucket');
-    const uniqueFileName = `produce/${type}/${uuidv4()}-${file.originalname}`;
+    const uniqueFileName = `${type}/${uuidv4()}-${file.originalname}`;
 
     const upload = new Upload({
       client: this.s3Client,
@@ -49,7 +51,7 @@ export class S3Service {
     await this.s3Client.send(command);
   }
 
-  private extractKeyFromUrl(fileUrl: string): string {
+  extractKeyFromUrl(fileUrl: string): string {
     const urlParts = fileUrl.split('/');
     return urlParts.slice(3).join('/');
   }
