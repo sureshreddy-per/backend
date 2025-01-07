@@ -1,7 +1,8 @@
 export enum ProduceStatus {
-  PENDING = 'PENDING',
-  IN_PROGRESS = 'IN_PROGRESS',
-  AVAILABLE = 'AVAILABLE',
-  SOLD = 'SOLD',
-  CANCELLED = 'CANCELLED'
+  AVAILABLE = 'available',
+  IN_PROGRESS = 'in_progress',
+  SOLD = 'sold',
+  RESERVED = 'reserved',
+  EXPIRED = 'expired',
+  REMOVED = 'removed',
 } 

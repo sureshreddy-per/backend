@@ -14,7 +14,8 @@ export class OffersController {
   @Post()
   @Roles(UserRole.BUYER)
   create(@Body() createOfferDto: CreateOfferDto, @Req() req: any) {
-    return this.offersService.create(createOfferDto, req.user.id);
+    createOfferDto.buyer_id = req.user.id;
+    return this.offersService.create(createOfferDto);
   }
 
   @Get(':id')

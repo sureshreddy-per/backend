@@ -25,7 +25,7 @@ export class TransactionsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  async create(createTransactionDto: CreateTransactionDto, buyerId: string): Promise<Transaction> {
+  async create(createTransactionDto: CreateTransactionDto, buyer_id: string): Promise<Transaction> {
     // Validate quantity
     if (createTransactionDto.quantity <= this.MIN_QUANTITY) {
       throw new BadRequestException(`Quantity must be greater than ${this.MIN_QUANTITY}`);
@@ -38,7 +38,7 @@ export class TransactionsService {
     // Check active transactions limit
     const activeTransactions = await this.transactionRepository.count({
       where: {
-        buyerId,
+        buyer_id,
         status: TransactionStatus.PENDING,
       },
     });
@@ -50,7 +50,7 @@ export class TransactionsService {
     }
 
     try {
-      const produce = await this.produceService.findOne(createTransactionDto.produceId);
+      const produce = await this.produceService.findOne(createTransactionDto.produce_id);
 
       // Validate produce status
       if (produce.status !== ProduceStatus.IN_PROGRESS) {
@@ -65,8 +65,8 @@ export class TransactionsService {
       // Check for existing transaction
       const existingTransaction = await this.transactionRepository.findOne({
         where: {
-          buyerId,
-          produceId: createTransactionDto.produceId,
+          buyer_id,
+          produce_id: createTransactionDto.produce_id,
           status: TransactionStatus.PENDING,
         },
       });
@@ -76,16 +76,20 @@ export class TransactionsService {
       }
 
       const metadata: TransactionMetadata = {
-        priceAtTransaction: produce.price,
-        qualityGrade: produce.qualityGrade,
-        notes: createTransactionDto.notes || '',
+        price_at_transaction: produce.price_per_unit,
+        quality_grade_at_transaction: produce.quality_grade,
+        location_at_transaction: {
+          latitude: produce.latitude,
+          longitude: produce.longitude,
+        },
       };
 
       const transactionData: DeepPartial<Transaction> = {
         ...createTransactionDto,
-        buyerId,
+        buyer_id,
         status: TransactionStatus.PENDING,
         metadata,
+        notes: createTransactionDto.notes,
       };
 
       const transaction = this.transactionRepository.create(transactionData);
@@ -94,9 +98,9 @@ export class TransactionsService {
 
       // Emit events
       this.eventEmitter.emit('transaction.created', {
-        transactionId: transactionWithRelations.id,
-        buyerId,
-        produceId: produce.id,
+        transaction_id: transactionWithRelations.id,
+        buyer_id,
+        produce_id: produce.id,
         quantity: createTransactionDto.quantity,
       });
 
@@ -126,7 +130,7 @@ export class TransactionsService {
         relations: ['buyer', 'produce'],
         skip: (page - 1) * limit,
         take: limit,
-        order: { createdAt: 'DESC' },
+        order: { created_at: 'DESC' },
       });
 
       const totalPages = Math.ceil(total / limit);
@@ -137,9 +141,9 @@ export class TransactionsService {
           total,
           page,
           limit,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrevious: page > 1,
+          total_pages: totalPages,
+          has_next: page < totalPages,
+          has_previous: page > 1,
         },
       };
     } catch (error) {
@@ -205,9 +209,9 @@ export class TransactionsService {
       const refreshedTransaction = await this.findOne(updatedTransaction.id);
 
       this.eventEmitter.emit('transaction.updated', {
-        transactionId: refreshedTransaction.id,
-        buyerId: refreshedTransaction.buyerId,
-        produceId: refreshedTransaction.produceId,
+        transaction_id: refreshedTransaction.id,
+        buyer_id: refreshedTransaction.buyer_id,
+        produce_id: refreshedTransaction.produce_id,
       });
 
       return refreshedTransaction;
@@ -231,17 +235,17 @@ export class TransactionsService {
       const updatedData: DeepPartial<Transaction> = {
         id: transaction.id,
         status: TransactionStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancellationReason: reason,
+        cancelled_at: new Date(),
+        cancellation_reason: reason,
       };
 
       const cancelledTransaction = await this.transactionRepository.save(updatedData);
       const refreshedTransaction = await this.findOne(cancelledTransaction.id);
 
       this.eventEmitter.emit('transaction.cancelled', {
-        transactionId: refreshedTransaction.id,
-        buyerId: refreshedTransaction.buyerId,
-        produceId: refreshedTransaction.produceId,
+        transaction_id: refreshedTransaction.id,
+        buyer_id: refreshedTransaction.buyer_id,
+        produce_id: refreshedTransaction.produce_id,
         reason,
       });
 
@@ -262,16 +266,16 @@ export class TransactionsService {
       const updatedData: DeepPartial<Transaction> = {
         id: transaction.id,
         status: TransactionStatus.COMPLETED,
-        completedAt: new Date(),
+        completed_at: new Date(),
       };
 
       const completedTransaction = await this.transactionRepository.save(updatedData);
       const refreshedTransaction = await this.findOne(completedTransaction.id);
 
       this.eventEmitter.emit('transaction.completed', {
-        transactionId: refreshedTransaction.id,
-        buyerId: refreshedTransaction.buyerId,
-        produceId: refreshedTransaction.produceId,
+        transaction_id: refreshedTransaction.id,
+        buyer_id: refreshedTransaction.buyer_id,
+        produce_id: refreshedTransaction.produce_id,
       });
 
       return refreshedTransaction;
@@ -280,7 +284,7 @@ export class TransactionsService {
     }
   }
 
-  async findByBuyer(buyerId: string, page = 1, limit = 10): Promise<{ items: Transaction[]; meta: any }> {
+  async findByBuyer(buyer_id: string, page = 1, limit = 10): Promise<{ items: Transaction[]; meta: any }> {
     if (page < 1) {
       throw new BadRequestException('Page number must be greater than 0');
     }
@@ -291,11 +295,11 @@ export class TransactionsService {
 
     try {
       const [items, total] = await this.transactionRepository.findAndCount({
-        where: { buyerId },
-        relations: ['produce', 'produce.farmer'],
+        where: { buyer_id },
+        relations: ['produce'],
         skip: (page - 1) * limit,
         take: limit,
-        order: { createdAt: 'DESC' },
+        order: { created_at: 'DESC' },
       });
 
       const totalPages = Math.ceil(total / limit);
@@ -306,9 +310,9 @@ export class TransactionsService {
           total,
           page,
           limit,
-          totalPages,
-          hasNext: page < totalPages,
-          hasPrevious: page > 1,
+          total_pages: totalPages,
+          has_next: page < totalPages,
+          has_previous: page > 1,
         },
       };
     } catch (error) {

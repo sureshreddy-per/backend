@@ -4,7 +4,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateTransactionDto {
   @ApiProperty({ description: 'ID of the produce being transacted' })
   @IsUUID()
-  produceId: string;
+  produce_id: string;
 
   @ApiProperty({ description: 'Quantity of produce being transacted' })
   @IsNumber()

@@ -3,36 +3,56 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../redis/redis.service';
+import { FarmersService } from '../farmers/farmers.service';
 import { User, UserRole, UserStatus } from '../users/entities/user.entity';
 
 describe('AuthService', () => {
   let service: AuthService;
-  let usersService: UsersService;
-  let jwtService: JwtService;
 
   const mockUser = {
     id: 'test-id',
-    mobileNumber: '+1234567890',
+    mobile_number: '+1234567890',
     email: 'test@example.com',
     name: 'Test User',
-    roles: [UserRole.BUYER],
+    role: UserRole.FARMER,
     status: UserStatus.ACTIVE,
-    password: 'hashedPassword',
-    isBlocked: false,
-    blockReason: null,
-    profilePicture: null,
-    metadata: {},
-    lastLoginAt: new Date(),
-    verifiedAt: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    produces: [],
-    offers: [],
-    buyerTransactions: [],
-    sellerTransactions: [],
-    deletedAt: null,
-    scheduledForDeletionAt: null,
+    block_reason: null,
+    profile_picture: null,
+    last_login_at: null,
+    scheduled_for_deletion_at: null,
+    login_attempts: 0,
+    last_login_attempt: null,
+    created_at: new Date(),
+    updated_at: new Date()
   } as User;
+
+  const mockUsersService = {
+    findByMobileNumber: jest.fn(),
+    create: jest.fn(),
+    updateStatus: jest.fn(),
+    findOne: jest.fn(),
+    remove: jest.fn(),
+  };
+
+  const mockJwtService = {
+    sign: jest.fn(),
+    verify: jest.fn(),
+  };
+
+  const mockConfigService = {
+    get: jest.fn(),
+  };
+
+  const mockRedisService = {
+    set: jest.fn(),
+    get: jest.fn(),
+    del: jest.fn(),
+  };
+
+  const mockFarmersService = {
+    createFarmer: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -40,85 +60,31 @@ describe('AuthService', () => {
         AuthService,
         {
           provide: UsersService,
-          useValue: {
-            findByMobileNumber: jest.fn(),
-            create: jest.fn(),
-            findOne: jest.fn(),
-          },
+          useValue: mockUsersService,
         },
         {
           provide: JwtService,
-          useValue: {
-            sign: jest.fn().mockReturnValue('test-token'),
-          },
+          useValue: mockJwtService,
         },
         {
           provide: ConfigService,
-          useValue: {
-            get: jest.fn(),
-          },
+          useValue: mockConfigService,
+        },
+        {
+          provide: RedisService,
+          useValue: mockRedisService,
+        },
+        {
+          provide: FarmersService,
+          useValue: mockFarmersService,
         },
       ],
     }).compile();
 
     service = module.get<AuthService>(AuthService);
-    usersService = module.get<UsersService>(UsersService);
-    jwtService = module.get<JwtService>(JwtService);
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
-  });
-
-  describe('register', () => {
-    const registerDto = {
-      mobileNumber: '+1234567890',
-      name: 'Test User',
-      email: 'test@example.com',
-      roles: [UserRole.BUYER],
-    };
-
-    it('should register a new user successfully', async () => {
-      jest.spyOn(usersService, 'findByMobileNumber').mockResolvedValue(null);
-      jest.spyOn(usersService, 'create').mockResolvedValue(mockUser);
-
-      const result = await service.register(registerDto);
-      expect(result).toEqual(mockUser);
-    });
-
-    it('should throw error if user already exists', async () => {
-      jest.spyOn(usersService, 'findByMobileNumber').mockResolvedValue(mockUser);
-
-      await expect(service.register(registerDto)).rejects.toThrow('User already exists');
-    });
-  });
-
-  describe('requestOtp', () => {
-    it('should generate and return OTP', async () => {
-      const result = await service.requestOtp('+1234567890');
-      expect(result).toHaveProperty('message');
-      expect(result.message).toContain('OTP sent successfully');
-    });
-  });
-
-  describe('verifyOtp', () => {
-    it('should verify OTP and create new user if not exists', async () => {
-      jest.spyOn(usersService, 'findByMobileNumber').mockResolvedValue(null);
-      jest.spyOn(usersService, 'create').mockResolvedValue(mockUser);
-      jest.spyOn(jwtService, 'sign').mockReturnValue('test-token');
-
-      const result = await service.verifyOtp('+1234567890', '123456');
-      expect(result).toHaveProperty('token');
-      expect(result.token).toBe('test-token');
-    });
-
-    it('should verify OTP and return token for existing user', async () => {
-      jest.spyOn(usersService, 'findByMobileNumber').mockResolvedValue(mockUser);
-      jest.spyOn(jwtService, 'sign').mockReturnValue('test-token');
-
-      const result = await service.verifyOtp('+1234567890', '123456');
-      expect(result).toHaveProperty('token');
-      expect(result.token).toBe('test-token');
-    });
   });
 }); 

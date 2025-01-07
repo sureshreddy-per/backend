@@ -1,7 +1,7 @@
 import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Produce } from '../../produce/entities/produce.entity';
 import { User } from '../../auth/entities/user.entity';
-import { Quality } from '../../quality/entities/quality.entity';
+import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
 
 export enum InspectionStatus {
   PENDING = 'PENDING',
@@ -61,9 +61,9 @@ export class Inspection {
   @Column({ nullable: true })
   qualityId: string;
 
-  @ManyToOne(() => Quality)
+  @ManyToOne(() => QualityAssessment)
   @JoinColumn({ name: 'qualityId' })
-  quality: Quality;
+  quality: QualityAssessment;
 
   @Column({
     type: 'enum',

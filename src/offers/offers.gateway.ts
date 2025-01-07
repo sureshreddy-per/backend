@@ -1,18 +1,13 @@
 import {
   WebSocketGateway,
   WebSocketServer,
-  SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseGuards } from '@nestjs/common';
-import { WsJwtAuthGuard } from '../auth/guards/ws-jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Offer } from './entities/offer.entity';
 
 @WebSocketGateway({
-  namespace: 'offers',
   cors: {
     origin: '*',
   },
@@ -21,70 +16,45 @@ export class OffersGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
-  private userSockets: Map<string, Socket[]> = new Map();
+  private userSockets: Map<string, Set<string>> = new Map();
 
-  async handleConnection(client: Socket): Promise<void> {
-    const userId = client.handshake.auth.userId;
+  handleConnection(client: Socket) {
+    const userId = client.handshake.query.userId as string;
     if (userId) {
-      const userSockets = this.userSockets.get(userId) || [];
-      userSockets.push(client);
-      this.userSockets.set(userId, userSockets);
+      if (!this.userSockets.has(userId)) {
+        this.userSockets.set(userId, new Set());
+      }
+      this.userSockets.get(userId).add(client.id);
     }
   }
 
-  async handleDisconnect(client: Socket): Promise<void> {
-    const userId = client.handshake.auth.userId;
+  handleDisconnect(client: Socket) {
+    const userId = client.handshake.query.userId as string;
     if (userId) {
-      const userSockets = this.userSockets.get(userId) || [];
-      const updatedSockets = userSockets.filter(socket => socket.id !== client.id);
-      if (updatedSockets.length > 0) {
-        this.userSockets.set(userId, updatedSockets);
-      } else {
-        this.userSockets.delete(userId);
+      const userSocketIds = this.userSockets.get(userId);
+      if (userSocketIds) {
+        userSocketIds.delete(client.id);
+        if (userSocketIds.size === 0) {
+          this.userSockets.delete(userId);
+        }
       }
     }
   }
 
-  @UseGuards(WsJwtAuthGuard)
-  @SubscribeMessage('joinProduceRoom')
-  async handleJoinProduceRoom(
-    client: Socket,
-    produceId: string,
-  ): Promise<void> {
-    client.join(`produce:${produceId}`);
+  notifyNewOffer(offer: Offer) {
+    // Notify all clients subscribed to this produce
+    this.server.to(`produce:${offer.produce_id}`).emit('newOffer', offer);
   }
 
-  @UseGuards(WsJwtAuthGuard)
-  @SubscribeMessage('leaveProduceRoom')
-  async handleLeaveProduceRoom(
-    client: Socket,
-    produceId: string,
-  ): Promise<void> {
-    client.leave(`produce:${produceId}`);
-  }
+  notifyOfferStatusUpdated(offer: Offer) {
+    // Notify all clients subscribed to this produce
+    this.server.to(`produce:${offer.produce_id}`).emit('offerStatusUpdated', offer);
 
-  notifyNewOffer(offer: Offer): void {
-    // Notify the produce room about the new offer
-    this.server.to(`produce:${offer.produceId}`).emit('newOffer', offer);
-
-    // Notify the farmer who owns the produce
-    const farmerSockets = this.userSockets.get(offer.produce.farmerId);
-    if (farmerSockets) {
-      farmerSockets.forEach(socket => {
-        socket.emit('newOfferForProduce', offer);
-      });
-    }
-  }
-
-  notifyOfferStatusUpdate(offer: Offer): void {
-    // Notify the produce room about the offer status update
-    this.server.to(`produce:${offer.produceId}`).emit('offerStatusUpdated', offer);
-
-    // Notify the buyer who made the offer
-    const buyerSockets = this.userSockets.get(offer.buyerId);
+    // Notify the buyer
+    const buyerSockets = this.userSockets.get(offer.buyer_id);
     if (buyerSockets) {
-      buyerSockets.forEach(socket => {
-        socket.emit('myOfferStatusUpdated', offer);
+      buyerSockets.forEach(socketId => {
+        this.server.to(socketId).emit('offerStatusUpdated', offer);
       });
     }
   }

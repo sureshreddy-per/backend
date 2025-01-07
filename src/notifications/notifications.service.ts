@@ -18,14 +18,14 @@ export class NotificationsService {
   ) {}
 
   async create(
-    userId: string,
+    user_id: string,
     type: NotificationType,
     title: string,
     message: string,
     metadata?: any,
   ): Promise<Notification> {
     const notification = this.notificationRepository.create({
-      userId,
+      user_id,
       type,
       title,
       message,
@@ -46,7 +46,7 @@ export class NotificationsService {
     }
 
     notification.status = NotificationStatus.READ;
-    notification.readAt = new Date();
+    notification.read_at = new Date();
 
     return this.notificationRepository.save(notification);
   }
@@ -61,15 +61,15 @@ export class NotificationsService {
     }
 
     notification.status = NotificationStatus.SENT;
-    notification.sentAt = new Date();
+    notification.sent_at = new Date();
 
     return this.notificationRepository.save(notification);
   }
 
-  async findByUser(userId: string, page = 1, limit = 10) {
+  async findByUser(user_id: string, page = 1, limit = 10) {
     const [notifications, total] = await this.notificationRepository.findAndCount({
-      where: { userId },
-      order: { createdAt: 'DESC' },
+      where: { user_id },
+      order: { created_at: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -82,32 +82,32 @@ export class NotificationsService {
     };
   }
 
-  async getUnreadCount(userId: string): Promise<number> {
+  async getUnreadCount(user_id: string): Promise<number> {
     return this.notificationRepository.count({
       where: {
-        userId,
+        user_id,
         status: NotificationStatus.SENT,
-        readAt: null,
+        read_at: null,
       },
     });
   }
 
   @OnEvent('offer.created')
-  async handleOfferCreated(payload: { offerId: string; produceId: string; buyerId: string }) {
+  async handleOfferCreated(payload: { offer_id: string; produce_id: string; buyer_id: string }) {
     const produce = await this.produceRepository.findOne({
-      where: { id: payload.produceId },
+      where: { id: payload.produce_id },
     });
 
     if (!produce) {
-      throw new NotFoundException(`Produce with ID "${payload.produceId}" not found`);
+      throw new NotFoundException(`Produce with ID "${payload.produce_id}" not found`);
     }
 
     const farmer = await this.userRepository.findOne({
-      where: { id: produce.farmerId },
+      where: { id: produce.farmer_id },
     });
 
     if (!farmer) {
-      throw new NotFoundException(`Farmer with ID "${produce.farmerId}" not found`);
+      throw new NotFoundException(`Farmer with ID "${produce.farmer_id}" not found`);
     }
 
     await this.create(
@@ -116,17 +116,17 @@ export class NotificationsService {
       'New Offer Received',
       'You have received a new offer on your produce listing.',
       {
-        offerId: payload.offerId,
-        produceId: payload.produceId,
-        buyerId: payload.buyerId,
+        offer_id: payload.offer_id,
+        produce_id: payload.produce_id,
+        buyer_id: payload.buyer_id,
       },
     );
   }
 
   @OnEvent('offer.updated')
-  async handleOfferUpdated(payload: { offerId: string; buyerId: string; produceId: string }) {
+  async handleOfferUpdated(payload: { offer_id: string; buyer_id: string; produce_id: string }) {
     const user = await this.userRepository.findOne({
-      where: { id: payload.buyerId },
+      where: { id: payload.buyer_id },
     });
 
     await this.create(
@@ -135,16 +135,16 @@ export class NotificationsService {
       'Offer Updated',
       'Your offer has been updated.',
       {
-        offerId: payload.offerId,
-        produceId: payload.produceId,
+        offer_id: payload.offer_id,
+        produce_id: payload.produce_id,
       },
     );
   }
 
   @OnEvent('offer.accepted')
-  async handleOfferAccepted(payload: { offerId: string; buyerId: string; produceId: string }) {
+  async handleOfferAccepted(payload: { offer_id: string; buyer_id: string; produce_id: string }) {
     const user = await this.userRepository.findOne({
-      where: { id: payload.buyerId },
+      where: { id: payload.buyer_id },
     });
 
     await this.create(
@@ -153,16 +153,16 @@ export class NotificationsService {
       'Offer Accepted',
       'Your offer has been accepted!',
       {
-        offerId: payload.offerId,
-        produceId: payload.produceId,
+        offer_id: payload.offer_id,
+        produce_id: payload.produce_id,
       },
     );
   }
 
   @OnEvent('offer.rejected')
-  async handleOfferRejected(payload: { offerId: string; buyerId: string; produceId: string }) {
+  async handleOfferRejected(payload: { offer_id: string; buyer_id: string; produce_id: string }) {
     const user = await this.userRepository.findOne({
-      where: { id: payload.buyerId },
+      where: { id: payload.buyer_id },
     });
 
     await this.create(
@@ -171,16 +171,16 @@ export class NotificationsService {
       'Offer Rejected',
       'Your offer has been rejected.',
       {
-        offerId: payload.offerId,
-        produceId: payload.produceId,
+        offer_id: payload.offer_id,
+        produce_id: payload.produce_id,
       },
     );
   }
 
   @OnEvent('rating.created')
-  async handleRatingCreated(payload: { ratingId: string; ratedUserId: string }) {
+  async handleRatingCreated(payload: { rating_id: string; rated_user_id: string }) {
     const user = await this.userRepository.findOne({
-      where: { id: payload.ratedUserId },
+      where: { id: payload.rated_user_id },
     });
 
     await this.create(
@@ -189,15 +189,15 @@ export class NotificationsService {
       'New Rating Received',
       'You have received a new rating.',
       {
-        ratingId: payload.ratingId,
+        rating_id: payload.rating_id,
       },
     );
   }
 
   @OnEvent('quality.updated')
-  async handleQualityUpdated(payload: { produceId: string; userId: string; qualityId: string }) {
+  async handleQualityUpdated(payload: { produce_id: string; user_id: string; quality_id: string }) {
     const user = await this.userRepository.findOne({
-      where: { id: payload.userId },
+      where: { id: payload.user_id },
     });
 
     await this.create(
@@ -206,16 +206,16 @@ export class NotificationsService {
       'Quality Grade Updated',
       'The quality grade for your produce has been updated.',
       {
-        produceId: payload.produceId,
-        qualityId: payload.qualityId,
+        produce_id: payload.produce_id,
+        quality_id: payload.quality_id,
       },
     );
   }
 
   @OnEvent('price.updated')
-  async handlePriceUpdated(payload: { produceId: string; userId: string; price: number }) {
+  async handlePriceUpdated(payload: { produce_id: string; user_id: string; price: number }) {
     const user = await this.userRepository.findOne({
-      where: { id: payload.userId },
+      where: { id: payload.user_id },
     });
 
     await this.create(
@@ -224,7 +224,7 @@ export class NotificationsService {
       'Price Updated',
       'The price for your produce has been updated.',
       {
-        produceId: payload.produceId,
+        produce_id: payload.produce_id,
         price: payload.price,
       },
     );
@@ -232,7 +232,7 @@ export class NotificationsService {
 
   async findAll(page = 1, limit = 10) {
     const [notifications, total] = await this.notificationRepository.findAndCount({
-      order: { createdAt: 'DESC' },
+      order: { created_at: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });

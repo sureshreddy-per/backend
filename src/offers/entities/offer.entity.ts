@@ -1,14 +1,14 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { Produce } from '../../produce/entities/produce.entity';
-import { User } from '../../users/entities/user.entity';
-import { OfferMetadata } from '../interfaces/offer-metadata.interface';
+import { Buyer } from '../../buyers/entities/buyer.entity';
 
 export enum OfferStatus {
   PENDING = 'PENDING',
   ACCEPTED = 'ACCEPTED',
   REJECTED = 'REJECTED',
   CANCELLED = 'CANCELLED',
-  EXPIRED = 'EXPIRED'
+  CONFIRMED = 'CONFIRMED',
+  EXPIRED = 'EXPIRED',
 }
 
 @Entity('offers')
@@ -16,60 +16,48 @@ export class Offer {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Produce, produce => produce.offers)
-  @JoinColumn({ name: 'produce_id' })
-  produce: Produce;
+  @Column()
+  produce_id: string;
 
-  @Column('uuid')
-  produceId: string;
-
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'buyer_id' })
-  buyer: User;
-
-  @Column('uuid')
-  buyerId: string;
+  @Column()
+  buyer_id: string;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  pricePerUnit: number;
+  price: number;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { precision: 10, scale: 2, nullable: true })
+  price_of_buyer: number;
+
+  @Column('decimal')
   quantity: number;
 
   @Column({
     type: 'enum',
     enum: OfferStatus,
-    default: OfferStatus.PENDING
+    default: OfferStatus.PENDING,
   })
   status: OfferStatus;
 
+  @Column()
+  valid_until: Date;
+
   @Column('jsonb', { nullable: true })
-  metadata: OfferMetadata;
+  metadata: Record<string, any>;
 
   @Column({ nullable: true })
   message: string;
 
-  @Column({ nullable: true })
-  validUntil: Date;
+  @ManyToOne(() => Produce)
+  @JoinColumn({ name: 'produce_id' })
+  produce: Produce;
+
+  @ManyToOne(() => Buyer)
+  @JoinColumn({ name: 'buyer_id' })
+  buyer: Buyer;
 
   @CreateDateColumn()
-  createdAt: Date;
+  created_at: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
-
-  @Column({ nullable: true })
-  acceptedAt: Date;
-
-  @Column({ nullable: true })
-  rejectedAt: Date;
-
-  @Column({ nullable: true })
-  rejectionReason: string;
-
-  @Column({ nullable: true })
-  cancelledAt: Date;
-
-  @Column({ nullable: true })
-  cancellationReason: string;
+  updated_at: Date;
 } 

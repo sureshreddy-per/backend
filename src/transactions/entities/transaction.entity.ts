@@ -1,14 +1,23 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
-import { Produce } from '../../produce/entities/produce.entity';
-import { User } from '../../users/entities/user.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Offer } from '../../offers/entities/offer.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
-import { TransactionMetadata } from '../interfaces/transaction-metadata.interface';
+import { Buyer } from '../../buyers/entities/buyer.entity';
+import { Produce } from '../../produce/entities/produce.entity';
 
 export enum TransactionStatus {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
-  FAILED = 'FAILED'
+}
+
+export interface TransactionMetadata {
+  priceAtTransaction?: number;
+  qualityGradeAtTransaction?: string;
+  locationAtTransaction?: {
+    latitude: number;
+    longitude: number;
+  };
+  [key: string]: any;
 }
 
 @Entity('transactions')
@@ -16,62 +25,65 @@ export class Transaction {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @ManyToOne(() => Produce, produce => produce.transactions)
-  @JoinColumn({ name: 'produce_id' })
-  produce: Produce;
+  @Column()
+  offer_id: string;
 
-  @Column('uuid')
-  produceId: string;
+  @Column()
+  farmer_id: string;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'buyer_id' })
-  buyer: User;
+  @Column()
+  buyer_id: string;
 
-  @Column('uuid')
-  buyerId: string;
+  @Column()
+  produce_id: string;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'seller_id' })
-  seller: User;
+  @Column({
+    type: 'enum',
+    enum: TransactionStatus,
+    default: TransactionStatus.PENDING,
+  })
+  status: TransactionStatus;
 
-  @Column('uuid')
-  sellerId: string;
+  @Column('decimal', { precision: 10, scale: 2 })
+  final_price: number;
+
+  @Column('decimal', { precision: 10, scale: 2 })
+  quantity: number;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: TransactionMetadata;
+
+  @Column({ type: 'text', nullable: true })
+  notes?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  completed_at?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  cancelled_at?: Date;
+
+  @Column({ type: 'text', nullable: true })
+  cancellation_reason?: string;
+
+  @ManyToOne(() => Offer)
+  @JoinColumn({ name: 'offer_id' })
+  offer: Offer;
 
   @ManyToOne(() => Farmer)
   @JoinColumn({ name: 'farmer_id' })
   farmer: Farmer;
 
-  @Column('uuid')
-  farmerId: string;
+  @ManyToOne(() => Buyer)
+  @JoinColumn({ name: 'buyer_id' })
+  buyer: Buyer;
 
-  @Column('decimal', { precision: 10, scale: 2 })
-  quantity: number;
-
-  @Column('decimal', { precision: 10, scale: 2 })
-  pricePerUnit: number;
-
-  @Column({
-    type: 'enum',
-    enum: TransactionStatus,
-    default: TransactionStatus.PENDING
-  })
-  status: TransactionStatus;
-
-  @Column('jsonb', { nullable: true })
-  metadata: TransactionMetadata;
-
-  @Column({ nullable: true })
-  cancellationReason: string;
+  @ManyToOne(() => Produce)
+  @JoinColumn({ name: 'produce_id' })
+  produce: Produce;
 
   @CreateDateColumn()
-  createdAt: Date;
+  created_at: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
-
-  @Column({ nullable: true })
-  completedAt: Date;
-
-  @Column({ nullable: true })
-  cancelledAt: Date;
+  updated_at: Date;
 } 

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DeepPartial } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Offer, OfferStatus } from '../entities/offer.entity';
 import { CreateOfferDto } from '../dto/create-offer.dto';
 import { UpdateOfferDto } from '../dto/update-offer.dto';
@@ -12,79 +12,77 @@ export class OffersService {
     private readonly offerRepository: Repository<Offer>,
   ) {}
 
-  async create(createOfferDto: CreateOfferDto, buyerId: string): Promise<Offer> {
-    const offerData: DeepPartial<Offer> = {
-      ...createOfferDto,
-      buyerId,
+  async create(createOfferDto: CreateOfferDto): Promise<Offer> {
+    const offer = this.offerRepository.create({
+      buyer_id: createOfferDto.buyer_id,
       status: OfferStatus.PENDING,
-    };
+      produce_id: createOfferDto.produce_id,
+      price: createOfferDto.price,
+      quantity: createOfferDto.quantity,
+      message: createOfferDto.message,
+      valid_until: createOfferDto.valid_until,
+    });
 
-    const offer = this.offerRepository.create(offerData);
     return this.offerRepository.save(offer);
   }
 
   async accept(id: string): Promise<Offer> {
     const offer = await this.findOne(id);
-
     if (offer.status !== OfferStatus.PENDING) {
-      throw new BadRequestException('Can only accept pending offers');
+      throw new BadRequestException('Offer cannot be accepted');
     }
 
-    const updatedData: DeepPartial<Offer> = {
-      id: offer.id,
+    const updatedOffer = await this.offerRepository.save({
+      id,
       status: OfferStatus.ACCEPTED,
-      acceptedAt: new Date(),
       metadata: {
-        ...offer.metadata,
-        acceptedAt: new Date(),
+        accepted_at: new Date(),
       },
-    };
+    });
 
-    return this.offerRepository.save(updatedData);
+    return updatedOffer;
   }
 
   async reject(id: string, reason: string): Promise<Offer> {
     const offer = await this.findOne(id);
-
     if (offer.status !== OfferStatus.PENDING) {
-      throw new BadRequestException('Can only reject pending offers');
+      throw new BadRequestException('Offer cannot be rejected');
     }
 
-    const updatedData: DeepPartial<Offer> = {
-      id: offer.id,
+    const updatedOffer = await this.offerRepository.save({
+      id,
       status: OfferStatus.REJECTED,
-      rejectedAt: new Date(),
-      rejectionReason: reason,
       metadata: {
-        ...offer.metadata,
-        rejectionReason: reason,
-        rejectedAt: new Date(),
+        rejection_reason: reason,
+        rejected_at: new Date(),
       },
-    };
+    });
 
-    return this.offerRepository.save(updatedData);
+    return updatedOffer;
   }
 
   async cancel(id: string, reason: string): Promise<Offer> {
     const offer = await this.findOne(id);
-
     if (offer.status !== OfferStatus.PENDING) {
-      throw new BadRequestException('Can only cancel pending offers');
+      throw new BadRequestException('Offer cannot be cancelled');
     }
 
-    const updatedData: DeepPartial<Offer> = {
-      id: offer.id,
+    const updatedOffer = await this.offerRepository.save({
+      id,
       status: OfferStatus.CANCELLED,
-      cancelledAt: new Date(),
-      cancellationReason: reason,
       metadata: {
-        ...offer.metadata,
-        cancellationReason: reason,
-        cancelledAt: new Date(),
+        cancellation_reason: reason,
+        cancelled_at: new Date(),
       },
-    };
+    });
 
-    return this.offerRepository.save(updatedData);
+    return updatedOffer;
+  }
+
+  async findAll(): Promise<Offer[]> {
+    return this.offerRepository.find({
+      relations: ['produce', 'buyer'],
+    });
   }
 
   async findOne(id: string): Promise<Offer> {
@@ -98,5 +96,20 @@ export class OffersService {
     }
 
     return offer;
+  }
+
+  async update(id: string, updateOfferDto: UpdateOfferDto): Promise<Offer> {
+    const offer = await this.findOne(id);
+    if (offer.status !== OfferStatus.PENDING) {
+      throw new BadRequestException('Only pending offers can be updated');
+    }
+
+    Object.assign(offer, updateOfferDto);
+    return this.offerRepository.save(offer);
+  }
+
+  async remove(id: string): Promise<void> {
+    const offer = await this.findOne(id);
+    await this.offerRepository.remove(offer);
   }
 } 

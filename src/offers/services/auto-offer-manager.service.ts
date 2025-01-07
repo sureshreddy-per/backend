@@ -1,60 +1,70 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DeepPartial, LessThan } from 'typeorm';
+import { Repository, LessThan } from 'typeorm';
 import { Offer, OfferStatus } from '../entities/offer.entity';
-import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Cron } from '@nestjs/schedule';
+import { NotificationsService } from '../../notifications/notifications.service';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 
 @Injectable()
 export class AutoOfferManagerService {
   constructor(
     @InjectRepository(Offer)
     private readonly offerRepository: Repository<Offer>,
-    private readonly eventEmitter: EventEmitter2,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
-  async findExpiredOffers(): Promise<Offer[]> {
-    const offers = await this.offerRepository.find({
-      where: {
-        status: OfferStatus.PENDING,
-        validUntil: LessThan(new Date()),
-      },
-      relations: ['produce', 'buyer'],
-    });
-
-    return offers;
+  @Cron('*/5 * * * *') // Run every 5 minutes
+  async handleExpiredOffers() {
+    const expiredOffers = await this.findExpiredOffers();
+    for (const offer of expiredOffers) {
+      await this.expireOffer(offer);
+    }
   }
 
-  async expireOffer(offer: Offer, reason: string): Promise<Offer> {
-    const updatedData: DeepPartial<Offer> = {
-      id: offer.id,
+  async findExpiredOffers(): Promise<Offer[]> {
+    return this.offerRepository.find({
+      where: {
+        status: OfferStatus.PENDING,
+        valid_until: LessThan(new Date()),
+      },
+      relations: ['buyer', 'produce'],
+    });
+  }
+
+  async expireOffer(offer: Offer): Promise<Offer> {
+    // Store original values for notification
+    const metadata = {
+      original_valid_until: offer.valid_until,
+    };
+
+    // Update offer status to EXPIRED
+    const updatedOffer = await this.offerRepository.save({
+      ...offer,
       status: OfferStatus.EXPIRED,
       metadata: {
         ...offer.metadata,
-        expiryReason: reason,
-        expiryMetadata: {
-          expiredAt: new Date(),
-          originalValidUntil: offer.validUntil,
-        },
+        ...metadata,
       },
-    };
-
-    const updatedOffer = await this.offerRepository.save(updatedData);
-    const refreshedOffer = await this.offerRepository.findOne({
-      where: { id: updatedOffer.id },
-      relations: ['produce', 'buyer'],
     });
 
-    if (!refreshedOffer) {
-      throw new Error('Failed to refresh offer after expiry');
-    }
+    // Send notifications
+    await this.notifyOfferExpired(updatedOffer);
 
-    this.eventEmitter.emit('offer.expired', {
-      offerId: refreshedOffer.id,
-      buyerId: refreshedOffer.buyerId,
-      produceId: refreshedOffer.produceId,
-      reason,
-    });
+    return updatedOffer;
+  }
 
-    return refreshedOffer;
+  private async notifyOfferExpired(offer: Offer) {
+    // Notify buyer
+    await this.notificationsService.create(
+      offer.buyer_id,
+      NotificationType.OFFER_REJECTED,
+      'Offer Expired',
+      `Your offer for ${offer.produce.name} has expired`,
+      {
+        offer_id: offer.id,
+        produce_id: offer.produce_id,
+      },
+    );
   }
 } 

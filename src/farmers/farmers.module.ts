@@ -1,27 +1,19 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Farmer } from './entities/farmer.entity';
-import { User } from '../auth/entities/user.entity';
-import { Produce } from '../produce/entities/produce.entity';
-import { Transaction } from '../transactions/entities/transaction.entity';
-import { BankDetails } from './entities/bank-details.entity';
-import { FarmDetails } from './entities/farm-details.entity';
+import { Farm } from './entities/farm.entity';
+import { BankAccount } from './entities/bank-account.entity';
 import { FarmersService } from './farmers.service';
 import { FarmersController } from './farmers.controller';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Farmer,
-      User,
-      Produce,
-      Transaction,
-      BankDetails,
-      FarmDetails
-    ])
+    TypeOrmModule.forFeature([Farmer, Farm, BankAccount]),
+    UsersModule,
   ],
-  controllers: [FarmersController],
   providers: [FarmersService],
-  exports: [FarmersService]
+  controllers: [FarmersController],
+  exports: [FarmersService],
 })
 export class FarmersModule {} 

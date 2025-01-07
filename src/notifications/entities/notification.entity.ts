@@ -1,22 +1,23 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
-import { User } from '../../auth/entities/user.entity';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 export enum NotificationType {
   OFFER_CREATED = 'OFFER_CREATED',
-  OFFER_UPDATED = 'OFFER_UPDATED',
   OFFER_ACCEPTED = 'OFFER_ACCEPTED',
-  OFFER_REJECTED = 'REJECTED',
-  OFFER_EXPIRED = 'OFFER_EXPIRED',
+  OFFER_REJECTED = 'OFFER_REJECTED',
+  INSPECTION_SCHEDULED = 'INSPECTION_SCHEDULED',
+  QUALITY_ASSESSMENT_COMPLETED = 'QUALITY_ASSESSMENT_COMPLETED',
+  TRANSACTION_COMPLETED = 'TRANSACTION_COMPLETED',
+  OFFER_UPDATED = 'OFFER_UPDATED',
   RATING_RECEIVED = 'RATING_RECEIVED',
   QUALITY_UPDATED = 'QUALITY_UPDATED',
-  PRICE_UPDATED = 'PRICE_UPDATED',
+  PRICE_UPDATED = 'PRICE_UPDATED'
 }
 
 export enum NotificationStatus {
   PENDING = 'PENDING',
   SENT = 'SENT',
-  READ = 'READ',
-  FAILED = 'FAILED',
+  READ = 'READ'
 }
 
 @Entity('notifications')
@@ -24,47 +25,43 @@ export class Notification {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'user_id' })
-  userId: string;
+  @Column({ type: 'enum', enum: NotificationType })
+  type: NotificationType;
 
-  @ManyToOne(() => User)
+  @Column({ type: 'jsonb' })
+  data: Record<string, any>;
+
+  @Column({ default: false })
+  is_read: boolean;
+
+  @Column({ type: 'enum', enum: NotificationStatus, default: NotificationStatus.PENDING })
+  status: NotificationStatus;
+
+  @Column({ nullable: true })
+  user_id: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  title: string;
+
+  @Column({ type: 'text', nullable: true })
+  message: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: Record<string, any>;
+
+  @Column({ type: 'timestamp', nullable: true })
+  read_at: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  sent_at: Date;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column()
-  title: string;
+  @CreateDateColumn()
+  created_at: Date;
 
-  @Column({ type: 'text' })
-  message: string;
-
-  @Column({
-    type: 'enum',
-    enum: NotificationType,
-  })
-  type: NotificationType;
-
-  @Column({
-    type: 'enum',
-    enum: NotificationStatus,
-    default: NotificationStatus.PENDING,
-  })
-  status: NotificationStatus;
-
-  @Column({ type: 'jsonb', nullable: true })
-  metadata: {
-    offerId?: string;
-    produceId?: string;
-    ratingId?: string;
-    qualityId?: string;
-    price?: number;
-  };
-
-  @Column({ name: 'sent_at', type: 'timestamp', nullable: true })
-  sentAt: Date;
-
-  @Column({ name: 'read_at', type: 'timestamp', nullable: true })
-  readAt: Date;
-
-  @CreateDateColumn({ name: 'created_at' })
-  createdAt: Date;
+  @UpdateDateColumn()
+  updated_at: Date;
 } 

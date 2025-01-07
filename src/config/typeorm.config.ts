@@ -1,16 +1,19 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
+import { User } from '../users/entities/user.entity';
+import { Farmer } from '../farmers/entities/farmer.entity';
+import { Buyer } from '../buyers/entities/buyer.entity';
+import { Farm } from '../farmers/entities/farm.entity';
+import { BankAccount } from '../farmers/entities/bank-account.entity';
 import { Produce } from '../produce/entities/produce.entity';
-import { FoodGrains } from '../produce/entities/produce-categories/food-grains.entity';
-import { Oilseeds } from '../produce/entities/produce-categories/oilseeds.entity';
-import { Fruits } from '../produce/entities/produce-categories/fruits.entity';
-import { Vegetables } from '../produce/entities/produce-categories/vegetables.entity';
-import { Spices } from '../produce/entities/produce-categories/spices.entity';
-import { Fibers } from '../produce/entities/produce-categories/fibers.entity';
-import { Sugarcane } from '../produce/entities/produce-categories/sugarcane.entity';
-import { Flowers } from '../produce/entities/produce-categories/flowers.entity';
-import { MedicinalPlants } from '../produce/entities/produce-categories/medicinal-plants.entity';
+import { Offer } from '../offers/entities/offer.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
+import { QualityAssessment } from '../quality/entities/quality-assessment.entity';
+import { Inspector } from '../inspectors/entities/inspector.entity';
+import { Rating } from '../ratings/entities/rating.entity';
+import { Synonym } from '../produce/entities/synonym.entity';
+import { Notification } from '../notifications/entities/notification.entity';
 
 config();
 
@@ -22,20 +25,21 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE,
   entities: [
+    User,
+    Farmer,
+    Buyer,
+    Farm,
+    BankAccount,
     Produce,
-    FoodGrains,
-    Oilseeds,
-    Fruits,
-    Vegetables,
-    Spices,
-    Fibers,
-    Sugarcane,
-    Flowers,
-    MedicinalPlants,
-    __dirname + '/../**/*.entity{.ts,.js}'
+    Offer,
+    Transaction,
+    QualityAssessment,
+    Inspector,
+    Rating,
+    Synonym,
+    Notification,
   ],
   synchronize: true,
-  dropSchema: true,
   logging: true,
   migrationsRun: false,
 };

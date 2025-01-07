@@ -1,29 +1,22 @@
-import { IsString, IsEmail, IsOptional, IsArray, ArrayUnique, IsEnum } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserRole } from '../../users/entities/user.entity';
 
 export class RegisterDto {
-  @ApiProperty({ description: 'User\'s full name' })
+  @ApiProperty({ example: '+1234567890' })
+  @IsString()
+  mobile_number: string;
+
+  @ApiProperty({ example: 'John Doe' })
   @IsString()
   name: string;
 
-  @ApiProperty({ description: 'Mobile number in E.164 format', example: '+1234567890' })
-  @IsString()
-  mobileNumber: string;
-
-  @ApiPropertyOptional({ description: 'User\'s email address' })
+  @ApiPropertyOptional({ example: 'john@example.com' })
   @IsEmail()
   @IsOptional()
   email?: string;
 
-  @ApiProperty({ 
-    description: 'User roles', 
-    enum: UserRole, 
-    isArray: true,
-    example: [UserRole.FARMER]
-  })
-  @IsArray()
-  @ArrayUnique()
-  @IsEnum(UserRole, { each: true })
-  roles: UserRole[];
+  @ApiProperty({ enum: UserRole, example: UserRole.FARMER })
+  @IsEnum(UserRole)
+  role: UserRole;
 } 

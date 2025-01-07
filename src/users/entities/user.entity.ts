@@ -1,12 +1,9 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { Offer } from '../../offers/entities/offer.entity';
-import { Produce } from '../../produce/entities/produce.entity';
-import { Transaction } from '../../transactions/entities/transaction.entity';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 export enum UserRole {
   FARMER = 'FARMER',
   BUYER = 'BUYER',
-  ADMIN = 'ADMIN'
+  ADMIN = 'ADMIN',
 }
 
 export enum UserStatus {
@@ -14,7 +11,7 @@ export enum UserStatus {
   INACTIVE = 'INACTIVE',
   SUSPENDED = 'SUSPENDED',
   PENDING_VERIFICATION = 'PENDING_VERIFICATION',
-  DELETED = 'DELETED'
+  DELETED = 'DELETED',
 }
 
 @Entity('users')
@@ -23,7 +20,7 @@ export class User {
   id: string;
 
   @Column({ unique: true })
-  mobileNumber: string;
+  mobile_number: string;
 
   @Column({ nullable: true })
   email: string;
@@ -31,81 +28,40 @@ export class User {
   @Column()
   name: string;
 
+  @Column({ nullable: true })
+  profile_picture: string;
+
   @Column({
     type: 'enum',
     enum: UserRole,
-    array: true,
-    default: [UserRole.FARMER]
   })
-  roles: UserRole[];
+  role: UserRole;
 
   @Column({
     type: 'enum',
     enum: UserStatus,
-    default: UserStatus.PENDING_VERIFICATION
+    default: UserStatus.PENDING_VERIFICATION,
   })
   status: UserStatus;
 
-  @Column({ default: false })
-  isBlocked: boolean;
+  @Column({ nullable: true })
+  block_reason: string;
 
   @Column({ nullable: true })
-  blockReason: string;
+  last_login_at: Date;
 
   @Column({ nullable: true })
-  profilePicture: string;
+  scheduled_for_deletion_at: Date;
 
-  @Column('jsonb', { nullable: true })
-  metadata: {
-    address?: string;
-    location?: {
-      latitude: number;
-      longitude: number;
-    };
-    businessName?: string;
-    businessType?: string;
-    registrationNumber?: string;
-    taxId?: string;
-    preferredPaymentMethods?: string[];
-    bankDetails?: {
-      accountName: string;
-      accountNumber: string;
-      bankName: string;
-      branchCode: string;
-    };
-    ratings?: {
-      average: number;
-      count: number;
-    };
-  };
+  @Column({ default: 0 })
+  login_attempts: number;
 
   @Column({ nullable: true })
-  lastLoginAt: Date;
-
-  @Column({ nullable: true })
-  verifiedAt: Date;
-
-  @Column({ nullable: true })
-  deletedAt: Date;
-
-  @Column({ nullable: true })
-  scheduledForDeletionAt: Date;
+  last_login_attempt: Date;
 
   @CreateDateColumn()
-  createdAt: Date;
+  created_at: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
-
-  @OneToMany(() => Produce, produce => produce.farmer)
-  produces: Produce[];
-
-  @OneToMany(() => Offer, offer => offer.buyer)
-  offers: Offer[];
-
-  @OneToMany(() => Transaction, transaction => transaction.buyer)
-  buyerTransactions: Transaction[];
-
-  @OneToMany(() => Transaction, transaction => transaction.buyer)
-  sellerTransactions: Transaction[];
+  updated_at: Date;
 } 
