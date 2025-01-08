@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Put, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User, UserRole, UserStatus } from './entities/user.entity';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Controller('users')
@@ -17,8 +18,19 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Get('profile')
+  getProfile(@GetUser() user: User): Promise<User> {
+    return this.usersService.findOne(user.id);
+  }
+
   @Get(':id')
-  findOne(@Param('id') id: string): Promise<User> {
+  async findOne(
+    @GetUser() user: User,
+    @Param('id') id: string
+  ): Promise<User> {
+    if (user.role !== UserRole.ADMIN && user.id !== id) {
+      throw new UnauthorizedException('You can only view your own profile');
+    }
     return this.usersService.findOne(id);
   }
 
@@ -59,4 +71,4 @@ export class UsersController {
   async unblockUser(@Param('id') id: string): Promise<User> {
     return this.usersService.unblock(id);
   }
-} 
+}

@@ -1,0 +1,450 @@
+{
+  "info": {
+    "name": "Inspector API Collection",
+    "description": "Collection of API endpoints for Inspector role",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Inspector Management",
+      "item": [
+        {
+          "name": "Create Inspector Profile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspectors/profile",
+              "host": ["{{base_url}}"],
+              "path": ["inspectors", "profile"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Smith\",\n  \"email\": \"john.smith@example.com\",\n  \"mobile\": \"+919876543210\",\n  \"certification_number\": \"CERT123\",\n  \"experience_years\": 5,\n  \"specializations\": [\"VEGETABLES\", \"FRUITS\"],\n  \"location\": {\n    \"type\": \"Point\",\n    \"coordinates\": [77.5946, 12.9716]\n  }\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Current Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspectors/profile",
+              "host": ["{{base_url}}"],
+              "path": ["inspectors", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Find Nearby Inspectors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspectors/nearby?lat=12.9716&lng=77.5946&radius=10",
+              "host": ["{{base_url}}"],
+              "path": ["inspectors", "nearby"],
+              "query": [
+                {
+                  "key": "lat",
+                  "value": "12.9716"
+                },
+                {
+                  "key": "lng",
+                  "value": "77.5946"
+                },
+                {
+                  "key": "radius",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inspection Management",
+      "item": [
+        {
+          "name": "Create Inspection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection",
+              "host": ["{{base_url}}"],
+              "path": ["inspection"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"produce_id\": \"{{produceId}}\",\n  \"inspection_date\": \"2024-02-05\",\n  \"notes\": \"Regular quality inspection\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Inspections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection/my-inspections?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["inspection", "my-inspections"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Inspection Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection/{{id}}",
+              "host": ["{{base_url}}"],
+              "path": ["inspection", "{{id}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Inspection",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection/{{id}}",
+              "host": ["{{base_url}}"],
+              "path": ["inspection", "{{id}}"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"quality_score\": 85,\n  \"notes\": \"Inspection completed - produce meets quality standards\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete Inspection",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection/{{id}}",
+              "host": ["{{base_url}}"],
+              "path": ["inspection", "{{id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Quality Assessment",
+      "item": [
+        {
+          "name": "Submit Quality Assessment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection/{{inspectionId}}/quality",
+              "host": ["{{base_url}}"],
+              "path": ["inspection", "{{inspectionId}}", "quality"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"appearance_score\": 90,\n  \"freshness_score\": 85,\n  \"size_consistency_score\": 88,\n  \"defects_score\": 92,\n  \"overall_score\": 89,\n  \"notes\": \"High quality produce with minimal defects\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Quality Assessment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection/{{inspectionId}}/quality",
+              "host": ["{{base_url}}"],
+              "path": ["inspection", "{{inspectionId}}", "quality"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Support",
+      "item": [
+        {
+          "name": "Create Support Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/support",
+              "host": ["{{base_url}}"],
+              "path": ["support"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Issue with inspection app\",\n  \"description\": \"Unable to submit quality assessment\",\n  \"priority\": \"HIGH\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get My Support Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/support/my-tickets?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["support", "my-tickets"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Support Ticket Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/support/{{id}}",
+              "host": ["{{base_url}}"],
+              "path": ["support", "{{id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Support Ticket",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/support/{{id}}",
+              "host": ["{{base_url}}"],
+              "path": ["support", "{{id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Unread Notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications",
+              "host": ["{{base_url}}"],
+              "path": ["notifications"]
+            }
+          }
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/mark-all-read",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "mark-all-read"]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/notifications/{{id}}/mark-read",
+              "host": ["{{base_url}}"],
+              "path": ["notifications", "{{id}}", "mark-read"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Generate Inspection Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection/{{inspectionId}}/report",
+              "host": ["{{base_url}}"],
+              "path": ["inspection", "{{inspectionId}}", "report"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"format\": \"PDF\",\n  \"include_images\": true,\n  \"include_quality_metrics\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Inspection Report",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/inspection/{{inspectionId}}/report",
+              "host": ["{{base_url}}"],
+              "path": ["inspection", "{{inspectionId}}", "report"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api"
+    }
+  ]
+}

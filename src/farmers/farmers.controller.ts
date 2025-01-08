@@ -1,27 +1,26 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, Query, ParseFloatPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Query, ParseFloatPipe, UseGuards, UnauthorizedException, Param } from '@nestjs/common';
 import { FarmersService } from './farmers.service';
 import { CreateFarmDto } from './dto/create-farm.dto';
 import { UpdateFarmDto } from './dto/update-farm.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { User } from '../users/entities/user.entity';
 
 @Controller('farmers')
+@UseGuards(JwtAuthGuard)
 export class FarmersController {
   constructor(private readonly farmersService: FarmersService) {}
 
-  @Post(':userId')
-  createFarmer(@Param('userId') userId: string) {
-    return this.farmersService.createFarmer(userId);
+  @Post()
+  createFarmer(@GetUser() user: User) {
+    return this.farmersService.createFarmer(user.id);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.farmersService.findOne(id);
-  }
-
-  @Get('user/:userId')
-  findByUserId(@Param('userId') userId: string) {
-    return this.farmersService.findByUserId(userId);
+  @Get('profile')
+  getFarmerProfile(@GetUser() user: User) {
+    return this.farmersService.findByUserId(user.id);
   }
 
   @Get('nearby')
@@ -33,45 +32,83 @@ export class FarmersController {
     return this.farmersService.findNearbyFarmers(lat, lng, radiusKm);
   }
 
-  @Post(':farmerId/farms')
-  addFarm(
-    @Param('farmerId') farmerId: string,
-    @Body() farmData: CreateFarmDto,
+  @Post('farms')
+  async addFarm(
+    @GetUser() user: User,
+    @Body() farmData: CreateFarmDto
   ) {
-    return this.farmersService.addFarm(farmerId, farmData);
+    const farmer = await this.farmersService.findByUserId(user.id);
+    return this.farmersService.addFarm(farmer.id, farmData);
   }
 
   @Patch('farms/:farmId')
-  updateFarm(
+  async updateFarm(
+    @GetUser() user: User,
     @Param('farmId') farmId: string,
     @Body() farmData: UpdateFarmDto,
   ) {
+    const farmer = await this.farmersService.findByUserId(user.id);
+    const farm = await this.farmersService.findFarm(farmId);
+
+    if (farm.farmer_id !== farmer.id) {
+      throw new UnauthorizedException('You can only update your own farms');
+    }
+
     return this.farmersService.updateFarm(farmId, farmData);
   }
 
   @Get('farms/:farmId')
-  findFarm(@Param('farmId') farmId: string) {
-    return this.farmersService.findFarm(farmId);
+  async findFarm(
+    @GetUser() user: User,
+    @Param('farmId') farmId: string
+  ) {
+    const farmer = await this.farmersService.findByUserId(user.id);
+    const farm = await this.farmersService.findFarm(farmId);
+
+    if (farm.farmer_id !== farmer.id) {
+      throw new UnauthorizedException('You can only view your own farms');
+    }
+
+    return farm;
   }
 
-  @Post(':farmerId/bank-accounts')
-  addBankAccount(
-    @Param('farmerId') farmerId: string,
-    @Body() bankData: CreateBankAccountDto,
+  @Post('bank-accounts')
+  async addBankAccount(
+    @GetUser() user: User,
+    @Body() bankData: CreateBankAccountDto
   ) {
-    return this.farmersService.addBankAccount(farmerId, bankData);
+    const farmer = await this.farmersService.findByUserId(user.id);
+    return this.farmersService.addBankAccount(farmer.id, bankData);
   }
 
   @Patch('bank-accounts/:accountId')
-  updateBankAccount(
+  async updateBankAccount(
+    @GetUser() user: User,
     @Param('accountId') accountId: string,
     @Body() bankData: UpdateBankAccountDto,
   ) {
+    const farmer = await this.farmersService.findByUserId(user.id);
+    const bankAccount = await this.farmersService.findBankAccount(accountId);
+
+    if (bankAccount.farmer_id !== farmer.id) {
+      throw new UnauthorizedException('You can only update your own bank accounts');
+    }
+
     return this.farmersService.updateBankAccount(accountId, bankData);
   }
 
   @Get('bank-accounts/:accountId')
-  findBankAccount(@Param('accountId') accountId: string) {
-    return this.farmersService.findBankAccount(accountId);
+  async findBankAccount(
+    @GetUser() user: User,
+    @Param('accountId') accountId: string
+  ) {
+    const farmer = await this.farmersService.findByUserId(user.id);
+    const bankAccount = await this.farmersService.findBankAccount(accountId);
+
+    if (bankAccount.farmer_id !== farmer.id) {
+      throw new UnauthorizedException('You can only view your own bank accounts');
+    }
+
+    return bankAccount;
   }
-} 
+}

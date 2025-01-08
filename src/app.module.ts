@@ -27,7 +27,7 @@ import { InspectorsModule } from './inspectors/inspectors.module';
     ThrottlerModule.forRoot([{
       name: 'short',
       ttl: 60000,
-      limit: 10,
+      limit: 10
     }]),
     AuthModule,
     UsersModule,

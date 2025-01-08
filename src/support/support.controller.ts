@@ -1,51 +1,67 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Delete, UseGuards, Query, ParseIntPipe, DefaultValuePipe, UnauthorizedException } from '@nestjs/common';
 import { SupportService } from './support.service';
 import { CreateSupportTicketDto } from './dto/create-support-ticket.dto';
-import { UpdateSupportTicketDto } from './dto/update-support-ticket.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { User } from '../users/entities/user.entity';
 import { SupportTicket } from './entities/support-ticket.entity';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Controller('support')
+@UseGuards(JwtAuthGuard)
 export class SupportController {
   constructor(private readonly supportService: SupportService) {}
 
   @Post()
-  create(@Body() createSupportTicketDto: CreateSupportTicketDto): Promise<SupportTicket> {
-    return this.supportService.create(createSupportTicketDto);
+  create(
+    @GetUser() user: User,
+    @Body() createSupportTicketDto: CreateSupportTicketDto
+  ): Promise<SupportTicket> {
+    return this.supportService.create(user.id, createSupportTicketDto);
   }
 
   @Get()
   findAll(
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
   ): Promise<PaginatedResponse<SupportTicket>> {
     return this.supportService.findAll(page, limit);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string): Promise<SupportTicket> {
-    return this.supportService.findOne(id);
+  @Get('my-tickets')
+  findMyTickets(
+    @GetUser() user: User,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
+  ): Promise<PaginatedResponse<SupportTicket>> {
+    return this.supportService.findByUser(user.id, page, limit);
   }
 
-  @Put(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateSupportTicketDto: UpdateSupportTicketDto,
+  @Get(':id')
+  async findOne(
+    @GetUser() user: User,
+    @Param('id') id: string
   ): Promise<SupportTicket> {
-    return this.supportService.update(id, updateSupportTicketDto);
+    const ticket = await this.supportService.findOne(id);
+
+    if (ticket.user_id !== user.id) {
+      throw new UnauthorizedException('You can only view your own support tickets');
+    }
+
+    return ticket;
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string): Promise<void> {
+  async remove(
+    @GetUser() user: User,
+    @Param('id') id: string
+  ): Promise<void> {
+    const ticket = await this.supportService.findOne(id);
+
+    if (ticket.user_id !== user.id) {
+      throw new UnauthorizedException('You can only delete your own support tickets');
+    }
+
     return this.supportService.remove(id);
   }
-
-  @Get('user/:userId')
-  findByUser(
-    @Param('userId') userId: string,
-    @Query('page') page = 1,
-    @Query('limit') limit = 10,
-  ): Promise<PaginatedResponse<SupportTicket>> {
-    return this.supportService.findByUser(userId, page, limit);
-  }
-} 
+}

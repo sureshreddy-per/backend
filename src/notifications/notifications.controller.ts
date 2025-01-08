@@ -1,47 +1,36 @@
-import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, DefaultValuePipe, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Param, UseGuards, UnauthorizedException } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
-import { CreateNotificationDto } from './dto/create-notification.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { User } from '../users/entities/user.entity';
 import { Notification } from './entities/notification.entity';
-import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Controller('notifications')
+@UseGuards(JwtAuthGuard)
 export class NotificationsController {
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  @Post()
-  create(@Body() createNotificationDto: CreateNotificationDto): Promise<Notification> {
-    return this.notificationsService.create(createNotificationDto);
-  }
-
   @Get()
-  findAll(
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
-  ): Promise<PaginatedResponse<Notification>> {
-    return this.notificationsService.findAll(page, limit);
+  findMyUnread(@GetUser() user: User) {
+    return this.notificationsService.findUnreadByUser(user.id);
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string): Promise<Notification> {
-    return this.notificationsService.findOne(id);
+  @Post('mark-all-read')
+  markAllAsRead(@GetUser() user: User) {
+    return this.notificationsService.markAllAsRead(user.id);
   }
 
-  @Get('user/:userId')
-  findByUser(
-    @Param('userId') userId: string,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
-  ): Promise<PaginatedResponse<Notification>> {
-    return this.notificationsService.findByUser(userId, page, limit);
-  }
+  @Post(':id/mark-read')
+  async markAsRead(
+    @GetUser() user: User,
+    @Param('id') id: string
+  ) {
+    const notification = await this.notificationsService.findOne(id);
 
-  @Patch(':id/read')
-  markAsRead(@Param('id') id: string): Promise<Notification> {
+    if (notification.user_id !== user.id) {
+      throw new UnauthorizedException('You can only mark your own notifications as read');
+    }
+
     return this.notificationsService.markAsRead(id);
   }
-
-  @Patch('user/:userId/read-all')
-  markAllAsRead(@Param('userId') userId: string): Promise<void> {
-    return this.notificationsService.markAllAsRead(userId);
-  }
-} 
+}
