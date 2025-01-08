@@ -14,6 +14,7 @@ import { Inspector } from '../inspectors/entities/inspector.entity';
 import { Rating } from '../ratings/entities/rating.entity';
 import { Synonym } from '../produce/entities/synonym.entity';
 import { Notification } from '../notifications/entities/notification.entity';
+import { DailyPrice } from '../offers/entities/daily-price.entity';
 
 config();
 
@@ -38,6 +39,7 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
     Rating,
     Synonym,
     Notification,
+    DailyPrice,
   ],
   synchronize: true,
   logging: true,
@@ -49,4 +51,4 @@ export default typeOrmConfig;
 export const AppDataSource = new DataSource({
   ...typeOrmConfig,
   type: 'postgres',
-}); 
+});

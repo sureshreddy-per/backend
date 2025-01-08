@@ -15,6 +15,11 @@ import { Produce } from '../../produce/entities/produce.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 import { Offer } from '../../offers/entities/offer.entity';
 
+interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+}
+
 @Injectable()
 export class AdminService {
   constructor(
@@ -372,7 +377,7 @@ export class AdminService {
     const produces = await this.produceService.findAll();
     const items = ('items' in produces ? produces.items : produces) as Produce[];
     const total = ('total' in produces ? produces.total : items.length) as number;
-    
+
     return {
       total,
       active: items.filter(p => p.status === ProduceStatus.AVAILABLE).length,
@@ -383,8 +388,9 @@ export class AdminService {
 
   private async getTransactionStats() {
     const transactions = await this.transactionService.findAll();
-    const items = ('items' in transactions ? transactions.items : transactions) as Transaction[];
-    const total = ('total' in transactions ? transactions.total : items.length) as number;
+    const result = transactions as Transaction[] | PaginatedResponse<Transaction>;
+    const items = Array.isArray(result) ? result : result.items;
+    const total = Array.isArray(result) ? items.length : result.total;
     const totalValue = await this.transactionService.calculateTotalValue();
 
     return {
@@ -398,8 +404,9 @@ export class AdminService {
 
   private async getOfferStats() {
     const offers = await this.offersService.findAll();
-    const items = ('items' in offers ? offers.items : offers) as Offer[];
-    const total = ('total' in offers ? offers.total : items.length) as number;
+    const result = offers as Offer[] | PaginatedResponse<Offer>;
+    const items = Array.isArray(result) ? result : result.items;
+    const total = Array.isArray(result) ? items.length : result.total;
 
     return {
       total,
@@ -495,4 +502,4 @@ export class AdminService {
       system: systemStats
     };
   }
-} 
+}

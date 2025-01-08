@@ -1,11 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Produce, ProduceCategory, ProduceStatus } from './entities/produce.entity';
+import { Produce, ProduceStatus, ProduceCategory } from './entities/produce.entity';
 import { CreateProduceDto } from './dto/create-produce.dto';
 import { UpdateProduceDto } from './dto/update-produce.dto';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
-import { LessThanOrEqual } from 'typeorm';
 
 interface FindAllOptions {
   farmer_id?: string;
@@ -70,10 +69,28 @@ export class ProduceService {
     };
   }
 
+  async findByFarmer(farmerId: string, page = 1, limit = 10): Promise<PaginatedResponse<Produce>> {
+    const [items, total] = await this.produceRepository.findAndCount({
+      where: { farmer_id: farmerId },
+      skip: (page - 1) * limit,
+      take: limit,
+      relations: ['farmer'],
+      order: { created_at: 'DESC' },
+    });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
   async findOne(id: string): Promise<Produce> {
     const produce = await this.produceRepository.findOne({
       where: { id },
-      relations: ['farmer', 'farm', 'quality_assessments'],
+      relations: ['farmer'],
     });
 
     if (!produce) {
@@ -81,6 +98,17 @@ export class ProduceService {
     }
 
     return produce;
+  }
+
+  async remove(id: string): Promise<void> {
+    const produce = await this.findOne(id);
+    await this.produceRepository.remove(produce);
+  }
+
+  async update(id: string, updateProduceDto: UpdateProduceDto): Promise<Produce> {
+    const produce = await this.findOne(id);
+    Object.assign(produce, updateProduceDto);
+    return this.produceRepository.save(produce);
   }
 
   async findNearby(lat: number, lon: number, radius: number): Promise<Produce[]> {
@@ -105,24 +133,4 @@ export class ProduceService {
       )
       .getMany();
   }
-
-  async update(id: string, updateProduceDto: UpdateProduceDto): Promise<Produce> {
-    const produce = await this.findOne(id);
-    Object.assign(produce, updateProduceDto);
-    return this.produceRepository.save(produce);
-  }
-
-  async remove(id: string): Promise<void> {
-    const produce = await this.findOne(id);
-    await this.produceRepository.remove(produce);
-  }
-
-  async findByPriceRange(maxPrice: number): Promise<Produce[]> {
-    return this.produceRepository.find({
-      where: {
-        price_per_unit: LessThanOrEqual(maxPrice),
-        status: ProduceStatus.AVAILABLE
-      }
-    });
-  }
-} 
+}

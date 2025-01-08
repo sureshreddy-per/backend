@@ -25,9 +25,16 @@ export class AuthService {
   }
 
   async checkMobile(mobile_number: string): Promise<{ isRegistered: boolean }> {
-    const user = await this.usersService.findByMobileNumber(mobile_number);
-    // Consider a user as not registered if they are deleted
-    return { isRegistered: !!user && user.status !== UserStatus.DELETED };
+    try {
+      const user = await this.usersService.findByMobileNumber(mobile_number);
+      // Consider a user as not registered if they are deleted
+      return { isRegistered: !!user && user.status !== UserStatus.DELETED };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        return { isRegistered: false };
+      }
+      throw error;
+    }
   }
 
   async register(userData: {
@@ -36,16 +43,23 @@ export class AuthService {
     email?: string;
     role: UserRole;
   }): Promise<{ requestId: string; message: string }> {
-    const existingUser = await this.usersService.findByMobileNumber(userData.mobile_number);
-    
-    // Check if user exists and is not deleted
-    if (existingUser && existingUser.status !== UserStatus.DELETED) {
-      throw new BadRequestException('User already exists');
-    }
+    try {
+      const existingUser = await this.usersService.findByMobileNumber(userData.mobile_number);
 
-    // If user exists but is deleted, remove the old record first
-    if (existingUser && existingUser.status === UserStatus.DELETED) {
-      await this.usersService.remove(existingUser.id);
+      // Check if user exists and is not deleted
+      if (existingUser && existingUser.status !== UserStatus.DELETED) {
+        throw new BadRequestException('User already exists');
+      }
+
+      // If user exists but is deleted, remove the old record first
+      if (existingUser && existingUser.status === UserStatus.DELETED) {
+        await this.usersService.remove(existingUser.id);
+      }
+    } catch (error) {
+      if (!(error instanceof NotFoundException)) {
+        throw error;
+      }
+      // If user is not found, continue with registration
     }
 
     // Create user with pending verification status
@@ -59,49 +73,61 @@ export class AuthService {
       await this.farmersService.createFarmer(user.id);
     }
 
+    // If user has BUYER role, create buyer profile
+    if (userData.role === UserRole.BUYER) {
+      await this.buyersService.createBuyer(user.id, userData.name);
+    }
+
     // Generate OTP and request ID
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const requestId = Math.random().toString(36).substring(2, 15);
-    
+
     // Hash OTP before storing
     const hashedOtp = this.hashOtp(otp, userData.mobile_number);
-    
+
     // Store hashed OTP in Redis with expiration
     await this.redisService.set(`otp:${userData.mobile_number}`, hashedOtp, 300); // 5 minutes expiry
 
     // For development, include OTP in message
-    return { 
+    return {
       requestId,
       message: `User registered successfully. OTP sent: ${otp}`
     };
   }
 
   async requestOtp(mobile_number: string): Promise<{ message: string; requestId: string }> {
-    const user = await this.usersService.findByMobileNumber(mobile_number);
-    if (!user) {
-      throw new BadRequestException('User not found. Please register first.');
-    }
-    
-    // Generate OTP and request ID
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const requestId = Math.random().toString(36).substring(2, 15);
-    
-    // Hash OTP before storing
-    const hashedOtp = this.hashOtp(otp, mobile_number);
-    
-    // Store hashed OTP in Redis with expiration
-    await this.redisService.set(`otp:${mobile_number}`, hashedOtp, 300); // 5 minutes expiry
+    try {
+      const user = await this.usersService.findByMobileNumber(mobile_number);
+      if (!user) {
+        throw new BadRequestException('User not found. Please register first.');
+      }
 
-    // For development, return the OTP in the message
-    return { 
-      message: `OTP sent successfully: ${otp}`,
-      requestId
-    };
+      // Generate OTP and request ID
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const requestId = Math.random().toString(36).substring(2, 15);
+
+      // Hash OTP before storing
+      const hashedOtp = this.hashOtp(otp, mobile_number);
+
+      // Store hashed OTP in Redis with expiration
+      await this.redisService.set(`otp:${mobile_number}`, hashedOtp, 300); // 5 minutes expiry
+
+      // For development, return the OTP in the message
+      return {
+        message: `OTP sent successfully: ${otp}`,
+        requestId
+      };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new BadRequestException('User not found. Please register first.');
+      }
+      throw error;
+    }
   }
 
   async verifyOtp(mobile_number: string, otp: string): Promise<{ token: string; user: User }> {
     const storedHashedOtp = await this.redisService.get(`otp:${mobile_number}`);
-    
+
     if (!storedHashedOtp) {
       throw new UnauthorizedException('OTP expired or not found');
     }
@@ -115,22 +141,29 @@ export class AuthService {
     // Delete the used OTP
     await this.redisService.del(`otp:${mobile_number}`);
 
-    const user = await this.usersService.findByMobileNumber(mobile_number);
-    if (!user) {
-      throw new UnauthorizedException('User not found');
+    try {
+      const user = await this.usersService.findByMobileNumber(mobile_number);
+      if (!user) {
+        throw new UnauthorizedException('User not found');
+      }
+
+      // Always set status to ACTIVE on successful login
+      if (user.status !== UserStatus.ACTIVE) {
+        await this.usersService.updateStatus(user.id, UserStatus.ACTIVE);
+        user.status = UserStatus.ACTIVE;
+      }
+
+      // Generate JWT token
+      const payload = { sub: user.id, mobile_number: user.mobile_number, role: user.role };
+      const token = this.jwtService.sign(payload);
+
+      return { token, user };
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new UnauthorizedException('User not found');
+      }
+      throw error;
     }
-
-    // Always set status to ACTIVE on successful login
-    if (user.status !== UserStatus.ACTIVE) {
-      await this.usersService.updateStatus(user.id, UserStatus.ACTIVE);
-      user.status = UserStatus.ACTIVE;
-    }
-
-    // Generate JWT token
-    const payload = { sub: user.id, mobile_number: user.mobile_number, role: user.role };
-    const token = this.jwtService.sign(payload);
-
-    return { token, user };
   }
 
   async logout(token: string): Promise<{ message: string }> {
@@ -147,7 +180,7 @@ export class AuthService {
       if (ttl > 0) {
         // Add token to blacklist
         await this.redisService.set(`blacklist:${token}`, 'true', ttl);
-        
+
         // Update user status to INACTIVE
         await this.usersService.updateStatus(decoded.sub, UserStatus.INACTIVE);
       }
@@ -173,7 +206,7 @@ export class AuthService {
 
       // Verify the token
       const decoded = this.jwtService.verify(token);
-      
+
       // Get user information
       const user = await this.usersService.findOne(decoded.sub);
       if (!user) {
@@ -198,4 +231,4 @@ export class AuthService {
       await this.usersService.remove(existingUser.id);
     }
   }
-} 
+}

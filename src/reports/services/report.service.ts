@@ -10,7 +10,7 @@ import { S3Service } from '../../common/services/s3.service';
 import { UserRole } from '../../users/entities/user.entity';
 import { BusinessMetricType } from '../../metrics/entities/business-metric.entity';
 import * as ExcelJS from 'exceljs';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument = require('pdfkit');
 import { Readable } from 'stream';
 
 @Injectable()
@@ -63,7 +63,7 @@ export class ReportService {
       const data = await this.fetchReportData(report);
       const fileBuffer = await this.formatReport(data, report.format);
       const fileName = `reports/${report.type.toLowerCase()}_${report.id}.${report.format.toLowerCase()}`;
-      
+
       const uploadResult = await this.s3Service.uploadFile(
         {
           buffer: fileBuffer,
@@ -126,7 +126,7 @@ export class ReportService {
     return new Promise((resolve) => {
       const chunks: Buffer[] = [];
       const doc = new PDFDocument();
-      
+
       doc.on('data', chunks.push.bind(chunks));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
 
@@ -134,7 +134,7 @@ export class ReportService {
       doc.fontSize(16).text('Report', { align: 'center' });
       doc.moveDown();
       doc.fontSize(12).text(JSON.stringify(data, null, 2));
-      
+
       doc.end();
     });
   }
@@ -337,4 +337,4 @@ export class ReportService {
     // Implementation
     return { assessments, inspectors };
   }
-} 
+}

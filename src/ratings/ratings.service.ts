@@ -12,7 +12,7 @@ export class RatingsService {
     private readonly ratingRepository: Repository<Rating>,
   ) {}
 
-  async create(createRatingDto: CreateRatingDto & { user_id: string }): Promise<Rating> {
+  async create(createRatingDto: CreateRatingDto): Promise<Rating> {
     const rating = this.ratingRepository.create(createRatingDto);
     return this.ratingRepository.save(rating);
   }
@@ -23,7 +23,7 @@ export class RatingsService {
     transaction_id?: string;
   }): Promise<Rating[]> {
     const where: FindOptionsWhere<Rating> = {};
-    
+
     if (filters) {
       if (filters.rated_user_id) where.rated_user_id = filters.rated_user_id;
       if (filters.rating_user_id) where.rating_user_id = filters.rating_user_id;
@@ -86,8 +86,8 @@ export class RatingsService {
   async getAverageRating(userId: string): Promise<number> {
     const ratings = await this.findByRatedUser(userId);
     if (ratings.length === 0) return 0;
-    
+
     const sum = ratings.reduce((acc, rating) => acc + rating.stars, 0);
     return sum / ratings.length;
   }
-} 
+}

@@ -56,4 +56,22 @@ export class OffersService extends BaseService<Offer> {
     }
     return this.offerRepository.remove(offer);
   }
-} 
+
+  async findByBuyer(buyerId: string) {
+    return this.offerRepository.find({
+      where: { buyer_id: buyerId },
+      relations: ['produce', 'buyer'],
+      order: { created_at: 'DESC' },
+    });
+  }
+
+  async findByFarmer(farmerId: string) {
+    return this.offerRepository
+      .createQueryBuilder('offer')
+      .innerJoinAndSelect('offer.produce', 'produce')
+      .innerJoinAndSelect('offer.buyer', 'buyer')
+      .where('produce.farmer_id = :farmerId', { farmerId })
+      .orderBy('offer.created_at', 'DESC')
+      .getMany();
+  }
+}

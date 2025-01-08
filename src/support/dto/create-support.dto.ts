@@ -39,7 +39,8 @@ export class CreateSupportDto {
   @ApiPropertyOptional({
     type: 'object',
     description: 'Additional metadata for the support ticket',
+    additionalProperties: true
   })
   @IsOptional()
   metadata?: Record<string, any>;
-} 
+}

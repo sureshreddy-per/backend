@@ -56,4 +56,12 @@ export class InspectionService {
     await this.inspectionRepository.remove(inspection);
     return { success: true };
   }
-} 
+
+  async findByInspector(inspectorId: string) {
+    return this.inspectionRepository.find({
+      where: { inspectorId },
+      relations: ['produce'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+}

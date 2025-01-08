@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Logger, UnauthorizedException } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBody } from '@nestjs/swagger';
 import { InspectionService } from './inspection.service';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
@@ -7,7 +7,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { GetUser } from '../auth/decorators/get-user.decorator';
+import { User } from '../users/entities/user.entity';
 import { Inspection } from './entities/inspection.entity';
 
 @ApiTags('Inspections')
@@ -20,6 +21,7 @@ export class InspectionController {
   constructor(private readonly inspectionService: InspectionService) {}
 
   @Post()
+  @Roles(Role.INSPECTOR)
   @ApiOperation({
     summary: 'Create a new inspection',
     description: 'Creates a new inspection record for produce quality assessment.'
@@ -33,36 +35,45 @@ export class InspectionController {
     description: 'The inspection has been successfully created',
     type: Inspection,
   })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad Request - Invalid inspection method or produce ID format' 
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request - Invalid inspection method or produce ID format'
   })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Not Found - Referenced produce does not exist' 
+  @ApiResponse({
+    status: 404,
+    description: 'Not Found - Referenced produce does not exist'
   })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - User does not have permission to create inspections' 
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - User does not have permission to create inspections'
   })
-  async create(@Body() createInspectionDto: CreateInspectionDto) {
+  async create(
+    @GetUser() user: User,
+    @Body() createInspectionDto: CreateInspectionDto
+  ) {
     this.logger.log(`Creating new inspection for produce ${createInspectionDto.produceId}`);
-    return this.inspectionService.create(createInspectionDto);
+    return this.inspectionService.create({
+      ...createInspectionDto,
+      inspectorId: user.id,
+    });
+  }
+
+  @Get('my-inspections')
+  @Roles(Role.INSPECTOR)
+  @ApiOperation({
+    summary: 'Get inspections by current inspector',
+    description: 'Returns a list of all inspections performed by the current inspector.'
+  })
+  async findMyInspections(@GetUser() user: User) {
+    this.logger.log(`Retrieving inspections for inspector ${user.id}`);
+    return this.inspectionService.findByInspector(user.id);
   }
 
   @Get()
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Retrieve all inspections',
-    description: 'Returns a list of all inspection records with pagination support.'
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'List of all inspections retrieved successfully',
-    type: [Inspection],
-  })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - User does not have permission to view inspections' 
+    description: 'Returns a list of all inspection records. Admin only.'
   })
   async findAll() {
     this.logger.log('Retrieving all inspections');
@@ -74,68 +85,38 @@ export class InspectionController {
     summary: 'Get inspection by ID',
     description: 'Retrieves detailed information about a specific inspection.'
   })
-  @ApiParam({ 
-    name: 'id', 
-    description: 'Unique identifier of the inspection',
-    type: 'string',
-    format: 'uuid'
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'The inspection record has been successfully retrieved',
-    type: Inspection,
-  })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Not Found - Inspection with provided ID does not exist' 
-  })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - User does not have permission to view this inspection' 
-  })
-  async findOne(@Param('id') id: string) {
+  async findOne(
+    @GetUser() user: User,
+    @Param('id') id: string
+  ) {
     this.logger.log(`Retrieving inspection ${id}`);
-    return this.inspectionService.findOne(id);
+    const inspection = await this.inspectionService.findOne(id);
+
+    if (user.role !== Role.ADMIN && inspection.inspectorId !== user.id) {
+      throw new UnauthorizedException('You can only view your own inspections');
+    }
+
+    return inspection;
   }
 
   @Put(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.INSPECTOR)
   @ApiOperation({
     summary: 'Update inspection',
-    description: 'Updates an existing inspection record. Only accessible by administrators.'
-  })
-  @ApiParam({ 
-    name: 'id', 
-    description: 'Unique identifier of the inspection to update',
-    type: 'string',
-    format: 'uuid'
-  })
-  @ApiBody({
-    type: UpdateInspectionDto,
-    description: 'Updated inspection details'
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'The inspection has been successfully updated',
-    type: Inspection,
-  })
-  @ApiResponse({ 
-    status: 400, 
-    description: 'Bad Request - Invalid status transition or data format' 
-  })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Not Found - Inspection, Inspector, or Quality grade not found' 
-  })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - User does not have admin privileges' 
+    description: 'Updates an existing inspection record.'
   })
   async update(
+    @GetUser() user: User,
     @Param('id') id: string,
     @Body() updateInspectionDto: UpdateInspectionDto,
   ) {
     this.logger.log(`Updating inspection ${id}`);
+    const inspection = await this.inspectionService.findOne(id);
+
+    if (inspection.inspectorId !== user.id) {
+      throw new UnauthorizedException('You can only update your own inspections');
+    }
+
     return this.inspectionService.update(id, updateInspectionDto);
   }
 
@@ -143,28 +124,10 @@ export class InspectionController {
   @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Delete inspection',
-    description: 'Removes an inspection record from the system. Only accessible by administrators.'
-  })
-  @ApiParam({ 
-    name: 'id', 
-    description: 'Unique identifier of the inspection to delete',
-    type: 'string',
-    format: 'uuid'
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'The inspection has been successfully deleted',
-  })
-  @ApiResponse({ 
-    status: 404, 
-    description: 'Not Found - Inspection with provided ID does not exist' 
-  })
-  @ApiResponse({ 
-    status: 403, 
-    description: 'Forbidden - User does not have admin privileges' 
+    description: 'Removes an inspection record from the system. Admin only.'
   })
   async remove(@Param('id') id: string) {
     this.logger.log(`Deleting inspection ${id}`);
     return this.inspectionService.remove(id);
   }
-} 
+}

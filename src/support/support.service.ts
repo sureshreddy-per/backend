@@ -13,8 +13,11 @@ export class SupportService {
     private readonly supportTicketRepository: Repository<SupportTicket>,
   ) {}
 
-  async create(createSupportTicketDto: CreateSupportTicketDto): Promise<SupportTicket> {
-    const ticket = this.supportTicketRepository.create(createSupportTicketDto);
+  async create(userId: string, createSupportTicketDto: CreateSupportTicketDto): Promise<SupportTicket> {
+    const ticket = this.supportTicketRepository.create({
+      ...createSupportTicketDto,
+      user_id: userId,
+    });
     return this.supportTicketRepository.save(ticket);
   }
 
@@ -76,4 +79,4 @@ export class SupportService {
       totalPages: Math.ceil(total / limit),
     };
   }
-} 
+}
