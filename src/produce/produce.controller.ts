@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Param, Delete, UseGuards, UnauthorizedException, Query, ParseIntPipe, DefaultValuePipe, Patch, ParseFloatPipe } from '@nestjs/common';
-import { ProduceService } from './produce.service';
+import { ProduceService } from './services/produce.service';
 import { CreateProduceDto } from './dto/create-produce.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -21,6 +21,7 @@ export class ProduceController {
     return this.produceService.create({
       ...createProduceDto,
       farmer_id: user.id,
+      status: createProduceDto.status || ProduceStatus.AVAILABLE
     });
   }
 
@@ -32,12 +33,14 @@ export class ProduceController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
   ): Promise<PaginatedResponse<Produce>> {
-    return this.produceService.findAll({
-      farm_id,
-      status,
-      produce_category,
-      page,
-      limit,
+    return this.produceService.findAndPaginate({
+      where: {
+        ...(farm_id && { farm_id }),
+        ...(status && { status }),
+        ...(produce_category && { produce_category })
+      },
+      take: limit,
+      skip: (page - 1) * limit
     });
   }
 
@@ -50,7 +53,7 @@ export class ProduceController {
     return this.produceService.findNearby(lat, lon, radius);
   }
 
-  @Get('my-produce')
+  @Get('my')
   findMyProduce(
     @GetUser() user: User,
     @Query('farm_id') farm_id?: string,
@@ -59,19 +62,21 @@ export class ProduceController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
   ): Promise<PaginatedResponse<Produce>> {
-    return this.produceService.findAll({
-      farmer_id: user.id,
-      farm_id,
-      status,
-      produce_category,
-      page,
-      limit,
+    return this.produceService.findAndPaginate({
+      where: {
+        farmer_id: user.id,
+        ...(farm_id && { farm_id }),
+        ...(status && { status }),
+        ...(produce_category && { produce_category })
+      },
+      take: limit,
+      skip: (page - 1) * limit
     });
   }
 
   @Get(':id')
   findOne(@Param('id') id: string) {
-    return this.produceService.findOne(id);
+    return this.produceService.findById(id);
   }
 
   @Patch(':id')
@@ -80,12 +85,13 @@ export class ProduceController {
     @Param('id') id: string,
     @Body() updateProduceDto: UpdateProduceDto
   ) {
-    const produce = await this.produceService.findOne(id);
-
-    if (produce.farmer_id !== user.id) {
-      throw new UnauthorizedException('You can only update your own produce listings');
+    const produce = await this.produceService.findById(id);
+    if (!produce) {
+      throw new UnauthorizedException('Produce not found');
     }
-
+    if (produce.farmer_id !== user.id) {
+      throw new UnauthorizedException('You can only update your own produce');
+    }
     return this.produceService.update(id, updateProduceDto);
   }
 
@@ -94,12 +100,13 @@ export class ProduceController {
     @GetUser() user: User,
     @Param('id') id: string
   ) {
-    const produce = await this.produceService.findOne(id);
-
-    if (produce.farmer_id !== user.id) {
-      throw new UnauthorizedException('You can only delete your own produce listings');
+    const produce = await this.produceService.findById(id);
+    if (!produce) {
+      throw new UnauthorizedException('Produce not found');
     }
-
-    return this.produceService.remove(id);
+    if (produce.farmer_id !== user.id) {
+      throw new UnauthorizedException('You can only delete your own produce');
+    }
+    return this.produceService.deleteById(id);
   }
 }

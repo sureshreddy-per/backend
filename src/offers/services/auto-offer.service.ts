@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { BuyersService } from '../../buyers/buyers.service';
-import { ProduceService } from '../../produce/produce.service';
+import { ProduceService } from '../../produce/services/produce.service';
 import { OffersService } from './offers.service';
 import { OfferStatus } from '../entities/offer.entity';
 import { Produce } from '../../produce/entities/produce.entity';

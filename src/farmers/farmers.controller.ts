@@ -4,21 +4,34 @@ import { CreateFarmDto } from './dto/create-farm.dto';
 import { UpdateFarmDto } from './dto/update-farm.dto';
 import { CreateBankAccountDto } from './dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
+import { UpdateUserDetailsDto } from './dto/update-user-details.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
+@ApiTags('farmers')
 @Controller('farmers')
 @UseGuards(JwtAuthGuard)
 export class FarmersController {
   constructor(private readonly farmersService: FarmersService) {}
 
   @Post()
+  @ApiOperation({ summary: 'Create a new farmer profile' })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Returns created farmer profile with user details'
+  })
   createFarmer(@GetUser() user: User) {
     return this.farmersService.createFarmer(user.id);
   }
 
   @Get('profile')
+  @ApiOperation({ summary: 'Get current farmer profile' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Returns farmer profile with user details'
+  })
   getFarmerProfile(@GetUser() user: User) {
     return this.farmersService.findByUserId(user.id);
   }
@@ -110,5 +123,31 @@ export class FarmersController {
     }
 
     return bankAccount;
+  }
+
+  @Get('offers/:offerId/details')
+  @ApiOperation({ summary: 'Get farmer details by offer ID' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Returns farmer details with user information for the given offer'
+  })
+  async getFarmerByOffer(
+    @GetUser() user: User,
+    @Param('offerId') offerId: string
+  ) {
+    return this.farmersService.getFarmerByOfferAndBuyer(offerId, user.id);
+  }
+
+  @Patch('profile/user-details')
+  @ApiOperation({ summary: 'Update farmer user details' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Returns updated farmer profile with user details'
+  })
+  async updateUserDetails(
+    @GetUser() user: User,
+    @Body() updateUserDetailsDto: UpdateUserDetailsDto
+  ) {
+    return this.farmersService.updateUserDetails(user.id, updateUserDetailsDto);
   }
 }

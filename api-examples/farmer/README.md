@@ -9,6 +9,8 @@ All endpoints require JWT authentication and FARMER role.
 - `POST /farmers` - Create a farmer profile for the authenticated user
 - `GET /farmers/profile` - Get current farmer's profile
 - `GET /farmers/nearby` - Find nearby farmers (Query params: lat, lng, radius)
+- `PATCH /farmers/profile/user-details` - Update farmer's user details (Body: name, email, profile_picture, status)
+- `GET /farmers/offers/:offerId/details` - Get farmer details for a specific offer
 
 ### Farm Management
 - `POST /farmers/farms` - Add a new farm (Body: location, size, crops)

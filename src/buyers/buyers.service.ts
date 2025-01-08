@@ -1,8 +1,9 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Buyer } from './entities/buyer.entity';
 import { UsersService } from '../users/users.service';
+import { UpdateBuyerDetailsDto } from './dto/update-buyer-details.dto';
 
 @Injectable()
 export class BuyersService {
@@ -72,19 +73,16 @@ export class BuyersService {
   }
 
   async findNearbyBuyers(lat: number, lng: number, radiusKm: number = 50): Promise<Buyer[]> {
-    // Convert radius from kilometers to degrees (approximate)
-    const radiusDegrees = radiusKm / 111.12; // 1 degree ≈ 111.12 kilometers at the equator
-
-    // Use Haversine formula in raw SQL
+    // Use Haversine formula in raw SQL with lat_lng string parsing
     const buyers = await this.buyersRepository
       .createQueryBuilder('buyer')
       .select('buyer.*')
       .addSelect(
         `(
           6371 * acos(
-            cos(radians(:lat)) * cos(radians(buyer.latitude)) *
-            cos(radians(buyer.longitude) - radians(:lng)) +
-            sin(radians(:lat)) * sin(radians(buyer.latitude))
+            cos(radians(:lat)) * cos(radians(CAST(SPLIT_PART(buyer.lat_lng, '-', 1) AS FLOAT))) *
+            cos(radians(CAST(SPLIT_PART(buyer.lat_lng, '-', 2) AS FLOAT)) - radians(:lng)) +
+            sin(radians(:lat)) * sin(radians(CAST(SPLIT_PART(buyer.lat_lng, '-', 1) AS FLOAT)))
           )
         )`,
         'distance'
@@ -92,13 +90,14 @@ export class BuyersService {
       .where(
         `(
           6371 * acos(
-            cos(radians(:lat)) * cos(radians(buyer.latitude)) *
-            cos(radians(buyer.longitude) - radians(:lng)) +
-            sin(radians(:lat)) * sin(radians(buyer.latitude))
+            cos(radians(:lat)) * cos(radians(CAST(SPLIT_PART(buyer.lat_lng, '-', 1) AS FLOAT))) *
+            cos(radians(CAST(SPLIT_PART(buyer.lat_lng, '-', 2) AS FLOAT)) - radians(:lng)) +
+            sin(radians(:lat)) * sin(radians(CAST(SPLIT_PART(buyer.lat_lng, '-', 1) AS FLOAT)))
           )
         ) <= :radius`,
         { lat, lng, radius: radiusKm }
       )
+      .andWhere('buyer.lat_lng IS NOT NULL')
       .orderBy('distance', 'ASC')
       .leftJoinAndSelect('buyer.user', 'user')
       .getRawAndEntities();
@@ -115,9 +114,110 @@ export class BuyersService {
   }
 
   async findByPriceRange(price: number): Promise<Buyer[]> {
-    // For now, return all buyers since we don't have price range fields yet
-    return this.buyersRepository.find({
+    return this.buyersRepository
+      .createQueryBuilder('buyer')
+      .leftJoinAndSelect('buyer.user', 'user')
+      .where('(:price >= buyer.min_price OR buyer.min_price IS NULL)', { price })
+      .andWhere('(:price <= buyer.max_price OR buyer.max_price IS NULL)', { price })
+      .getMany();
+  }
+
+  async getBuyerDetails(userId: string): Promise<any> {
+    const buyer = await this.buyersRepository.findOne({
+      where: { user_id: userId },
       relations: ['user'],
     });
+    if (!buyer) {
+      throw new NotFoundException('Buyer not found');
+    }
+
+    const user = buyer.user;
+    return {
+      address: buyer.address,
+      lat_lng: buyer.lat_lng,
+      registration_number: buyer.registration_number,
+      business_name: buyer.business_name,
+      gst: buyer.gst,
+      email: user.email,
+      profile_picture: user.profile_picture,
+      name: user.name,
+      status: user.status,
+    };
+  }
+
+  async updateBuyerDetails(userId: string, updateBuyerDetailsDto: UpdateBuyerDetailsDto): Promise<any> {
+    const buyer = await this.buyersRepository.findOne({
+      where: { user_id: userId },
+      relations: ['user'],
+    });
+    if (!buyer) {
+      throw new NotFoundException('Buyer not found');
+    }
+
+    // Only update the fields that are provided
+    const updateData: Partial<Buyer> = {};
+    if (updateBuyerDetailsDto.address !== undefined) {
+      updateData.address = updateBuyerDetailsDto.address;
+    }
+    if (updateBuyerDetailsDto.lat_lng !== undefined) {
+      updateData.lat_lng = updateBuyerDetailsDto.lat_lng;
+    }
+    if (updateBuyerDetailsDto.registration_number !== undefined) {
+      updateData.registration_number = updateBuyerDetailsDto.registration_number;
+    }
+    if (updateBuyerDetailsDto.business_name !== undefined) {
+      updateData.business_name = updateBuyerDetailsDto.business_name;
+    }
+    if (updateBuyerDetailsDto.gst !== undefined) {
+      updateData.gst = updateBuyerDetailsDto.gst;
+    }
+
+    await this.buyersRepository.update(buyer.id, updateData);
+    
+    const updatedBuyer = await this.buyersRepository.findOne({
+      where: { user_id: userId },
+      relations: ['user'],
+    });
+
+    const user = updatedBuyer.user;
+    return {
+      address: updatedBuyer.address,
+      lat_lng: updatedBuyer.lat_lng,
+      registration_number: updatedBuyer.registration_number,
+      business_name: updatedBuyer.business_name,
+      gst: updatedBuyer.gst,
+      email: user.email,
+      profile_picture: user.profile_picture,
+      name: user.name,
+      status: user.status,
+    };
+  }
+
+  async getBuyerDetailsByOfferId(offerId: string, farmerId: string): Promise<any> {
+    const buyer = await this.buyersRepository
+      .createQueryBuilder('buyer')
+      .innerJoinAndSelect('buyer.user', 'user')
+      .innerJoin('offers', 'offer', 'offer.buyer_id = buyer.id')
+      .innerJoin('produce', 'produce', 'offer.produce_id = produce.id')
+      .where('offer.id = :offerId', { offerId })
+      .andWhere('produce.farmer_id = :farmerId', { farmerId })
+      .getOne();
+
+    if (!buyer) {
+      throw new UnauthorizedException('You do not have access to this buyer\'s details or the offer does not exist');
+    }
+
+    const user = buyer.user;
+    return {
+      address: buyer.address,
+      lat_lng: buyer.lat_lng,
+      registration_number: buyer.registration_number,
+      business_name: buyer.business_name,
+      gst: buyer.gst,
+      email: user.email,
+      profile_picture: user.profile_picture,
+      name: user.name,
+      status: user.status,
+    };
   }
 } 

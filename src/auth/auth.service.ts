@@ -5,6 +5,7 @@ import { User, UserRole, UserStatus } from '../users/entities/user.entity';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service';
 import { FarmersService } from '../farmers/farmers.service';
+import { BuyersService } from '../buyers/buyers.service';
 import * as crypto from 'crypto';
 
 @Injectable()
@@ -15,6 +16,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly redisService: RedisService,
     private readonly farmersService: FarmersService,
+    private readonly buyersService: BuyersService,
   ) {}
 
   private hashOtp(otp: string, mobile_number: string): string {
@@ -75,7 +77,10 @@ export class AuthService {
 
     // If user has BUYER role, create buyer profile
     if (userData.role === UserRole.BUYER) {
-      await this.buyersService.createBuyer(user.id, userData.name);
+      await this.buyersService.createBuyer(user.id, {
+        business_name: userData.name,
+        address: 'Default Address' // Required field, can be updated later
+      });
     }
 
     // Generate OTP and request ID

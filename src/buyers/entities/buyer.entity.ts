@@ -28,6 +28,12 @@ export class Buyer {
   @Column()
   address: string;
 
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  min_price: number;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  max_price: number;
+
   @CreateDateColumn()
   created_at: Date;
 
