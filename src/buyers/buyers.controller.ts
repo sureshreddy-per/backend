@@ -7,6 +7,7 @@ import { Buyer } from './entities/buyer.entity';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '../auth/enums/role.enum';
+import { UpdateBuyerDetailsDto } from './dto/update-buyer-details.dto';
 
 @Controller('buyers')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -46,5 +47,29 @@ export class BuyersController {
     @Query('radius', ParseFloatPipe) radiusKm: number,
   ) {
     return this.buyersService.findNearbyBuyers(lat, lng, radiusKm);
+  }
+
+  @Get('details')
+  @Roles(Role.BUYER)
+  getBuyerDetails(@GetUser() user: User) {
+    return this.buyersService.getBuyerDetails(user.id);
+  }
+
+  @Post('details/update')
+  @Roles(Role.BUYER)
+  updateBuyerDetails(
+    @GetUser() user: User,
+    @Body() updateBuyerDetailsDto: UpdateBuyerDetailsDto
+  ) {
+    return this.buyersService.updateBuyerDetails(user.id, updateBuyerDetailsDto);
+  }
+
+  @Get('details/offer/:offerId')
+  @Roles(Role.FARMER)
+  async getBuyerDetailsByOfferId(
+    @GetUser() user: User,
+    @Param('offerId') offerId: string
+  ) {
+    return this.buyersService.getBuyerDetailsByOfferId(offerId, user.id);
   }
 }

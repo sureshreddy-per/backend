@@ -7,6 +7,7 @@ import { UsersModule } from '../users/users.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RedisModule } from '../redis/redis.module';
 import { FarmersModule } from '../farmers/farmers.module';
+import { BuyersModule } from '../buyers/buyers.module';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -15,6 +16,7 @@ import { APP_GUARD } from '@nestjs/core';
     UsersModule,
     RedisModule,
     FarmersModule,
+    BuyersModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

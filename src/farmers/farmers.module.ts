@@ -6,10 +6,12 @@ import { BankAccount } from './entities/bank-account.entity';
 import { FarmersService } from './farmers.service';
 import { FarmersController } from './farmers.controller';
 import { UsersModule } from '../users/users.module';
+import { User } from '../users/entities/user.entity';
+import { Offer } from '../offers/entities/offer.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Farmer, Farm, BankAccount]),
+    TypeOrmModule.forFeature([Farmer, Farm, BankAccount, User, Offer]),
     UsersModule,
   ],
   providers: [FarmersService],

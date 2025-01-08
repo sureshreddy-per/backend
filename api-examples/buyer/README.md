@@ -9,6 +9,9 @@ All endpoints require JWT authentication and BUYER role.
 - `POST /buyers/profile` - Create buyer profile for authenticated user
 - `GET /buyers/profile` - Get current buyer's profile
 - `GET /buyers/nearby` - Find nearby buyers (Query params: lat, lng, radius)
+- `GET /buyers/details` - Get buyer details including user information
+- `POST /buyers/details/update` - Update buyer details (Optional fields: address, lat_lng, registration_number, business_name, gst)
+- `GET /buyers/details/offer/:offerId` - Get buyer details by offer ID (For farmers only)
 
 ### Produce Search
 - `GET /produce` - Get all available produce (Query params: farm_id, status, produce_category, page, limit)

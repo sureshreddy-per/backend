@@ -20,6 +20,9 @@ export class Offer {
   @Column({ name: 'buyer_id' })
   buyer_id: string;
 
+  @Column({ name: 'farmer_id' })
+  farmer_id: string;
+
   @Column({ name: 'produce_id' })
   produce_id: string;
 
@@ -54,6 +57,10 @@ export class Offer {
   @ManyToOne(() => User)
   @JoinColumn({ name: 'buyer_id' })
   buyer: User;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'farmer_id' })
+  farmer: User;
 
   @ManyToOne(() => Produce)
   @JoinColumn({ name: 'produce_id' })

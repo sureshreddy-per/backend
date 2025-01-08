@@ -72,6 +72,79 @@
               ]
             }
           }
+        },
+        {
+          "name": "Get Buyer Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/buyers/details",
+              "host": ["{{baseUrl}}"],
+              "path": ["buyers", "details"]
+            },
+            "description": "Get buyer details including user information. Requires BUYER role."
+          }
+        },
+        {
+          "name": "Update Buyer Details",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"Updated Address\",\n  \"lat_lng\": \"12.9716-77.5946\",\n  \"registration_number\": \"REG123\",\n  \"business_name\": \"Updated Business\",\n  \"gst\": \"GST123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/buyers/details/update",
+              "host": ["{{baseUrl}}"],
+              "path": ["buyers", "details", "update"]
+            },
+            "description": "Update buyer details. All fields are optional. Requires BUYER role."
+          }
+        },
+        {
+          "name": "Get Buyer Details By Offer ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/buyers/details/offer/:offerId",
+              "host": ["{{baseUrl}}"],
+              "path": ["buyers", "details", "offer", ":offerId"],
+              "variable": [
+                {
+                  "key": "offerId",
+                  "value": "",
+                  "description": "ID of the offer"
+                }
+              ]
+            },
+            "description": "Get buyer details by offer ID. Only accessible by farmers who own the offer's produce."
+          }
         }
       ]
     },
