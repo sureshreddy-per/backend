@@ -1,6 +1,7 @@
 import { IsString, IsUUID, IsNumber, IsEnum, IsOptional, IsArray, IsDate } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProduceCategory, ProduceStatus } from '../entities/produce.entity';
+import { QualityGrade } from '../enums/quality-grade.enum';
 import { Type } from 'class-transformer';
 
 export class CreateProduceDto {
@@ -66,10 +67,10 @@ export class CreateProduceDto {
   @IsOptional()
   expiry_date?: Date;
 
-  @ApiPropertyOptional()
-  @IsString()
+  @ApiPropertyOptional({ enum: QualityGrade })
+  @IsEnum(QualityGrade)
   @IsOptional()
-  quality_grade?: string;
+  quality_grade?: QualityGrade;
 
   @ApiPropertyOptional()
   @Type(() => Date)
@@ -91,4 +92,4 @@ export class CreateProduceDto {
   @IsOptional()
   @IsString()
   language?: string;
-} 
+}

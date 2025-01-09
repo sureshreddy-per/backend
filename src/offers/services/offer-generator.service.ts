@@ -10,7 +10,7 @@ import { OfferStatus } from '../entities/offer.entity';
 import { Produce } from '../../produce/entities/produce.entity';
 import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
 import { ProduceService } from '../../produce/services/produce.service';
-import { FeeConfigService } from '../../config/services/fee-config.service';
+import { InspectionDistanceFeeService } from '../../config/services/fee-config.service';
 
 @Injectable()
 export class OfferGeneratorService {
@@ -22,19 +22,16 @@ export class OfferGeneratorService {
     private readonly offersService: OffersService,
     private readonly eventEmitter: EventEmitter2,
     private readonly produceService: ProduceService,
-    private readonly feeConfigService: FeeConfigService
+    private readonly inspectionDistanceFeeService: InspectionDistanceFeeService
   ) {}
 
   @OnEvent('quality.assessment.completed')
   async handleQualityAssessmentCompleted(assessment: QualityAssessment): Promise<void> {
     this.logger.log(`Generating offers for produce ${assessment.produce_id} after quality assessment`);
-    
+
     try {
-      const produce = await this.produceService.findOne({
-        where: { id: assessment.produce_id },
-        relations: ['quality_assessments']
-      });
-      
+      const produce = await this.produceService.findOne(assessment.produce_id);
+
       if (!produce) {
         throw new Error(`Produce ${assessment.produce_id} not found`);
       }
@@ -53,7 +50,7 @@ export class OfferGeneratorService {
 
     // Get all buyers within 100km radius
     const buyers = await this.buyersService.findNearby(produce.location, 100);
-    
+
     // Generate offers for each matching buyer
     for (const buyer of buyers) {
       try {
@@ -79,7 +76,7 @@ export class OfferGeneratorService {
           dailyPrice.min_price,
           dailyPrice.max_price,
           produce.quality_grade,
-          produce.quality_assessments[0]?.category_specific_attributes,
+          produce.quality_assessments[0]?.category_specific_assessment,
           produce
         );
 
@@ -99,14 +96,14 @@ export class OfferGeneratorService {
               quality_grade: produce.quality_grade,
               daily_price_id: dailyPrice.id,
               distance_km: distance,
-              category_attributes: produce.quality_assessments[0]?.category_specific_attributes,
+              category_attributes: produce.quality_assessments[0]?.category_specific_assessment,
               inspection_required: produce.is_inspection_requested,
               inspection_fee: produce.inspection_fee
             }
           };
 
           await this.offersService.create(offerDto);
-          
+
           // Emit events for notifications
           this.eventEmitter.emit('offer.created', {
             offer: offerDto,
@@ -133,11 +130,11 @@ export class OfferGeneratorService {
   ): number {
     // Get numeric value from QualityGrade enum
     const gradeValue = qualityGrade as number;
-    
+
     // Calculate price based on grade (1-10)
     const priceRange = maxPrice - minPrice;
     let basePrice = minPrice;
-    
+
     // Only calculate grade-based price for valid grades (1-10)
     if (gradeValue >= 1 && gradeValue <= 10) {
       basePrice = minPrice + (priceRange * ((gradeValue - 1) / 9));
@@ -153,7 +150,7 @@ export class OfferGeneratorService {
 
   private calculateAttributeMultiplier(attributes: any, category: ProduceCategory): number {
     if (!attributes) return 1;
-    
+
     let multiplier = 1;
 
     switch (category) {
@@ -276,7 +273,7 @@ export class OfferGeneratorService {
   private generateOfferMessage(quality: QualityGrade, distance: number): string {
     const gradeValue = quality as number;
     let qualityText = 'standard';
-    
+
     if (gradeValue >= 8) {
       qualityText = 'premium';
     } else if (gradeValue >= 5) {
@@ -364,6 +361,12 @@ export class OfferGeneratorService {
   }
 
   private calculateInspectionFee(category: ProduceCategory, distance: number): number {
+    const baseFee = this.getBaseFeeForCategory(category);
+    const distanceFee = this.inspectionDistanceFeeService.getDistanceFee(distance);
+    return baseFee + distanceFee;
+  }
+
+  private getBaseFeeForCategory(category: ProduceCategory): number {
     // Base fee by category
     const baseFees: Record<ProduceCategory, number> = {
       [ProduceCategory.FOOD_GRAINS]: 500,
@@ -378,11 +381,6 @@ export class OfferGeneratorService {
     };
 
     // Get base fee for category
-    const baseFee = baseFees[category] || 500;
-
-    // Add configurable distance fee
-    const distanceFee = this.feeConfigService.getDistanceFee(distance);
-
-    return Math.round(baseFee + distanceFee);
+    return baseFees[category] || 500;
   }
-} 
+}

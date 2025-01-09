@@ -3,7 +3,7 @@ import { InspectionFeeService } from '../services/inspection-fee.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { UpdateInspectionBaseFeeDto } from '../dto/update-inspection-base-fee.dto';
 import { UpdateInspectionDistanceFeeDto } from '../dto/update-inspection-distance-fee.dto';
 
@@ -32,4 +32,4 @@ export class InspectionFeeController {
       updateDto.updated_by,
     );
   }
-} 
+}

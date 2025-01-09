@@ -1,10 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual, FindManyOptions, FindOptionsWhere } from 'typeorm';
+import { Repository, LessThanOrEqual, FindManyOptions, FindOptionsWhere, DeepPartial } from 'typeorm';
 import { Produce, ProduceStatus } from '../entities/produce.entity';
 import { BaseService } from '../../common/base.service';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
-import { SynonymService } from '../services/synonym.service';
+import { ProduceSynonymService } from '../services/synonym.service';
 import { CreateProduceDto } from '../dto/create-produce.dto';
 
 @Injectable()
@@ -12,12 +12,12 @@ export class ProduceService extends BaseService<Produce> {
   constructor(
     @InjectRepository(Produce)
     protected readonly produceRepository: Repository<Produce>,
-    private readonly synonymService: SynonymService
+    private readonly synonymService: ProduceSynonymService
   ) {
     super(produceRepository);
   }
 
-  async findByPriceRange(maxPrice: number): Promise<Produce[]> {
+  async findByPriceRange(maxPrice: number): Promise<PaginatedResponse<Produce>> {
     return super.findAll({
       where: {
         price_per_unit: LessThanOrEqual(maxPrice),
@@ -41,8 +41,8 @@ export class ProduceService extends BaseService<Produce> {
     };
   }
 
-  async findById(id: string): Promise<Produce> {
-    return super.findById(id);
+  async findById(id: string): Promise<Produce | null> {
+    return super.findOne(id);
   }
 
   async findNearby(lat: number, lon: number, radius: number = 100): Promise<Produce[]> {
@@ -102,13 +102,13 @@ export class ProduceService extends BaseService<Produce> {
       createProduceDto.language || 'en'
     );
 
-    // Use canonical name for the produce entry
-    const produce = this.produceRepository.create({
+    // Convert CreateProduceDto to DeepPartial<Produce>
+    const produceData: DeepPartial<Produce> = {
       ...createProduceDto,
       name: canonicalName
-    });
+    };
 
-    return this.produceRepository.save(produce);
+    return super.create(produceData);
   }
 
   async findOne(id: string): Promise<Produce> {
@@ -123,4 +123,4 @@ export class ProduceService extends BaseService<Produce> {
 
     return produce;
   }
-} 
+}

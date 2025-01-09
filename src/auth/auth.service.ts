@@ -1,7 +1,8 @@
 import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UsersService } from '../users/users.service';
-import { User, UserRole, UserStatus } from '../users/entities/user.entity';
+import { UsersService } from '../users/services/users.service';
+import { User, UserStatus } from '../users/entities/user.entity';
+import { UserRole } from '../users/enums/user-role.enum';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service';
 import { FarmersService } from '../farmers/farmers.service';
@@ -77,10 +78,7 @@ export class AuthService {
 
     // If user has BUYER role, create buyer profile
     if (userData.role === UserRole.BUYER) {
-      await this.buyersService.createBuyer(user.id, {
-        business_name: userData.name,
-        address: 'Default Address' // Required field, can be updated later
-      });
+      await this.buyersService.createBuyer(user.id, { business_name: userData.name });
     }
 
     // Generate OTP and request ID

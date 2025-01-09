@@ -3,11 +3,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AdminAuditLog, AdminActionType } from '../entities/admin-audit-log.entity';
 import { SystemConfig } from '../entities/system-config.entity';
-import { UsersService } from '../../users/users.service';
-import { ProduceService } from '../../produce/produce.service';
+import { UsersService } from '../../users/services/users.service';
+import { ProduceService } from '../../produce/services/produce.service';
 import { OffersService } from '../../offers/services/offers.service';
 import { TransactionService } from '../../transactions/services/transaction.service';
-import { UserStatus, UserRole } from '../../users/entities/user.entity';
+import { UserStatus } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { ProduceStatus } from '../../produce/entities/produce.entity';
 import { OfferStatus } from '../../offers/entities/offer.entity';
 import { TransactionStatus } from '../../transactions/entities/transaction.entity';
@@ -131,7 +132,7 @@ export class AdminService {
       ip_address
     );
 
-    await this.produceService.remove(produce_id);
+    await this.produceService.delete(produce_id);
   }
 
   async cancelOffer(
@@ -387,7 +388,7 @@ export class AdminService {
   }
 
   private async getTransactionStats() {
-    const transactions = await this.transactionService.findAll();
+    const transactions = await this.transactionService.findAll({});
     const result = transactions as Transaction[] | PaginatedResponse<Transaction>;
     const items = Array.isArray(result) ? result : result.items;
     const total = Array.isArray(result) ? items.length : result.total;

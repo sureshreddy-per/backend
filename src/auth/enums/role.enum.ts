@@ -1,3 +1,3 @@
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 
-export { UserRole as Role }; 
+export { UserRole as Role };

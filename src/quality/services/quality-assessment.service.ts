@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { QualityAssessment, AssessmentSource } from '../entities/quality-assessment.entity';
 import { NotificationService } from '../../notifications/services/notification.service';
-import { NotificationType } from '../../notifications/enums/notification-type.enum';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 import { ProduceService } from '../../produce/services/produce.service';
 
 @Injectable()
@@ -43,7 +43,7 @@ export class QualityAssessmentService {
 
     await this.notificationService.create({
       user_id: produce.farmer_id,
-      type: NotificationType.QUALITY_ASSESSMENT_COMPLETED,
+      type: NotificationType.QUALITY_UPDATE,
       data: {
         produce_id: data.produce_id,
         assessment_id: savedAssessment.id,
@@ -90,7 +90,7 @@ export class QualityAssessmentService {
 
     await this.notificationService.create({
       user_id: produce.farmer_id,
-      type: NotificationType.QUALITY_ASSESSMENT_COMPLETED,
+      type: NotificationType.QUALITY_UPDATE,
       data: {
         produce_id,
         assessment_id: savedAssessment.id,
@@ -121,7 +121,7 @@ export class QualityAssessmentService {
 
   async getLatestManualAssessment(produce_id: string): Promise<QualityAssessment> {
     const assessments = await this.assessmentRepository.find({
-      where: { 
+      where: {
         produce_id,
         source: AssessmentSource.MANUAL_INSPECTION,
       },
@@ -131,4 +131,4 @@ export class QualityAssessmentService {
 
     return assessments[0];
   }
-} 
+}

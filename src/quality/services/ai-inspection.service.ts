@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { OpenAIService, VisionAnalysisResult } from './openai.service';
+import { OpenAIService, AIAnalysisResult } from './openai.service';
 
 @Injectable()
 export class AIInspectionService {
   constructor(private readonly openaiService: OpenAIService) {}
 
-  async analyzeImage(imageUrl: string): Promise<VisionAnalysisResult> {
-    return this.openaiService.analyzeImage(imageUrl);
+  async analyzeImage(imageUrl: string): Promise<AIAnalysisResult> {
+    return this.openaiService.analyzeProduceImage(imageUrl);
   }
-} 
+}

@@ -6,6 +6,7 @@ import { InspectionDistanceFee } from '../entities/inspection-distance-fee.entit
 import { ProduceService } from '../../produce/services/produce.service';
 import { ConfigService } from '@nestjs/config';
 import { ProduceCategory } from '../../produce/enums/produce-category.enum';
+import { Equal } from 'typeorm';
 
 @Injectable()
 export class InspectionFeeService {
@@ -29,9 +30,9 @@ export class InspectionFeeService {
 
     // Get base fee for the produce category
     const baseFee = await this.baseFeeRepository.findOne({
-      where: { 
-        produce_category: produce.produce_category,
-        is_active: true 
+      where: {
+        produce_category: produce.produce_category as any,
+        is_active: true
       },
     });
 
@@ -137,4 +138,4 @@ export class InspectionFeeService {
   private toRad(degrees: number): number {
     return (degrees * Math.PI) / 180;
   }
-} 
+}

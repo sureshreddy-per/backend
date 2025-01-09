@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { TransactionService } from '../services/transaction.service';
 import { RatingsService } from '../../ratings/ratings.service';
 import { NotificationService } from '../../notifications/services/notification.service';
-import { NotificationType } from '../../notifications/enums/notification-type.enum';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 import { TransactionStatus } from '../entities/transaction.entity';
 
 @Injectable()
@@ -46,7 +46,7 @@ export class TransactionTasks {
         if (!buyerRated) {
           await this.notificationService.create({
             user_id: transaction.buyer_id,
-            type: NotificationType.RATING_REQUIRED,
+            type: NotificationType.TRANSACTION_UPDATE,
             data: {
               transaction_id: transaction.id,
               reminder: true
@@ -57,7 +57,7 @@ export class TransactionTasks {
         if (!farmerRated) {
           await this.notificationService.create({
             user_id: transaction.farmer_id,
-            type: NotificationType.RATING_REQUIRED,
+            type: NotificationType.TRANSACTION_UPDATE,
             data: {
               transaction_id: transaction.id,
               reminder: true
@@ -84,7 +84,7 @@ export class TransactionTasks {
       for (const transaction of response.items) {
         await this.notificationService.create({
           user_id: transaction.farmer_id,
-          type: NotificationType.TRANSACTION_CANCELLED,
+          type: NotificationType.TRANSACTION_UPDATE,
           data: {
             transaction_id: transaction.id,
             reason: 'Transaction expired and was not reactivated within 7 days'
@@ -93,7 +93,7 @@ export class TransactionTasks {
 
         await this.notificationService.create({
           user_id: transaction.buyer_id,
-          type: NotificationType.TRANSACTION_CANCELLED,
+          type: NotificationType.TRANSACTION_UPDATE,
           data: {
             transaction_id: transaction.id,
             reason: 'Transaction expired and was not reactivated within 7 days'
@@ -109,4 +109,4 @@ export class TransactionTasks {
       this.logger.error(`Error handling expired transactions: ${error.message}`);
     }
   }
-} 
+}

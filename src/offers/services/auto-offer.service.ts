@@ -21,7 +21,7 @@ export class AutoOfferService {
   async generateOffersForProduce(produce: Produce): Promise<void> {
     // Get all buyers within 100km radius
     const buyers = await this.buyersService.findNearby(produce.location, 100);
-    
+
     // Generate offers for each matching buyer
     for (const buyer of buyers) {
       // Get buyer's daily price for this produce category
@@ -48,14 +48,56 @@ export class AutoOfferService {
         produce_id: produce.id,
         price,
         quantity: produce.quantity,
-        message: 'Auto-generated offer based on quality assessment and daily price',
+        valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
         metadata: {
+          distance_km: distance,
           auto_generated: true,
-          initial_status: OfferStatus.ACTIVE,
-          valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-          quality_grade: produce.quality_grade,
-          daily_price_id: dailyPrice.id,
-          distance_km: distance
+          initial_status: OfferStatus.PENDING
+        }
+      };
+
+      await this.offersService.create(createOfferDto);
+    }
+  }
+
+  async generateOffersForBuyer(buyer: Buyer): Promise<void> {
+    // Get all produce within 100km radius
+    const produces = await this.produceService.findNearby(
+      parseFloat(buyer.location.split('-')[0]),
+      parseFloat(buyer.location.split('-')[1]),
+      100
+    );
+
+    // Get buyer's daily prices
+    const dailyPrices = await this.dailyPriceService.findAllActive(buyer.id);
+    if (!dailyPrices.length) return; // Skip if no active daily prices
+
+    // Generate offers for each matching produce
+    for (const produce of produces) {
+      const dailyPrice = dailyPrices.find(dp => dp.produce_category === produce.produce_category);
+      if (!dailyPrice) continue; // Skip if no matching daily price
+
+      // Calculate distance
+      const distance = this.calculateDistance(produce.location, buyer.location);
+
+      // Calculate offer price based on quality grade and daily price
+      const price = this.calculateOfferPrice(
+        produce,
+        dailyPrice.min_price,
+        dailyPrice.max_price
+      );
+
+      const createOfferDto: CreateOfferDto = {
+        buyer_id: buyer.id,
+        farmer_id: produce.farmer_id,
+        produce_id: produce.id,
+        price,
+        quantity: produce.quantity,
+        valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+        metadata: {
+          distance_km: distance,
+          auto_generated: true,
+          initial_status: OfferStatus.PENDING
         }
       };
 
@@ -70,12 +112,12 @@ export class AutoOfferService {
   ): number {
     const gradeValue = produce.quality_grade as number;
     const priceRange = maxPrice - minPrice;
-    
+
     // Calculate price based on grade (1-10)
     if (gradeValue >= 1 && gradeValue <= 10) {
       return minPrice + (priceRange * ((gradeValue - 1) / 9));
     }
-    
+
     return minPrice; // Default to min price for invalid grades
   }
 
@@ -101,4 +143,4 @@ export class AutoOfferService {
   private toRad(degrees: number): number {
     return degrees * (Math.PI / 180);
   }
-} 
+}

@@ -2,7 +2,7 @@ import { Controller, Post, Get, Body, Param, Query, UseGuards } from '@nestjs/co
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { ReportService } from '../services/report.service';
 import { ReportType, ReportFormat } from '../entities/report.entity';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
@@ -68,4 +68,4 @@ export class ReportController {
   getReportFormats() {
     return Object.values(ReportFormat);
   }
-} 
+}

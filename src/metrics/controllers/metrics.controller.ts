@@ -1,8 +1,8 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { BusinessMetricsService } from '../services/business-metrics.service';
 import { BusinessMetricType } from '../entities/business-metric.entity';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 
 @Controller('metrics')
 @Roles(UserRole.ADMIN)
@@ -103,4 +103,4 @@ export class MetricsController {
   ) {
     return this.businessMetricsService.getTopUsers(type, since, limit);
   }
-} 
+}

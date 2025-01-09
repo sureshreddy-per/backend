@@ -3,7 +3,7 @@ import { InspectionService } from '../services/inspection.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { UserRole } from '../../users/enums/user-role.enum';
 
 @Controller('inspections')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -63,4 +63,4 @@ export class InspectionController {
   ) {
     return this.inspectionService.submitInspectionResult(id, result);
   }
-} 
+}

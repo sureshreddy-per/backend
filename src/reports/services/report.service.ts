@@ -7,8 +7,13 @@ import { ProduceService } from '../../produce/services/produce.service';
 import { TransactionService } from '../../transactions/services/transaction.service';
 import { BusinessMetricsService } from '../../metrics/services/business-metrics.service';
 import { S3Service } from '../../common/services/s3.service';
-import { UserRole } from '../../users/entities/user.entity';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { BusinessMetricType } from '../../metrics/entities/business-metric.entity';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
+import { BusinessMetric } from '../../metrics/entities/business-metric.entity';
+import { Transaction } from '../../transactions/entities/transaction.entity';
+import { Produce } from '../../produce/entities/produce.entity';
+import { User } from '../../users/entities/user.entity';
 import * as ExcelJS from 'exceljs';
 import PDFDocument = require('pdfkit');
 import { Readable } from 'stream';
@@ -293,48 +298,53 @@ export class ReportService {
         },
         relations: ['quality_assessments', 'quality_assessments.inspector']
       }),
-      this.usersService.findAll({
-        where: {
-          role: UserRole.INSPECTOR
-        }
-      })
+      this.usersService.findByRole(UserRole.INSPECTOR)
     ]);
 
     return this.transformInspectionData(assessments, inspectors);
   }
 
-  private transformUserActivityData(metrics: any[]) {
-    // Implementation
-    return metrics;
+  private transformUserActivityData(metrics: PaginatedResponse<BusinessMetric> | BusinessMetric[]) {
+    const items = 'items' in metrics ? metrics.items : metrics;
+    return items;
   }
 
-  private transformTransactionData(transactions: any[]) {
-    // Implementation
-    return transactions;
+  private transformTransactionData(transactions: PaginatedResponse<Transaction> | Transaction[]) {
+    const items = 'items' in transactions ? transactions.items : transactions;
+    return items;
   }
 
-  private transformProduceData(produce: any[]) {
-    // Implementation
-    return produce;
+  private transformProduceData(produce: PaginatedResponse<Produce> | Produce[]) {
+    const items = 'items' in produce ? produce.items : produce;
+    return items;
   }
 
-  private transformQualityData(assessments: any[]) {
-    // Implementation
-    return assessments;
+  private transformQualityData(assessments: PaginatedResponse<Produce> | Produce[]) {
+    const items = 'items' in assessments ? assessments.items : assessments;
+    return items;
   }
 
-  private transformMarketTrendsData(transactions: any[], produce: any[], dailyPrices: any[]) {
-    // Implementation
-    return { transactions, produce, dailyPrices };
+  private transformMarketTrendsData(
+    transactions: PaginatedResponse<Transaction> | Transaction[],
+    produce: PaginatedResponse<Produce> | Produce[],
+    dailyPrices: any[]
+  ) {
+    const transactionItems = 'items' in transactions ? transactions.items : transactions;
+    const produceItems = 'items' in produce ? produce.items : produce;
+    return { transactions: transactionItems, produce: produceItems, dailyPrices };
   }
 
-  private transformFinancialData(transactions: any[]) {
-    // Implementation
-    return transactions;
+  private transformFinancialData(transactions: PaginatedResponse<Transaction> | Transaction[]) {
+    const items = 'items' in transactions ? transactions.items : transactions;
+    return items;
   }
 
-  private transformInspectionData(assessments: any[], inspectors: any[]) {
-    // Implementation
-    return { assessments, inspectors };
+  private transformInspectionData(
+    assessments: PaginatedResponse<Produce> | Produce[],
+    inspectors: PaginatedResponse<User> | User[]
+  ) {
+    const assessmentItems = 'items' in assessments ? assessments.items : assessments;
+    const inspectorItems = 'items' in inspectors ? inspectors.items : inspectors;
+    return { assessments: assessmentItems, inspectors: inspectorItems };
   }
 }
