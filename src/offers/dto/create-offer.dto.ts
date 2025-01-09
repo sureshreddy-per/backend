@@ -7,6 +7,10 @@ export class CreateOfferDto {
 
   @IsUUID()
   @IsNotEmpty()
+  farmer_id: string;
+
+  @IsUUID()
+  @IsNotEmpty()
   produce_id: string;
 
   @IsNumber()

@@ -2,6 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDa
 import { Farmer } from '../../farmers/entities/farmer.entity';
 import { Farm } from '../../farmers/entities/farm.entity';
 import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
+import { QualityGrade } from '../enums/quality-grade.enum';
 
 export enum ProduceCategory {
   FOOD_GRAINS = 'Food Grains',
@@ -41,6 +42,9 @@ export class Produce {
   @Column({ nullable: true })
   description: string;
 
+  @Column({ nullable: true })
+  product_variety: string;
+
   @Column({
     type: 'enum',
     enum: ProduceCategory
@@ -59,6 +63,21 @@ export class Produce {
   @Column({ nullable: true })
   location: string;
 
+  @Column({ nullable: true })
+  location_name: string;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  inspection_fee: number;
+
+  @Column({ type: 'boolean', default: false })
+  is_inspection_requested: boolean;
+
+  @Column({ type: 'uuid', nullable: true })
+  inspection_requested_by: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  inspection_requested_at: Date;
+
   @Column('text', { array: true, nullable: true })
   images: string[];
 
@@ -75,8 +94,12 @@ export class Produce {
   @Column({ type: 'timestamp', nullable: true })
   expiry_date: Date;
 
-  @Column({ nullable: true })
-  quality_grade: string;
+  @Column({
+    type: 'enum',
+    enum: QualityGrade,
+    nullable: true
+  })
+  quality_grade: QualityGrade;
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;

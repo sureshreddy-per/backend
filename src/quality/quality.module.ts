@@ -1,23 +1,19 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { QualityService } from './quality.service';
-import { QualityController } from './quality.controller';
 import { QualityAssessment } from './entities/quality-assessment.entity';
-import { AIInspectionService } from './services/ai-inspection.service';
-import { OpenAIService } from './services/openai.service';
-import { EventEmitterModule } from '@nestjs/event-emitter';
+import { QualityAssessmentService } from './services/quality-assessment.service';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ProduceModule } from '../produce/produce.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([QualityAssessment]),
-    EventEmitterModule.forRoot()
+    NotificationsModule,
+    ProduceModule,
   ],
-  controllers: [QualityController],
   providers: [
-    QualityService,
-    AIInspectionService,
-    OpenAIService
+    QualityAssessmentService,
   ],
-  exports: [QualityService, AIInspectionService]
+  exports: [QualityAssessmentService],
 })
 export class QualityModule {} 
