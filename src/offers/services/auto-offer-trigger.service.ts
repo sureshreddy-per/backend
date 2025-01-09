@@ -16,4 +16,4 @@ export class AutoOfferTriggerService {
   async handleNewBuyer(buyer: Buyer): Promise<void> {
     await this.autoOfferService.generateOffersForBuyer(buyer);
   }
-} 
+}

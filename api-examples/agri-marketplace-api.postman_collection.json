@@ -1,0 +1,511 @@
+{
+	"info": {
+		"_postman_id": "7e9c2b5a-4b1d-4b9e-8f1a-9b3c2b5a4b1d",
+		"name": "Agri Marketplace API",
+		"description": "Complete API collection for the Agricultural Marketplace platform",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Farmer Service",
+			"item": [
+				{
+					"name": "Profile Management",
+					"item": [
+						{
+							"name": "Create Farmer Profile",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"phone\": \"+1234567890\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/farmers",
+									"host": ["{{base_url}}"],
+									"path": ["farmers"]
+								},
+								"description": "Create a new farmer profile for authenticated user"
+							}
+						},
+						{
+							"name": "Get Farmer Profile",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/farmers/profile",
+									"host": ["{{base_url}}"],
+									"path": ["farmers", "profile"]
+								},
+								"description": "Get current farmer's profile details"
+							}
+						},
+						{
+							"name": "Find Nearby Farmers",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/farmers/nearby?lat=12.9716&lng=77.5946&radius=10",
+									"host": ["{{base_url}}"],
+									"path": ["farmers", "nearby"],
+									"query": [
+										{
+											"key": "lat",
+											"value": "12.9716"
+										},
+										{
+											"key": "lng",
+											"value": "77.5946"
+										},
+										{
+											"key": "radius",
+											"value": "10"
+										}
+									]
+								},
+								"description": "Find farmers within specified radius"
+							}
+						}
+					]
+				},
+				{
+					"name": "Farm Management",
+					"item": [
+						{
+							"name": "Add New Farm",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Green Acres\",\n    \"size\": 100,\n    \"address\": \"123 Farm Road\",\n    \"lat_lng\": \"12.9716,77.5946\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/farmers/farms",
+									"host": ["{{base_url}}"],
+									"path": ["farmers", "farms"]
+								},
+								"description": "Add a new farm location"
+							}
+						}
+					]
+				},
+				{
+					"name": "Bank Account Management",
+					"item": [
+						{
+							"name": "Add Bank Account",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"account_number\": \"1234567890\",\n    \"bank_name\": \"Example Bank\",\n    \"ifsc_code\": \"EXBK0001234\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/farmers/bank-accounts",
+									"host": ["{{base_url}}"],
+									"path": ["farmers", "bank-accounts"]
+								},
+								"description": "Add a new bank account"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Buyer Service",
+			"item": [
+				{
+					"name": "Profile Management",
+					"item": [
+						{
+							"name": "Create Buyer Profile",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"Jane Doe\",\n    \"email\": \"jane@example.com\",\n    \"company_name\": \"Fresh Foods Inc\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/buyers",
+									"host": ["{{base_url}}"],
+									"path": ["buyers"]
+								},
+								"description": "Create a new buyer profile"
+							}
+						}
+					]
+				},
+				{
+					"name": "Offer Management",
+					"item": [
+						{
+							"name": "Create Offer",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"produce_id\": \"123e4567-e89b-12d3-a456-426614174000\",\n    \"price_per_unit\": 100,\n    \"quantity\": 500\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/offers",
+									"host": ["{{base_url}}"],
+									"path": ["offers"]
+								},
+								"description": "Create a new offer for produce"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Inspector Service",
+			"item": [
+				{
+					"name": "Inspection Management",
+					"item": [
+						{
+							"name": "Get Pending Inspections",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/inspections/pending",
+									"host": ["{{base_url}}"],
+									"path": ["inspections", "pending"]
+								},
+								"description": "List all pending inspections"
+							}
+						},
+						{
+							"name": "Complete Inspection",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"quality_grade\": \"A\",\n    \"comments\": \"Excellent quality produce\",\n    \"defects\": [],\n    \"recommendations\": []\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/inspections/:id/complete",
+									"host": ["{{base_url}}"],
+									"path": ["inspections", ":id", "complete"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "123e4567-e89b-12d3-a456-426614174000"
+										}
+									]
+								},
+								"description": "Complete an inspection with results"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Admin Service",
+			"item": [
+				{
+					"name": "User Management",
+					"item": [
+						{
+							"name": "List All Users",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/admin/users",
+									"host": ["{{base_url}}"],
+									"path": ["admin", "users"]
+								},
+								"description": "List all users in the system"
+							}
+						}
+					]
+				},
+				{
+					"name": "System Configuration",
+					"item": [
+						{
+							"name": "Set Inspection Fees",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"base_fee\": 1000,\n    \"per_km_fee\": 10,\n    \"category_multipliers\": {\n        \"GRAINS\": 1.0,\n        \"VEGETABLES\": 1.2,\n        \"FRUITS\": 1.1\n    }\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/admin/inspection-fees",
+									"host": ["{{base_url}}"],
+									"path": ["admin", "inspection-fees"]
+								},
+								"description": "Configure inspection fee structure"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Common Services",
+			"item": [
+				{
+					"name": "File Upload",
+					"item": [
+						{
+							"name": "Upload Image",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "formdata",
+									"formdata": [
+										{
+											"key": "image",
+											"type": "file",
+											"src": []
+										}
+									]
+								},
+								"url": {
+									"raw": "{{base_url}}/upload/image",
+									"host": ["{{base_url}}"],
+									"path": ["upload", "image"]
+								},
+								"description": "Upload an image file"
+							}
+						}
+					]
+				},
+				{
+					"name": "Notifications",
+					"item": [
+						{
+							"name": "Get Unread Notifications",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/notifications",
+									"host": ["{{base_url}}"],
+									"path": ["notifications"]
+								},
+								"description": "Get all unread notifications"
+							}
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Transaction Service",
+			"item": [
+				{
+					"name": "Transaction Management",
+					"item": [
+						{
+							"name": "List My Transactions",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/transactions/my-transactions",
+									"host": ["{{base_url}}"],
+									"path": ["transactions", "my-transactions"]
+								},
+								"description": "List all transactions for authenticated user"
+							}
+						},
+						{
+							"name": "Complete Transaction",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{base_url}}/transactions/:id/complete",
+									"host": ["{{base_url}}"],
+									"path": ["transactions", ":id", "complete"],
+									"variable": [
+										{
+											"key": "id",
+											"value": "123e4567-e89b-12d3-a456-426614174000"
+										}
+									]
+								},
+								"description": "Mark a transaction as complete"
+							}
+						}
+					]
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:3000/api",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "your_jwt_token_here",
+			"type": "string"
+		}
+	]
+}

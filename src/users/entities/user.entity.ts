@@ -1,6 +1,13 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { UserRole } from '../enums/user-role.enum';
-import { UserStatus } from '../enums/user-status.enum';
+
+export enum UserStatus {
+  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  BLOCKED = 'BLOCKED',
+  DELETED = 'DELETED'
+}
 
 @Entity('users')
 export class User {
@@ -14,15 +21,13 @@ export class User {
   email: string;
 
   @Column({ unique: true })
-  phone: string;
-
-  @Column()
-  password: string;
+  @
+  mobile_number: string;
 
   @Column({
     type: 'enum',
     enum: UserRole,
-    default: UserRole.USER,
+    default: UserRole.BUYER,
   })
   role: UserRole;
 
@@ -56,4 +61,4 @@ export class User {
 
   @UpdateDateColumn()
   updated_at: Date;
-} 
+}

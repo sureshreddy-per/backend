@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InspectionRequest, InspectionRequestStatus } from '../entities/inspection-request.entity';
 import { NotificationService } from '../../notifications/services/notification.service';
-import { NotificationType } from '../../notifications/enums/notification-type.enum';
+import { NotificationType } from '../../notifications/entities/notification.entity';
 import { ConfigService } from '@nestjs/config';
 import { InspectionFeeService } from '../services/inspection-fee.service';
 import { ProduceService } from '../../produce/services/produce.service';
@@ -65,7 +65,7 @@ export class InspectionService {
 
     request.inspector_id = inspector_id;
     request.status = InspectionRequestStatus.SCHEDULED;
-    
+
     const updatedRequest = await this.inspectionRepository.save(request);
 
     // Notify requester about inspector assignment
@@ -152,4 +152,4 @@ export class InspectionService {
       order: { created_at: 'DESC' },
     });
   }
-} 
+}

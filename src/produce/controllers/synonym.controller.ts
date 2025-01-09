@@ -5,7 +5,7 @@ import { ProduceSynonym } from '../entities/synonym.entity';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { UserRole } from '../../users/enums/user-role.enum';
 
 class AddSynonymDto {
   canonical_name: string;
@@ -78,4 +78,4 @@ export class ProduceSynonymController {
   ): Promise<void> {
     await this.synonymService.deactivateSynonym(canonicalName, req.user.id);
   }
-} 
+}

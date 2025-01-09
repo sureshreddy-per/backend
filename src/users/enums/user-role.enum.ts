@@ -3,4 +3,4 @@ export enum UserRole {
   FARMER = 'FARMER',
   BUYER = 'BUYER',
   INSPECTOR = 'INSPECTOR'
-} 
+}

@@ -13,7 +13,7 @@ import { MedicinalPlantsFilterDto } from '../../produce/dto/category-filters.dto
 import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 
-interface AIAnalysisResult {
+export interface AIAnalysisResult {
   name: string;
   produce_category: ProduceCategory;
   product_variety: string;
@@ -61,38 +61,38 @@ export class OpenAIService {
                     "foreign_matter": "number",
                     "broken_grains": "number",
                     "grain_size": "string",
-                    
+
                     // For OILSEEDS:
                     "oil_content": "number",
                     "moisture_level": "number",
                     "seed_size": "string",
-                    
+
                     // For FRUITS/VEGETABLES:
                     "ripeness": "string",
                     "freshness": "string",
                     "color_uniformity": "number",
                     "size_uniformity": "number",
-                    
+
                     // For SPICES:
                     "aroma_strength": "number",
                     "color_intensity": "number",
                     "essential_oil": "number",
-                    
+
                     // For FIBERS:
                     "fiber_length": "number",
                     "fiber_strength": "number",
                     "fiber_uniformity": "number",
-                    
+
                     // For SUGARCANE:
                     "sugar_content": "number",
                     "stalk_length": "number",
                     "maturity": "string",
-                    
+
                     // For FLOWERS:
                     "bloom_stage": "string",
                     "stem_length": "number",
                     "color_vibrancy": "number",
-                    
+
                     // For MEDICINAL:
                     "active_compounds": "number",
                     "plant_maturity": "string",
@@ -121,4 +121,4 @@ export class OpenAIService {
       throw new Error(`Failed to analyze image: ${error.message}`);
     }
   }
-} 
+}

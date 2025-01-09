@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from '../entities/user.entity';
+import { Repository, FindManyOptions, LessThanOrEqual } from 'typeorm';
+import { User, UserStatus } from '../entities/user.entity';
 import { UserRole } from '../enums/user-role.enum';
-import { UserStatus } from '../enums/user-status.enum';
+import { CreateUserDto } from '../dto/create-user.dto';
 import { UpdateUserDto } from '../dto/update-user.dto';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class UsersService {
@@ -13,8 +14,20 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
   ) {}
 
-  async findAll(): Promise<User[]> {
-    return this.userRepository.find();
+  async findAll(page = 1, limit = 10): Promise<PaginatedResponse<User>> {
+    const [items, total] = await this.userRepository.findAndCount({
+      skip: (page - 1) * limit,
+      take: limit,
+      order: { created_at: 'DESC' }
+    });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    };
   }
 
   async findOne(id: string): Promise<User> {
@@ -33,14 +46,34 @@ export class UsersService {
     return this.userRepository.findOne({ where: { phone } });
   }
 
-  async findByRole(role: UserRole): Promise<User[]> {
-    return this.userRepository.find({ where: { role } });
+  async findByMobileNumber(mobile_number: string): Promise<User | null> {
+    return this.userRepository.findOne({ where: { mobile_number } });
+  }
+
+  async create(createUserDto: CreateUserDto): Promise<User> {
+    const user = this.userRepository.create(createUserDto);
+    return this.userRepository.save(user);
   }
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     const user = await this.findOne(id);
     Object.assign(user, updateUserDto);
     return this.userRepository.save(user);
+  }
+
+  async updateStatus(id: string, status: UserStatus): Promise<User> {
+    const user = await this.findOne(id);
+    user.status = status;
+    return this.userRepository.save(user);
+  }
+
+  async remove(id: string): Promise<void> {
+    const user = await this.findOne(id);
+    await this.userRepository.remove(user);
+  }
+
+  async findByRole(role: UserRole): Promise<User[]> {
+    return this.userRepository.find({ where: { role } });
   }
 
   async verifyUser(id: string): Promise<User> {
@@ -63,7 +96,7 @@ export class UsersService {
     return this.userRepository.save(user);
   }
 
-  async scheduleForDeletion(id: string, daysUntilDeletion: number = 30): Promise<User> {
+  async scheduleForDeletion(id: string, daysUntilDeletion: number): Promise<User> {
     const user = await this.findOne(id);
     const deletionDate = new Date();
     deletionDate.setDate(deletionDate.getDate() + daysUntilDeletion);
@@ -74,27 +107,6 @@ export class UsersService {
   async cancelDeletionSchedule(id: string): Promise<User> {
     const user = await this.findOne(id);
     user.scheduled_for_deletion_at = null;
-    return this.userRepository.save(user);
-  }
-
-  async updateLoginAttempts(id: string, reset: boolean = false): Promise<User> {
-    const user = await this.findOne(id);
-    if (reset) {
-      user.login_attempts = 0;
-    } else {
-      user.login_attempts = (user.login_attempts || 0) + 1;
-      if (user.login_attempts >= 5) {
-        user.status = UserStatus.BLOCKED;
-        user.block_reason = 'Too many failed login attempts';
-      }
-    }
-    return this.userRepository.save(user);
-  }
-
-  async updateLastLogin(id: string): Promise<User> {
-    const user = await this.findOne(id);
-    user.last_login_at = new Date();
-    user.login_attempts = 0;
     return this.userRepository.save(user);
   }
 
@@ -109,4 +121,11 @@ export class UsersService {
     user.avatar_url = avatarUrl;
     return this.userRepository.save(user);
   }
-} 
+
+  async deleteExpiredUsers(): Promise<void> {
+    const now = new Date();
+    await this.userRepository.delete({
+      scheduled_for_deletion_at: LessThanOrEqual(now)
+    });
+  }
+}

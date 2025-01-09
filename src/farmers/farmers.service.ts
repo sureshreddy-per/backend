@@ -30,9 +30,9 @@ export class FarmersService {
   private async getFarmerWithUser(farmer: Farmer): Promise<Farmer & { user: Partial<User> }> {
     const user = await this.userRepository.findOne({
       where: { id: farmer.user_id },
-      select: ['id', 'email', 'profile_picture', 'name', 'status']
+      select: ['id', 'email', 'avatar_url', 'name', 'status']
     });
-    
+
     if (!user) {
       throw new NotFoundException(`User details for farmer ${farmer.id} not found`);
     }
@@ -143,7 +143,7 @@ export class FarmersService {
 
   async getFarmerByOfferAndBuyer(offerId: string, buyerId: string): Promise<Farmer & { user: Partial<User> }> {
     const offer = await this.offerRepository.findOne({
-      where: { 
+      where: {
         id: offerId,
         buyer_id: buyerId
       }
@@ -168,7 +168,7 @@ export class FarmersService {
   async updateUserDetails(userId: string, updateUserDetailsDto: UpdateUserDetailsDto): Promise<Farmer & { user: Partial<User> }> {
     // First check if the user exists and is a farmer
     const farmer = await this.findByUserId(userId);
-    
+
     // Update user details
     const user = await this.userRepository.findOne({
       where: { id: userId }
@@ -187,4 +187,4 @@ export class FarmersService {
     // Return the updated farmer with user details
     return this.getFarmerWithUser(farmer);
   }
-} 
+}

@@ -12,7 +12,7 @@ import { Transaction } from '../transactions/entities/transaction.entity';
 import { QualityAssessment } from '../quality/entities/quality-assessment.entity';
 import { Inspector } from '../inspectors/entities/inspector.entity';
 import { Rating } from '../ratings/entities/rating.entity';
-import { Synonym } from '../produce/entities/synonym.entity';
+import { ProduceSynonym } from '../produce/entities/synonym.entity';
 import { Notification } from '../notifications/entities/notification.entity';
 import { DailyPrice } from '../offers/entities/daily-price.entity';
 
@@ -37,7 +37,7 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
     QualityAssessment,
     Inspector,
     Rating,
-    Synonym,
+    ProduceSynonym,
     Notification,
     DailyPrice,
   ],

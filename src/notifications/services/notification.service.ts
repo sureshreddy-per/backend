@@ -5,7 +5,7 @@ import { Notification, NotificationType } from '../entities/notification.entity'
 import { BaseService } from '../../common/base.service';
 import { OnEvent } from '@nestjs/event-emitter';
 import * as admin from 'firebase-admin';
-import { UserRole } from '../../auth/enums/user-role.enum';
+import { UserRole } from '../../users/enums/user-role.enum';
 import { UsersService } from '../../users/services/users.service';
 
 @Injectable()
@@ -21,9 +21,9 @@ export class NotificationService extends BaseService<Notification> {
   }
 
   @OnEvent('offer.created')
-  async handleNewOffer(payload: { 
-    buyer_id: string, 
-    farmer_id: string, 
+  async handleNewOffer(payload: {
+    buyer_id: string,
+    farmer_id: string,
     produce_id: string,
     price: number
   }) {
@@ -48,7 +48,7 @@ export class NotificationService extends BaseService<Notification> {
     farmer_id: string
   }) {
     const notifyUserId = payload.new_status === 'ACCEPTED' ? payload.buyer_id : payload.farmer_id;
-    const message = payload.new_status === 'ACCEPTED' 
+    const message = payload.new_status === 'ACCEPTED'
       ? 'Your offer has been accepted'
       : `Offer status changed to ${payload.new_status}`;
 
@@ -190,7 +190,7 @@ export class NotificationService extends BaseService<Notification> {
   async markAsRead(notificationId: string): Promise<void> {
     await this.notificationRepository.update(
       { id: notificationId },
-      { 
+      {
         is_read: true,
         read_at: new Date()
       }
@@ -214,7 +214,7 @@ export class NotificationService extends BaseService<Notification> {
 
   async getUnreadCount(userId: string): Promise<number> {
     return this.notificationRepository.count({
-      where: { 
+      where: {
         user_id: userId,
         is_read: false
       }
@@ -253,4 +253,4 @@ export class NotificationService extends BaseService<Notification> {
       { is_read: true, read_at: new Date() },
     );
   }
-} 
+}
