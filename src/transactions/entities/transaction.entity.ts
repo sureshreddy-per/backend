@@ -4,8 +4,10 @@ import { Produce } from '../../produce/entities/produce.entity';
 
 export enum TransactionStatus {
   PENDING = 'PENDING',
+  IN_PROGRESS = 'IN_PROGRESS',
   COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED'
+  CANCELLED = 'CANCELLED',
+  EXPIRED = 'EXPIRED'
 }
 
 @Entity('transactions')
@@ -38,6 +40,30 @@ export class Transaction {
   })
   status: TransactionStatus;
 
+  @Column({ type: 'timestamp', nullable: true })
+  delivery_window_starts_at: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  delivery_window_ends_at: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  delivery_confirmed_at: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  buyer_inspection_completed_at: Date;
+
+  @Column({ type: 'boolean', default: false })
+  requires_rating: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  rating_completed: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  inspection_fee_paid: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  inspection_fee_paid_at: Date;
+
   @Column('jsonb', { nullable: true })
   metadata: {
     completed_at?: Date;
@@ -49,6 +75,8 @@ export class Transaction {
     farmer_review?: string;
     quality_grade?: string;
     inspection_result?: any;
+    delivery_notes?: string;
+    inspection_notes?: string;
   };
 
   @ManyToOne(() => Offer)
