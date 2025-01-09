@@ -1,15 +1,27 @@
-import { Entity, PrimaryGeneratedColumn, Column, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
-@Entity('synonyms')
-export class Synonym {
+@Entity('produce_synonyms')
+export class ProduceSynonym {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column()
-  name: string;
+  canonical_name: string;
 
   @Column('jsonb')
   words: string[];
+
+  @Column('jsonb', { nullable: true })
+  translations: Record<string, string>;
+
+  @Column({ default: true })
+  is_active: boolean;
+
+  @Column({ nullable: true })
+  updated_by: string;
+
+  @CreateDateColumn()
+  created_at: Date;
 
   @UpdateDateColumn()
   updated_at: Date;

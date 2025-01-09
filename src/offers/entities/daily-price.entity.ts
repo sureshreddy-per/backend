@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { ProduceCategory } from '../../produce/entities/produce.entity';
 
 @Entity('daily_prices')
@@ -16,10 +16,13 @@ export class DailyPrice {
   produce_category: ProduceCategory;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  price: number;
+  min_price: number;
 
   @Column('decimal', { precision: 10, scale: 2 })
-  minimum_quantity: number;
+  max_price: number;
+
+  @Column({ type: 'boolean', default: true })
+  is_active: boolean;
 
   @Column({ type: 'timestamp' })
   valid_from: Date;
@@ -27,12 +30,12 @@ export class DailyPrice {
   @Column({ type: 'timestamp' })
   valid_until: Date;
 
-  @Column({ default: true })
-  is_active: boolean;
+  @Column({ type: 'int', default: 1 })
+  valid_days: number;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updated_at: Date;
 } 

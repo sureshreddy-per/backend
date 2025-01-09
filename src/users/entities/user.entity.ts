@@ -1,48 +1,35 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  FARMER = 'FARMER',
-  BUYER = 'BUYER',
-  INSPECTOR = 'INSPECTOR'
-}
-
-export enum UserStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  SUSPENDED = 'SUSPENDED',
-  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
-  DELETED = 'DELETED',
-  BLOCKED = 'BLOCKED'
-}
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { UserRole } from '../enums/user-role.enum';
+import { UserStatus } from '../enums/user-status.enum';
 
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ unique: true })
-  mobile_number: string;
-
-  @Column({ nullable: true })
-  email: string;
-
   @Column()
   name: string;
 
-  @Column({ nullable: true })
-  profile_picture: string;
+  @Column({ unique: true })
+  email: string;
+
+  @Column({ unique: true })
+  phone: string;
+
+  @Column()
+  password: string;
 
   @Column({
     type: 'enum',
-    enum: UserRole
+    enum: UserRole,
+    default: UserRole.USER,
   })
   role: UserRole;
 
   @Column({
     type: 'enum',
     enum: UserStatus,
-    default: UserStatus.PENDING_VERIFICATION
+    default: UserStatus.PENDING_VERIFICATION,
   })
   status: UserStatus;
 
@@ -50,20 +37,23 @@ export class User {
   block_reason: string;
 
   @Column({ nullable: true })
-  last_login_at: Date;
+  fcm_token: string;
 
   @Column({ nullable: true })
-  scheduled_for_deletion_at: Date;
+  avatar_url: string;
 
   @Column({ default: 0 })
   login_attempts: number;
 
-  @Column({ nullable: true })
-  last_login_attempt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  last_login_at: Date;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @Column({ type: 'timestamp', nullable: true })
+  scheduled_for_deletion_at: Date;
+
+  @CreateDateColumn()
   created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updated_at: Date;
 } 

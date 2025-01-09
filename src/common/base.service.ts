@@ -1,22 +1,26 @@
-import { Repository, FindOptionsWhere, FindManyOptions, DeepPartial, ObjectLiteral } from 'typeorm';
+import { Repository, FindManyOptions, DeepPartial } from 'typeorm';
+import { PaginatedResponse } from './interfaces/paginated-response.interface';
 
 export class BaseService<T extends { id: string }> {
   constructor(protected readonly repository: Repository<T>) {}
 
-  async findAll(options?: FindManyOptions<T>): Promise<T[]> {
-    return this.repository.find(options);
+  async findAll(options?: FindManyOptions<T>): Promise<PaginatedResponse<T>> {
+    const [items, total] = await this.repository.findAndCount(options);
+    const { take = 10, skip = 0 } = options || {};
+    const page = Math.floor(skip / take) + 1;
+    const totalPages = Math.ceil(total / take);
+
+    return {
+      items,
+      total,
+      page,
+      limit: take,
+      totalPages
+    };
   }
 
-  async findAndCount(options?: FindManyOptions<T>): Promise<[T[], number]> {
-    return this.repository.findAndCount(options);
-  }
-
-  async findOne(options: FindManyOptions<T>): Promise<T | null> {
-    return this.repository.findOne(options);
-  }
-
-  async findById(id: string): Promise<T | null> {
-    return this.repository.findOneBy({ id } as FindOptionsWhere<T>);
+  async findOne(id: string): Promise<T | null> {
+    return this.repository.findOne({ where: { id } as any });
   }
 
   async create(data: DeepPartial<T>): Promise<T> {
@@ -24,16 +28,12 @@ export class BaseService<T extends { id: string }> {
     return this.repository.save(entity);
   }
 
-  async update(id: string, data: Partial<T>): Promise<T> {
-    await this.repository.update({ id } as FindOptionsWhere<T>, data as any);
-    return this.findById(id);
+  async update(id: string, data: DeepPartial<T>): Promise<T | null> {
+    await this.repository.update(id, data as any);
+    return this.findOne(id);
   }
 
   async delete(id: string): Promise<void> {
     await this.repository.delete(id);
-  }
-
-  async count(options?: FindManyOptions<T>): Promise<number> {
-    return this.repository.count(options);
   }
 } 

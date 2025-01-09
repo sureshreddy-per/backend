@@ -23,7 +23,10 @@ export class Buyer {
   registration_number: string;
 
   @Column({ nullable: true })
-  lat_lng: string;
+  location: string;
+
+  @Column({ nullable: true })
+  location_name: string;
 
   @Column()
   address: string;
@@ -34,9 +37,12 @@ export class Buyer {
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   max_price: number;
 
-  @CreateDateColumn()
+  @Column({ default: true })
+  is_active: boolean;
+
+  @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
 } 

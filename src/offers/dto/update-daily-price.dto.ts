@@ -1,20 +1,26 @@
 import { IsNumber, IsOptional, Min } from 'class-validator';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
 
 export class UpdateDailyPriceDto {
-  @IsOptional()
-  produce_category?: ProduceCategory;
-
-  @IsOptional()
   @IsNumber()
   @Min(0)
-  price?: number;
-
   @IsOptional()
+  min_price?: number;
+
   @IsNumber()
   @Min(0)
+  @IsOptional()
+  max_price?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
   minimum_quantity?: number;
 
+  @IsNumber()
+  @Min(1)
   @IsOptional()
-  is_active?: boolean;
+  valid_days?: number;
+
+  @IsOptional()
+  valid_until?: Date;
 } 

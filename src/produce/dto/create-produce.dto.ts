@@ -87,4 +87,8 @@ export class CreateProduceDto {
   @IsString()
   @IsOptional()
   video_url?: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
 } 
