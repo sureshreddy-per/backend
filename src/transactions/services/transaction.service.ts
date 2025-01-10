@@ -150,4 +150,63 @@ export class TransactionService extends BaseService<Transaction> {
     
     return result?.total || 0;
   }
+
+  async count(): Promise<number> {
+    return this.transactionRepository.count();
+  }
+
+  async countByStatus(status: TransactionStatus): Promise<number> {
+    return this.transactionRepository.count({ where: { status } });
+  }
+
+  async getStats() {
+    const [
+      totalTransactions,
+      pendingTransactions,
+      inProgressTransactions,
+      completedTransactions,
+      cancelledTransactions,
+      expiredTransactions,
+      totalValue
+    ] = await Promise.all([
+      this.count(),
+      this.countByStatus(TransactionStatus.PENDING),
+      this.countByStatus(TransactionStatus.IN_PROGRESS),
+      this.countByStatus(TransactionStatus.COMPLETED),
+      this.countByStatus(TransactionStatus.CANCELLED),
+      this.countByStatus(TransactionStatus.EXPIRED),
+      this.calculateTotalValue()
+    ]);
+
+    return {
+      total: totalTransactions,
+      pending: pendingTransactions,
+      in_progress: inProgressTransactions,
+      completed: completedTransactions,
+      cancelled: cancelledTransactions,
+      expired: expiredTransactions,
+      total_value: totalValue
+    };
+  }
+
+  async getRevenueStats() {
+    const result = await this.transactionRepository
+      .createQueryBuilder('transaction')
+      .select([
+        'DATE_TRUNC(\'month\', transaction.created_at) as month',
+        'SUM(transaction.final_price * transaction.final_quantity) as revenue',
+        'COUNT(*) as count'
+      ])
+      .where('transaction.status = :status', { status: TransactionStatus.COMPLETED })
+      .groupBy('month')
+      .orderBy('month', 'DESC')
+      .limit(12)
+      .getRawMany();
+
+    return result.map(item => ({
+      month: item.month,
+      revenue: parseFloat(item.revenue) || 0,
+      count: parseInt(item.count)
+    }));
+  }
 } 

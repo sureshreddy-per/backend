@@ -1,38 +1,24 @@
-import { IsEnum, IsOptional, IsUUID, IsDateString, IsInt, Min, Max, IsString } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsDateString, IsOptional, IsEnum, IsUUID } from 'class-validator';
 import { AdminActionType } from '../entities/admin-audit-log.entity';
 
 export class AuditLogFilterDto {
+  @IsDateString()
   @IsOptional()
+  start_date?: string;
+
+  @IsDateString()
+  @IsOptional()
+  end_date?: string;
+
   @IsEnum(AdminActionType)
+  @IsOptional()
   action?: AdminActionType;
 
-  @IsOptional()
   @IsUUID()
+  @IsOptional()
   admin_id?: string;
 
+  @IsUUID()
   @IsOptional()
-  @IsString()
-  entity_type?: string;
-
-  @IsOptional()
-  @IsDateString()
-  from_date?: Date;
-
-  @IsOptional()
-  @IsDateString()
-  to_date?: Date;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit?: number = 10;
+  entity_id?: string;
 } 

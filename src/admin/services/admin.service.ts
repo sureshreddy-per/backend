@@ -9,17 +9,12 @@ import { OffersService } from '../../offers/services/offers.service';
 import { TransactionService } from '../../transactions/services/transaction.service';
 import { UserStatus } from '../../users/entities/user.entity';
 import { UserRole } from '../../users/enums/user-role.enum';
-import { ProduceStatus } from '../../produce/entities/produce.entity';
+import { ProduceStatus } from '../../produce/enums/produce-status.enum';
 import { OfferStatus } from '../../offers/entities/offer.entity';
 import { TransactionStatus } from '../../transactions/entities/transaction.entity';
-import { Produce } from '../../produce/entities/produce.entity';
-import { Transaction } from '../../transactions/entities/transaction.entity';
-import { Offer } from '../../offers/entities/offer.entity';
-
-interface PaginatedResponse<T> {
-  items: T[];
-  total: number;
-}
+import { UpdateSystemConfigDto } from '../dto/update-system-config.dto';
+import { AuditLogFilterDto } from '../dto/audit-log-filter.dto';
+import { InspectionPriority } from '../dto/assign-inspector.dto';
 
 @Injectable()
 export class AdminService {
@@ -37,46 +32,38 @@ export class AdminService {
   private async logAction(
     admin_id: string,
     action: AdminActionType,
+    entity_id: string,
     details: any,
-    entity_id?: string,
-    entity_type?: string,
     ip_address?: string
   ): Promise<AdminAuditLog> {
     const log = this.adminAuditLogRepository.create({
       admin_id,
       action,
-      details,
       entity_id,
-      entity_type,
+      details,
       ip_address,
     });
-    return this.adminAuditLogRepository.save(log);
+    return await this.adminAuditLogRepository.save(log);
   }
 
   async blockUser(
     admin_id: string,
     user_id: string,
     reason: string,
+    duration_days: number,
     ip_address?: string
-  ): Promise<void> {
+  ) {
     const user = await this.usersService.findOne(user_id);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    const previousState = { status: user.status };
-    await this.usersService.updateStatus(user_id, UserStatus.BLOCKED);
-
+    await this.usersService.blockUser(user_id, reason);
     await this.logAction(
       admin_id,
-      AdminActionType.USER_BLOCK,
-      {
-        previous_state: previousState,
-        new_state: { status: UserStatus.BLOCKED },
-        reason,
-      },
+      AdminActionType.BLOCK_USER,
       user_id,
-      'user',
+      { reason, duration_days },
       ip_address
     );
   }
@@ -86,25 +73,18 @@ export class AdminService {
     user_id: string,
     reason: string,
     ip_address?: string
-  ): Promise<void> {
+  ) {
     const user = await this.usersService.findOne(user_id);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    const previousState = { status: user.status };
-    await this.usersService.updateStatus(user_id, UserStatus.ACTIVE);
-
+    await this.usersService.unblockUser(user_id);
     await this.logAction(
       admin_id,
-      AdminActionType.USER_UNBLOCK,
-      {
-        previous_state: previousState,
-        new_state: { status: UserStatus.ACTIVE },
-        reason,
-      },
+      AdminActionType.UNBLOCK_USER,
       user_id,
-      'user',
+      { reason },
       ip_address
     );
   }
@@ -114,25 +94,20 @@ export class AdminService {
     produce_id: string,
     reason: string,
     ip_address?: string
-  ): Promise<void> {
+  ) {
     const produce = await this.produceService.findOne(produce_id);
     if (!produce) {
       throw new NotFoundException('Produce not found');
     }
 
+    await this.produceService.updateStatus(produce_id, ProduceStatus.CANCELLED);
     await this.logAction(
       admin_id,
-      AdminActionType.PRODUCE_DELETE,
-      {
-        previous_state: produce,
-        reason,
-      },
+      AdminActionType.DELETE_PRODUCE,
       produce_id,
-      'produce',
+      { reason },
       ip_address
     );
-
-    await this.produceService.delete(produce_id);
   }
 
   async cancelOffer(
@@ -140,25 +115,20 @@ export class AdminService {
     offer_id: string,
     reason: string,
     ip_address?: string
-  ): Promise<void> {
+  ) {
     const offer = await this.offersService.findOne(offer_id);
     if (!offer) {
       throw new NotFoundException('Offer not found');
     }
 
+    await this.offersService.updateStatus(offer_id, OfferStatus.CANCELLED);
     await this.logAction(
       admin_id,
-      AdminActionType.OFFER_CANCEL,
-      {
-        previous_state: offer,
-        reason,
-      },
+      AdminActionType.CANCEL_OFFER,
       offer_id,
-      'offer',
+      { reason },
       ip_address
     );
-
-    await this.offersService.cancel(offer_id, reason);
   }
 
   async cancelTransaction(
@@ -166,341 +136,185 @@ export class AdminService {
     transaction_id: string,
     reason: string,
     ip_address?: string
-  ): Promise<void> {
+  ) {
     const transaction = await this.transactionService.findOne(transaction_id);
     if (!transaction) {
       throw new NotFoundException('Transaction not found');
     }
 
+    await this.transactionService.cancel(transaction_id, reason);
     await this.logAction(
       admin_id,
-      AdminActionType.TRANSACTION_CANCEL,
-      {
-        previous_state: transaction,
-        reason,
-      },
+      AdminActionType.CANCEL_TRANSACTION,
       transaction_id,
-      'transaction',
+      { reason },
       ip_address
     );
-
-    await this.transactionService.cancel(transaction_id, reason);
-  }
-
-  async getAuditLogs(
-    filters: {
-      action?: AdminActionType;
-      admin_id?: string;
-      entity_type?: string;
-      from_date?: Date;
-      to_date?: Date;
-    },
-    page = 1,
-    limit = 10
-  ): Promise<{ items: AdminAuditLog[]; total: number }> {
-    const query = this.adminAuditLogRepository.createQueryBuilder('log');
-
-    if (filters.action) {
-      query.andWhere('log.action = :action', { action: filters.action });
-    }
-
-    if (filters.admin_id) {
-      query.andWhere('log.admin_id = :admin_id', { admin_id: filters.admin_id });
-    }
-
-    if (filters.entity_type) {
-      query.andWhere('log.entity_type = :entity_type', { entity_type: filters.entity_type });
-    }
-
-    if (filters.from_date) {
-      query.andWhere('log.created_at >= :from_date', { from_date: filters.from_date });
-    }
-
-    if (filters.to_date) {
-      query.andWhere('log.created_at <= :to_date', { to_date: filters.to_date });
-    }
-
-    const [items, total] = await query
-      .orderBy('log.created_at', 'DESC')
-      .skip((page - 1) * limit)
-      .take(limit)
-      .getManyAndCount();
-
-    return { items, total };
   }
 
   async assignInspector(
     admin_id: string,
     produce_id: string,
     inspector_id: string,
-    reason: string,
+    priority: InspectionPriority,
+    notes: string,
     ip_address?: string
-  ): Promise<void> {
+  ) {
     const produce = await this.produceService.findOne(produce_id);
     if (!produce) {
       throw new NotFoundException('Produce not found');
     }
 
     const inspector = await this.usersService.findOne(inspector_id);
-    if (!inspector) {
-      throw new NotFoundException('Inspector not found');
+    if (!inspector || inspector.role !== UserRole.INSPECTOR) {
+      throw new BadRequestException('Invalid inspector');
     }
 
-    if (inspector.role !== UserRole.INSPECTOR) {
-      throw new BadRequestException('User is not an inspector');
-    }
-
+    await this.produceService.assignInspector(produce_id, inspector_id);
     await this.logAction(
       admin_id,
-      AdminActionType.INSPECTION_ASSIGN,
-      {
-        previous_state: { assigned_inspector: produce.assigned_inspector },
-        new_state: { assigned_inspector: inspector_id },
-        reason,
-      },
+      AdminActionType.ASSIGN_INSPECTOR,
       produce_id,
-      'produce',
+      { inspector_id, priority, notes },
       ip_address
     );
-
-    await this.produceService.update(produce_id, { assigned_inspector: inspector_id });
   }
 
   async updateSystemConfig(
     admin_id: string,
-    config: {
-      min_produce_price?: number;
-      max_produce_price?: number;
-      max_offer_validity_days?: number;
-      min_transaction_amount?: number;
-      inspection_required_above?: number;
-      auto_approve_below?: number;
-    },
-    reason: string,
+    config: UpdateSystemConfigDto,
     ip_address?: string
-  ): Promise<void> {
-    // Get current config
-    const currentConfig = await this.getSystemConfig();
+  ) {
+    const entries = Object.entries(config);
+    for (const [key, value] of entries) {
+      const existingConfig = await this.systemConfigRepository.findOne({
+        where: { key, is_active: true },
+      });
+
+      if (existingConfig) {
+        existingConfig.value = value;
+        existingConfig.updated_by = admin_id;
+        await this.systemConfigRepository.save(existingConfig);
+      } else {
+        const newConfig = this.systemConfigRepository.create({
+          key,
+          value,
+          created_by: admin_id,
+          updated_by: admin_id,
+        });
+        await this.systemConfigRepository.save(newConfig);
+      }
+    }
 
     await this.logAction(
       admin_id,
-      AdminActionType.SYSTEM_CONFIG_UPDATE,
-      {
-        previous_state: currentConfig,
-        new_state: config,
-        reason,
-      },
-      null,
-      'system_config',
+      AdminActionType.UPDATE_SYSTEM_CONFIG,
+      admin_id,
+      config,
       ip_address
     );
-
-    // Update config in database or cache
-    await this.saveSystemConfig(config);
   }
 
-  async getSystemMetrics(): Promise<{
-    users: {
-      total: number;
-      active: number;
-      blocked: number;
-      farmers: number;
-      buyers: number;
-    };
-    produce: {
-      total: number;
-      active: number;
-      pending_inspection: number;
-      rejected: number;
-    };
-    transactions: {
-      total: number;
-      pending: number;
-      completed: number;
-      cancelled: number;
-      total_value: number;
-    };
-    offers: {
-      total: number;
-      active: number;
-      accepted: number;
-      rejected: number;
-      expired: number;
-    };
-    system: {
-      error_rate: number;
-      avg_response_time: number;
-      active_sessions: number;
-    };
-  }> {
-    const [
-      userStats,
-      produceStats,
-      transactionStats,
-      offerStats,
-      systemStats
-    ] = await Promise.all([
-      this.getUserStats(),
-      this.getProduceStats(),
-      this.getTransactionStats(),
-      this.getOfferStats(),
-      this.getSystemStats()
-    ]);
-
-    return {
-      users: userStats,
-      produce: produceStats,
-      transactions: transactionStats,
-      offers: offerStats,
-      system: systemStats
-    };
-  }
-
-  private async getUserStats() {
-    const [users, activeUsers, blockedUsers, farmers, buyers] = await Promise.all([
-      this.usersService.findAll(),
-      this.usersService.findAll(1, 10000),
-      this.usersService.findAll(1, 10000),
-      this.usersService.findAll(1, 10000),
-      this.usersService.findAll(1, 10000)
-    ]);
-
-    return {
-      total: users.total,
-      active: activeUsers.items.filter(u => u.status === UserStatus.ACTIVE).length,
-      blocked: blockedUsers.items.filter(u => u.status === UserStatus.BLOCKED).length,
-      farmers: farmers.items.filter(u => u.role === UserRole.FARMER).length,
-      buyers: buyers.items.filter(u => u.role === UserRole.BUYER).length
-    };
-  }
-
-  private async getProduceStats() {
-    const produces = await this.produceService.findAll();
-    const items = ('items' in produces ? produces.items : produces) as Produce[];
-    const total = ('total' in produces ? produces.total : items.length) as number;
-
-    return {
-      total,
-      active: items.filter(p => p.status === ProduceStatus.AVAILABLE).length,
-      pending_inspection: items.filter(p => p.status === ProduceStatus.PENDING_INSPECTION).length,
-      rejected: items.filter(p => p.status === ProduceStatus.REJECTED).length
-    };
-  }
-
-  private async getTransactionStats() {
-    const transactions = await this.transactionService.findAll({});
-    const result = transactions as Transaction[] | PaginatedResponse<Transaction>;
-    const items = Array.isArray(result) ? result : result.items;
-    const total = Array.isArray(result) ? items.length : result.total;
-    const totalValue = await this.transactionService.calculateTotalValue();
-
-    return {
-      total,
-      pending: items.filter(t => t.status === TransactionStatus.PENDING).length,
-      completed: items.filter(t => t.status === TransactionStatus.COMPLETED).length,
-      cancelled: items.filter(t => t.status === TransactionStatus.CANCELLED).length,
-      total_value: totalValue
-    };
-  }
-
-  private async getOfferStats() {
-    const offers = await this.offersService.findAll();
-    const result = offers as Offer[] | PaginatedResponse<Offer>;
-    const items = Array.isArray(result) ? result : result.items;
-    const total = Array.isArray(result) ? items.length : result.total;
-
-    return {
-      total,
-      active: items.filter(o => o.status === OfferStatus.ACTIVE).length,
-      accepted: items.filter(o => o.status === OfferStatus.ACCEPTED).length,
-      rejected: items.filter(o => o.status === OfferStatus.REJECTED).length,
-      expired: items.filter(o => o.status === OfferStatus.EXPIRED).length
-    };
-  }
-
-  private async getSystemStats() {
-    // Get error rate from the last hour
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const [totalRequests, errorRequests] = await Promise.all([
-      this.getRequestCount(oneHourAgo),
-      this.getErrorCount(oneHourAgo)
-    ]);
-
-    const errorRate = totalRequests > 0 ? (errorRequests / totalRequests) * 100 : 0;
-
-    // Get average response time from the last hour
-    const avgResponseTime = await this.getAverageResponseTime(oneHourAgo);
-
-    // Get active sessions (users who made requests in the last 15 minutes)
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-    const activeSessions = await this.getActiveSessionCount(fifteenMinutesAgo);
-
-    return {
-      error_rate: errorRate,
-      avg_response_time: avgResponseTime,
-      active_sessions: activeSessions
-    };
-  }
-
-  private async getRequestCount(since: Date): Promise<number> {
-    // Implement request count from logs or metrics storage
-    return 0;
-  }
-
-  private async getErrorCount(since: Date): Promise<number> {
-    // Implement error count from logs or metrics storage
-    return 0;
-  }
-
-  private async getAverageResponseTime(since: Date): Promise<number> {
-    // Implement average response time calculation from metrics storage
-    return 0;
-  }
-
-  private async getActiveSessionCount(since: Date): Promise<number> {
-    // Get count of unique users who made requests since the given date
-    return 0;
-  }
-
-  async getSystemConfig(): Promise<SystemConfig> {
-    const config = await this.systemConfigRepository.findOne({
-      order: { created_at: 'DESC' }
+  async getSystemConfig() {
+    const configs = await this.systemConfigRepository.find({
+      where: { is_active: true },
     });
+    return configs.reduce((acc, config) => {
+      acc[config.key] = config.value;
+      return acc;
+    }, {});
+  }
 
-    if (!config) {
-      // Create default config if none exists
-      const defaultConfig = this.systemConfigRepository.create({
-        min_produce_price: 0,
-        max_produce_price: 1000000,
-        max_offer_validity_days: 7,
-        min_transaction_amount: 0,
-        inspection_required_above: 10000,
-        auto_approve_below: 1000
+  async getAuditLogs(filterDto: AuditLogFilterDto) {
+    const query = this.adminAuditLogRepository.createQueryBuilder('log');
+
+    if (filterDto.start_date) {
+      query.andWhere('log.created_at >= :start_date', {
+        start_date: filterDto.start_date,
       });
-      return this.systemConfigRepository.save(defaultConfig);
     }
 
-    return config;
+    if (filterDto.end_date) {
+      query.andWhere('log.created_at <= :end_date', {
+        end_date: filterDto.end_date,
+      });
+    }
+
+    if (filterDto.action) {
+      query.andWhere('log.action = :action', { action: filterDto.action });
+    }
+
+    if (filterDto.admin_id) {
+      query.andWhere('log.admin_id = :admin_id', {
+        admin_id: filterDto.admin_id,
+      });
+    }
+
+    if (filterDto.entity_id) {
+      query.andWhere('log.entity_id = :entity_id', {
+        entity_id: filterDto.entity_id,
+      });
+    }
+
+    query.orderBy('log.created_at', 'DESC');
+
+    const [items, total] = await query.getManyAndCount();
+    return { items, total };
   }
 
-  private async saveSystemConfig(config: Partial<SystemConfig>): Promise<void> {
-    const currentConfig = await this.getSystemConfig();
-    await this.systemConfigRepository.update(currentConfig.id, config);
-  }
-
-  async getDashboardStats() {
-    const userStats = await this.getUserStats();
-    const produceStats = await this.getProduceStats();
-    const transactionStats = await this.getTransactionStats();
-    const offerStats = await this.getOfferStats();
-    const systemStats = await this.getSystemStats();
+  async getSystemMetrics() {
+    const [
+      totalUsers,
+      activeUsers,
+      blockedUsers,
+      totalProduce,
+      activeProduce,
+      totalTransactions,
+      completedTransactions,
+    ] = await Promise.all([
+      this.usersService.count(),
+      this.usersService.countByStatus(UserStatus.ACTIVE),
+      this.usersService.countByStatus(UserStatus.BLOCKED),
+      this.produceService.count(),
+      this.produceService.countByStatus(ProduceStatus.AVAILABLE),
+      this.transactionService.count(),
+      this.transactionService.countByStatus(TransactionStatus.COMPLETED),
+    ]);
 
     return {
-      users: userStats,
-      produce: produceStats,
-      transactions: transactionStats,
-      offers: offerStats,
-      system: systemStats
+      users: {
+        total: totalUsers,
+        active: activeUsers,
+        blocked: blockedUsers,
+      },
+      produce: {
+        total: totalProduce,
+        active: activeProduce,
+      },
+      transactions: {
+        total: totalTransactions,
+        completed: completedTransactions,
+      },
     };
+  }
+
+  async getUserStats() {
+    const stats = await this.usersService.getStats();
+    return stats;
+  }
+
+  async getTransactionStats() {
+    const stats = await this.transactionService.getStats();
+    return stats;
+  }
+
+  async getRevenueStats() {
+    const stats = await this.transactionService.getRevenueStats();
+    return stats;
+  }
+
+  async getProduceStats() {
+    const stats = await this.produceService.getStats();
+    return stats;
   }
 }

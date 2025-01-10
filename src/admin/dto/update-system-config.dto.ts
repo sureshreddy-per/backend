@@ -1,45 +1,22 @@
-import { IsNumber, IsOptional, Min, Max, IsString, IsNotEmpty } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsBoolean, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class UpdateSystemConfigDto {
+  @IsBoolean()
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  min_produce_price?: number;
+  maintenance_mode?: boolean;
 
-  @IsOptional()
   @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  max_produce_price?: number;
-
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
   @Min(1)
-  @Max(90)
-  max_offer_validity_days?: number;
+  max_file_size_mb?: number;
 
-  @IsOptional()
   @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  min_transaction_amount?: number;
-
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  inspection_required_above?: number;
+  @Min(1)
+  default_pagination_limit?: number;
 
+  @IsNumber()
   @IsOptional()
-  @IsNumber()
-  @Type(() => Number)
-  @Min(0)
-  auto_approve_below?: number;
-
-  @IsString()
-  @IsNotEmpty()
-  reason: string;
+  @Min(1)
+  cache_ttl_minutes?: number;
 } 

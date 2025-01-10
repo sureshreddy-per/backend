@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { InspectionBaseFeeConfig } from '../entities/base-fee-config.entity';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 
 @Injectable()
 export class InspectionBaseFeeService {
@@ -45,7 +45,7 @@ export class InspectionBaseFeeService {
       [ProduceCategory.FIBERS]: 600,
       [ProduceCategory.SUGARCANE]: 500,
       [ProduceCategory.FLOWERS]: 300,
-      [ProduceCategory.MEDICINAL]: 1000
+      [ProduceCategory.MEDICINAL_PLANTS]: 1000
     };
 
     const defaultConfig = this.inspectionBaseFeeRepository.create({
@@ -76,7 +76,7 @@ export class InspectionBaseFeeService {
         [ProduceCategory.FIBERS]: 600,
         [ProduceCategory.SUGARCANE]: 500,
         [ProduceCategory.FLOWERS]: 300,
-        [ProduceCategory.MEDICINAL]: 1000
+        [ProduceCategory.MEDICINAL_PLANTS]: 1000
       };
       return defaultFees[category] || 500;
     }

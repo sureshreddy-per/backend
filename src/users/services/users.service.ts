@@ -42,10 +42,6 @@ export class UsersService {
     return this.userRepository.findOne({ where: { email } });
   }
 
-  async findByPhone(phone: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { phone } });
-  }
-
   async findByMobileNumber(mobile_number: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { mobile_number } });
   }
@@ -127,5 +123,40 @@ export class UsersService {
     await this.userRepository.delete({
       scheduled_for_deletion_at: LessThanOrEqual(now)
     });
+  }
+
+  async count(): Promise<number> {
+    return this.userRepository.count();
+  }
+
+  async countByStatus(status: UserStatus): Promise<number> {
+    return this.userRepository.count({ where: { status } });
+  }
+
+  async getStats() {
+    const [
+      totalUsers,
+      activeUsers,
+      blockedUsers,
+      farmers,
+      buyers,
+      inspectors
+    ] = await Promise.all([
+      this.count(),
+      this.countByStatus(UserStatus.ACTIVE),
+      this.countByStatus(UserStatus.BLOCKED),
+      this.userRepository.count({ where: { role: UserRole.FARMER } }),
+      this.userRepository.count({ where: { role: UserRole.BUYER } }),
+      this.userRepository.count({ where: { role: UserRole.INSPECTOR } })
+    ]);
+
+    return {
+      total: totalUsers,
+      active: activeUsers,
+      blocked: blockedUsers,
+      farmers,
+      buyers,
+      inspectors
+    };
   }
 }

@@ -17,16 +17,16 @@ export class User {
   @Column()
   name: string;
 
-  @Column({ unique: true })
+  @Column({ unique: false, nullable: true })
   email: string;
 
   @Column({ unique: true })
-  @
   mobile_number: string;
 
   @Column({
     type: 'enum',
     enum: UserRole,
+    enumName: 'user_role_enum',
     default: UserRole.BUYER,
   })
   role: UserRole;
@@ -34,6 +34,7 @@ export class User {
   @Column({
     type: 'enum',
     enum: UserStatus,
+    enumName: 'user_status_enum',
     default: UserStatus.PENDING_VERIFICATION,
   })
   status: UserStatus;

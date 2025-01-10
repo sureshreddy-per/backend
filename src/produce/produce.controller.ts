@@ -4,25 +4,33 @@ import { CreateProduceDto } from './dto/create-produce.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { User } from '../users/entities/user.entity';
-import { Produce, ProduceStatus, ProduceCategory } from './entities/produce.entity';
+import { Produce } from './entities/produce.entity';
+import { ProduceCategory } from './enums/produce-category.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { UpdateProduceDto } from './dto/update-produce.dto';
+import { FarmersService } from '../farmers/farmers.service';
+import { ProduceStatus } from './enums/produce-status.enum';
 
 @Controller('produce')
 @UseGuards(JwtAuthGuard)
 export class ProduceController {
-  constructor(private readonly produceService: ProduceService) {}
+  constructor(
+    private readonly produceService: ProduceService,
+    private readonly farmerService: FarmersService
+  ) {}
 
   @Post()
-  create(
+  async create(
     @GetUser() user: User,
     @Body() createProduceDto: CreateProduceDto
   ) {
-    return this.produceService.create({
+    const farmer = await this.farmerService.findByUserId(user.id);
+    const produceData = {
       ...createProduceDto,
-      farmer_id: user.id,
-      status: createProduceDto.status || ProduceStatus.AVAILABLE
-    });
+      farmer_id: farmer.id,
+      status: ProduceStatus.AVAILABLE
+    };
+    return this.produceService.create(produceData);
   }
 
   @Get()
@@ -89,9 +97,12 @@ export class ProduceController {
     if (!produce) {
       throw new UnauthorizedException('Produce not found');
     }
-    if (produce.farmer_id !== user.id) {
+
+    const farmer = await this.farmerService.findByUserId(user.id);
+    if (produce.farmer_id !== farmer.id) {
       throw new UnauthorizedException('You can only update your own produce');
     }
+    
     return this.produceService.update(id, updateProduceDto);
   }
 
@@ -104,9 +115,12 @@ export class ProduceController {
     if (!produce) {
       throw new UnauthorizedException('Produce not found');
     }
-    if (produce.farmer_id !== user.id) {
+
+    const farmer = await this.farmerService.findByUserId(user.id);
+    if (produce.farmer_id !== farmer.id) {
       throw new UnauthorizedException('You can only delete your own produce');
     }
+    
     return this.produceService.deleteById(id);
   }
 }

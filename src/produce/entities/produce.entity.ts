@@ -3,27 +3,8 @@ import { Farmer } from '../../farmers/entities/farmer.entity';
 import { Farm } from '../../farmers/entities/farm.entity';
 import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
 import { QualityGrade } from '../enums/quality-grade.enum';
-
-export enum ProduceCategory {
-  FOOD_GRAINS = 'Food Grains',
-  OILSEEDS = 'Oilseeds',
-  FRUITS = 'Fruits',
-  VEGETABLES = 'Vegetables',
-  SPICES = 'Spices',
-  FIBERS = 'Fibers',
-  SUGARCANE = 'Sugarcane',
-  FLOWERS = 'Flowers',
-  MEDICINAL = 'Medicinal and Aromatic Plants'
-}
-
-export enum ProduceStatus {
-  AVAILABLE = 'AVAILABLE',
-  PENDING_INSPECTION = 'PENDING_INSPECTION',
-  REJECTED = 'REJECTED',
-  IN_PROGRESS = 'IN_PROGRESS',
-  SOLD = 'SOLD',
-  CANCELLED = 'CANCELLED'
-}
+import { ProduceCategory } from '../enums/produce-category.enum';
+import { ProduceStatus } from '../enums/produce-status.enum';
 
 @Entity('produce')
 export class Produce {

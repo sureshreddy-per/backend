@@ -6,6 +6,7 @@ import { OffersService } from './services/offers.service';
 import { DailyPriceService } from './services/daily-price.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ProduceModule } from '../produce/produce.module';
+import { OffersController } from './controllers/offers.controller';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { ProduceModule } from '../produce/produce.module';
     NotificationsModule,
     ProduceModule,
   ],
+  controllers: [OffersController],
   providers: [OffersService, DailyPriceService],
   exports: [OffersService, DailyPriceService],
 })

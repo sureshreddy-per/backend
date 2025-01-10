@@ -5,27 +5,27 @@ export class SystemConfig {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'min_produce_price', type: 'decimal', precision: 10, scale: 2 })
-  min_produce_price: number;
+  @Column({ unique: true })
+  key: string;
 
-  @Column({ name: 'max_produce_price', type: 'decimal', precision: 10, scale: 2 })
-  max_produce_price: number;
+  @Column('jsonb')
+  value: any;
 
-  @Column({ name: 'max_offer_validity_days', type: 'int' })
-  max_offer_validity_days: number;
+  @Column({ nullable: true })
+  description: string;
 
-  @Column({ name: 'min_transaction_amount', type: 'decimal', precision: 10, scale: 2 })
-  min_transaction_amount: number;
+  @Column({ default: true })
+  is_active: boolean;
 
-  @Column({ name: 'inspection_required_above', type: 'decimal', precision: 10, scale: 2 })
-  inspection_required_above: number;
+  @Column({ nullable: true })
+  created_by: string;
 
-  @Column({ name: 'auto_approve_below', type: 'decimal', precision: 10, scale: 2 })
-  auto_approve_below: number;
+  @Column({ nullable: true })
+  updated_by: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updated_at: Date;
 } 

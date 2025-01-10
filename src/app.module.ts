@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule as NestConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ThrottlerModule } from '@nestjs/throttler';
@@ -16,10 +16,14 @@ import { FarmersModule } from './farmers/farmers.module';
 import { BuyersModule } from './buyers/buyers.module';
 import { RatingsModule } from './ratings/ratings.module';
 import { InspectorsModule } from './inspectors/inspectors.module';
+import { InspectionModule } from './inspection/inspection.module';
+import { ConfigModule } from './config/config.module';
+import { HealthModule } from './health/health.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
+    NestConfigModule.forRoot({
       isGlobal: true,
     }),
     TypeOrmModule.forRoot(typeOrmConfig),
@@ -41,6 +45,10 @@ import { InspectorsModule } from './inspectors/inspectors.module';
     BuyersModule,
     RatingsModule,
     InspectorsModule,
+    InspectionModule,
+    ConfigModule,
+    HealthModule,
+    AdminModule,
   ],
 })
 export class AppModule {}

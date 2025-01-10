@@ -1,5 +1,5 @@
 import { IsNotEmpty, IsNumber, IsEnum, IsOptional, Min, IsUUID } from 'class-validator';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 
 export class CreateDailyPriceDto {
   @IsUUID()

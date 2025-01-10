@@ -1,20 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { InspectionBaseFee } from '../entities/inspection-base-fee.entity';
-import { InspectionDistanceFee } from '../entities/inspection-distance-fee.entity';
+import { InspectionBaseFeeConfig } from '../../config/entities/base-fee-config.entity';
+import { InspectionDistanceFeeConfig } from '../../config/entities/fee-config.entity';
 import { ProduceService } from '../../produce/services/produce.service';
 import { ConfigService } from '@nestjs/config';
 import { ProduceCategory } from '../../produce/enums/produce-category.enum';
-import { Equal } from 'typeorm';
 
 @Injectable()
 export class InspectionFeeService {
   constructor(
-    @InjectRepository(InspectionBaseFee)
-    private readonly baseFeeRepository: Repository<InspectionBaseFee>,
-    @InjectRepository(InspectionDistanceFee)
-    private readonly distanceFeeRepository: Repository<InspectionDistanceFee>,
+    @InjectRepository(InspectionBaseFeeConfig)
+    private readonly baseFeeRepository: Repository<InspectionBaseFeeConfig>,
+    @InjectRepository(InspectionDistanceFeeConfig)
+    private readonly distanceFeeRepository: Repository<InspectionDistanceFeeConfig>,
     private readonly produceService: ProduceService,
     private readonly configService: ConfigService,
   ) {}
@@ -54,25 +53,28 @@ export class InspectionFeeService {
     // Get distance-based fee
     const distanceFee = await this.distanceFeeRepository.findOne({
       where: {
-        min_distance: distance <= 50 ? 0 : 50,
-        max_distance: distance <= 50 ? 50 : 100,
         is_active: true,
       },
     });
 
     if (!distanceFee) {
-      throw new NotFoundException(`No distance fee configured for distance: ${distance}km`);
+      throw new NotFoundException(`No distance fee configured`);
     }
 
     // Calculate total fee
-    return baseFee.base_fee + distanceFee.fee;
+    const totalDistanceFee = Math.min(
+      distance * distanceFee.fee_per_km,
+      distanceFee.max_distance_fee
+    );
+
+    return baseFee.inspection_base_fee + totalDistanceFee;
   }
 
   async updateBaseFee(
     produce_category: ProduceCategory,
     base_fee: number,
     updated_by: string,
-  ): Promise<InspectionBaseFee> {
+  ): Promise<InspectionBaseFeeConfig> {
     // Deactivate current active fee for this category
     await this.baseFeeRepository.update(
       { produce_category, is_active: true },
@@ -82,7 +84,7 @@ export class InspectionFeeService {
     // Create new active fee
     const newFee = this.baseFeeRepository.create({
       produce_category,
-      base_fee,
+      inspection_base_fee: base_fee,
       is_active: true,
       updated_by,
     });
@@ -95,18 +97,17 @@ export class InspectionFeeService {
     max_distance: number,
     fee: number,
     updated_by: string,
-  ): Promise<InspectionDistanceFee> {
-    // Deactivate current active fee for this range
+  ): Promise<InspectionDistanceFeeConfig> {
+    // Deactivate current active fee
     await this.distanceFeeRepository.update(
-      { min_distance, max_distance, is_active: true },
+      { is_active: true },
       { is_active: false },
     );
 
     // Create new active fee
     const newFee = this.distanceFeeRepository.create({
-      min_distance,
-      max_distance,
-      fee,
+      fee_per_km: fee,
+      max_distance_fee: max_distance * fee,
       is_active: true,
       updated_by,
     });
