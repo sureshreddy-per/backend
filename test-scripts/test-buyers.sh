@@ -27,7 +27,7 @@ make_request "GET" "/buyers/$BUYER_ID" "{}" "$BUYER_TOKEN"
 
 # Test 4: Find nearby buyers
 print_test_header "Find Nearby Buyers"
-make_request "GET" "/buyers/nearby?lat=12.9716&lng=77.5946&radius=10" "{}" "$BUYER_TOKEN"
+make_request "GET" "/buyers/search/nearby?lat=12.9716&lng=77.5946&radius=10" "{}" "$BUYER_TOKEN"
 
 # Test 5: Update buyer preferences
 print_test_header "Update Buyer Preferences"

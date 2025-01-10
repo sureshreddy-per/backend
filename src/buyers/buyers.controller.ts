@@ -40,13 +40,26 @@ export class BuyersController {
     return buyer;
   }
 
-  @Get('nearby')
-  findNearbyBuyers(
+  @Get('search/nearby')
+  async findNearbyBuyers(
     @Query('lat', ParseFloatPipe) lat: number,
     @Query('lng', ParseFloatPipe) lng: number,
     @Query('radius', ParseFloatPipe) radiusKm: number,
   ) {
-    return this.buyersService.findNearbyBuyers(lat, lng, radiusKm);
+    try {
+      const buyers = await this.buyersService.findNearbyBuyers(lat, lng, radiusKm);
+      return {
+        success: true,
+        data: buyers,
+        count: buyers.length
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: 'Failed to find nearby buyers',
+        details: error.message
+      };
+    }
   }
 
   @Get('details')
