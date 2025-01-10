@@ -38,4 +38,4 @@ make_request "PUT" "/buyers/profile/preferences" '{
     "notification_enabled": true
 }' "$BUYER_TOKEN"
 
-echo -e "\n${GREEN}Buyer tests completed!${NC}" 
+echo -e "\n${GREEN}Buyer tests completed!${NC}"

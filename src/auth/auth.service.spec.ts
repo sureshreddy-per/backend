@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
-import { UsersService } from '../users/users.service';
+import { UsersService } from '../users/services/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service';
@@ -15,7 +15,7 @@ describe('AuthService', () => {
     mobile_number: '+1234567890',
     email: 'test@example.com',
     name: 'Test User',
-    role: UserRole.FARMER,
+    role: UserRole.BUYER,
     status: UserStatus.ACTIVE,
     block_reason: null,
     profile_picture: null,
@@ -24,7 +24,9 @@ describe('AuthService', () => {
     login_attempts: 0,
     last_login_attempt: null,
     created_at: new Date(),
-    updated_at: new Date()
+    updated_at: new Date(),
+    fcm_token: null,
+    avatar_url: null
   } as User;
 
   const mockUsersService = {
@@ -87,4 +89,4 @@ describe('AuthService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
-}); 
+});

@@ -78,7 +78,11 @@ export class AuthService {
 
     // If user has BUYER role, create buyer profile
     if (userData.role === UserRole.BUYER) {
-      await this.buyersService.createBuyer(user.id, { business_name: userData.name });
+      await this.buyersService.createBuyer(user.id, {
+        business_name: userData.name,
+        address: 'Address Pending Update',
+        lat_lng: '0.0000-0.0000'  // Default coordinates
+      });
     }
 
     // Generate OTP and request ID

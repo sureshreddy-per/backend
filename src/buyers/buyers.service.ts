@@ -60,30 +60,46 @@ export class BuyersService {
   }
 
   async findNearbyBuyers(lat: number, lng: number, radiusKm: number): Promise<Buyer[]> {
-    const buyers = await this.buyerRepository.find();
-    return buyers.filter(buyer => {
-      try {
-        if (!buyer.lat_lng) return false;
-        const [buyerLat, buyerLng] = buyer.lat_lng.split('-').map(coord => parseFloat(coord));
+    try {
+      console.log(`Finding buyers near lat: ${lat}, lng: ${lng}, radius: ${radiusKm}km`);
 
-        const R = 6371; // Earth's radius in km
-        const dLat = this.toRad(buyerLat - lat);
-        const dLon = this.toRad(buyerLng - lng);
-        const a =
-          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-          Math.cos(this.toRad(lat)) *
-            Math.cos(this.toRad(buyerLat)) *
-            Math.sin(dLon / 2) *
-            Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distance = R * c;
+      // Using raw SQL with Haversine formula for better performance
+      const buyers = await this.buyerRepository
+        .createQueryBuilder('buyer')
+        .where('buyer.is_active = :isActive', { isActive: true })
+        .andWhere('buyer.lat_lng IS NOT NULL')
+        .andWhere(
+          `(
+            6371 * 2 * asin(
+              sqrt(
+                power(sin((:lat * pi() / 180 - CAST(split_part(buyer.lat_lng, '-', 1) AS float) * pi() / 180) / 2), 2) +
+                  cos(:lat * pi() / 180) * cos(CAST(split_part(buyer.lat_lng, '-', 1) AS float) * pi() / 180) *
+                  power(sin((:lng * pi() / 180 - CAST(split_part(buyer.lat_lng, '-', 2) AS float) * pi() / 180) / 2), 2)
+                )
+              )
+            ) <= :radiusKm`,
+            { lat, lng, radiusKm }
+          )
+          .orderBy(
+            `(
+              6371 * 2 * asin(
+                sqrt(
+                  power(sin((:lat * pi() / 180 - CAST(split_part(buyer.lat_lng, '-', 1) AS float) * pi() / 180) / 2), 2) +
+                    cos(:lat * pi() / 180) * cos(CAST(split_part(buyer.lat_lng, '-', 1) AS float) * pi() / 180) *
+                    power(sin((:lng * pi() / 180 - CAST(split_part(buyer.lat_lng, '-', 2) AS float) * pi() / 180) / 2), 2)
+                  )
+                )
+              )`,
+              'ASC'
+            )
+            .getMany();
 
-        return distance <= radiusKm;
-      } catch (error) {
-        // Skip invalid lat_lng values
-        return false;
-      }
-    });
+      console.log(`Found ${buyers.length} buyers within ${radiusKm}km radius`);
+      return buyers;
+    } catch (error) {
+      console.error('Error in findNearbyBuyers:', error);
+      throw error;
+    }
   }
 
   async getBuyerDetails(userId: string): Promise<Buyer> {
