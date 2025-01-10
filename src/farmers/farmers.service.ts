@@ -101,7 +101,7 @@ export class FarmersService {
     const farmer = await this.findOne(farmerId);
     const bankAccount = this.bankAccountRepository.create({
       ...bankData,
-      farmer_id: farmer.id,
+      farmer_id: farmer.id
     });
     return this.bankAccountRepository.save(bankAccount);
   }
@@ -115,15 +115,13 @@ export class FarmersService {
     const farmer = await this.findOne(farmerId);
     const farm = this.farmRepository.create({
       ...farmData,
-      farmer_id: farmer.id,
+      farmer_id: farmer.id
     });
     return this.farmRepository.save(farm);
   }
 
   async updateFarm(id: string, updateFarmDto: UpdateFarmDto): Promise<Farm> {
-    const farm = await this.farmRepository.findOne({
-      where: { id },
-    });
+    const farm = await this.findFarm(id);
     if (!farm) {
       throw new NotFoundException(`Farm with ID ${id} not found`);
     }
