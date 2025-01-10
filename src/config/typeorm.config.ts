@@ -49,9 +49,10 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
     AdminAuditLog,
     SystemConfig,
   ],
-  synchronize: true,
+  synchronize: false,
   logging: true,
   migrationsRun: false,
+  dropSchema: false,
 };
 
 export default typeOrmConfig;

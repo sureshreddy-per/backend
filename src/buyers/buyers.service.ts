@@ -60,11 +60,33 @@ export class BuyersService {
   }
 
   async findNearbyBuyers(lat: number, lng: number, radiusKm: number): Promise<Buyer[]> {
-    const buyers = await this.buyerRepository.find();
+    if (!lat || !lng || !radiusKm) {
+      throw new Error('Invalid parameters: latitude, longitude and radius are required');
+    }
+
+    if (radiusKm <= 0 || radiusKm > 100) {
+      throw new Error('Radius must be between 0 and 100 kilometers');
+    }
+
+    const buyers = await this.buyerRepository.find({
+      where: {
+        is_active: true
+      }
+    });
+
     return buyers.filter(buyer => {
       try {
         if (!buyer.lat_lng) return false;
-        const [buyerLat, buyerLng] = buyer.lat_lng.split('-').map(coord => parseFloat(coord));
+        
+        const [buyerLat, buyerLng] = buyer.lat_lng.split('-').map(coord => {
+          const parsed = parseFloat(coord);
+          if (isNaN(parsed)) throw new Error('Invalid coordinates format');
+          return parsed;
+        });
+
+        if (Math.abs(buyerLat) > 90 || Math.abs(buyerLng) > 180) {
+          return false; // Invalid coordinates
+        }
 
         const R = 6371; // Earth's radius in km
         const dLat = this.toRad(buyerLat - lat);
@@ -80,7 +102,7 @@ export class BuyersService {
 
         return distance <= radiusKm;
       } catch (error) {
-        // Skip invalid lat_lng values
+        console.error(`Error calculating distance for buyer ${buyer.id}: ${error.message}`);
         return false;
       }
     });
