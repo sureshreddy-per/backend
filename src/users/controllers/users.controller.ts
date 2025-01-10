@@ -7,11 +7,18 @@ import { UserRole } from '../enums/user-role.enum';
 import { UpdateUserDto } from '../dto/update-user.dto';
 import { BlockUserDto } from '../dto/block-user.dto';
 import { ScheduleDeletionDto } from '../dto/schedule-deletion.dto';
+import { GetUser } from '../../auth/decorators/get-user.decorator';
+import { User } from '../entities/user.entity';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('me')
+  async getProfile(@GetUser() user: User) {
+    return this.usersService.findOne(user.id);
+  }
 
   @Get()
   @Roles(UserRole.ADMIN)

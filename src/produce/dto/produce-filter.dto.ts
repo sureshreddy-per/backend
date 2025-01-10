@@ -1,7 +1,7 @@
 import { IsOptional, IsNumber, IsString, Min, Max, IsEnum, IsIn, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ProduceCategory } from '../entities/produce.entity';
+import { ProduceCategory } from '../enums/produce-category.enum';
 import {
   FoodGrainsFilterDto,
   OilseedsFilterDto,

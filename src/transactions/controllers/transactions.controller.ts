@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, DefaultValuePipe, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, ParseIntPipe, DefaultValuePipe, UseGuards, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { TransactionService } from '../services/transaction.service';
 import { Transaction, TransactionStatus } from '../entities/transaction.entity';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
@@ -6,20 +6,30 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
 import { CreateTransactionDto } from '../dto/create-transaction.dto';
+import { OffersService } from '../../offers/services/offers.service';
 
 @Controller('transactions')
 @UseGuards(JwtAuthGuard)
 export class TransactionsController {
-  constructor(private readonly transactionService: TransactionService) {}
+  constructor(
+    private readonly transactionService: TransactionService,
+    private readonly offersService: OffersService
+  ) {}
 
   @Post()
-  create(
+  async create(
     @GetUser() user: User,
     @Body() createTransactionDto: CreateTransactionDto
   ): Promise<Transaction> {
+    const offer = await this.offersService.findOne(createTransactionDto.offer_id);
+    if (!offer) {
+      throw new NotFoundException('Offer not found');
+    }
+
     return this.transactionService.create({
       ...createTransactionDto,
-      buyer_id: user.id,
+      buyer_id: offer.buyer_id,
+      farmer_id: offer.farmer_id,
       status: TransactionStatus.PENDING
     });
   }

@@ -3,11 +3,12 @@ import { DailyPriceService } from '../services/daily-price.service';
 import { CreateDailyPriceDto } from '../dto/create-daily-price.dto';
 import { UpdateDailyPriceDto } from '../dto/update-daily-price.dto';
 import { DailyPrice } from '../entities/daily-price.entity';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../users/enums/user-role.enum';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 @Controller('daily-prices')
 @UseGuards(JwtAuthGuard, RolesGuard)

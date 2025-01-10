@@ -200,16 +200,16 @@ Suggestion: The service logic should check transaction status before allowing a 
    - Possibly update produce.qualityGrade after finalization.
 
 4. **Produce Category–Based Quality Parameters**  
-   - Tables for below produce_category:
-   - Food Grains Table: Variety, Moisture Content (%) , Foreign Matter (%) , Protein Content (%).
-   - Oilseeds Table: Oil Content (%), Seed Size (small/medium/large), Moisture Content (%).     
-   - Fruits Table: Sweetness (Brix level), Size (small/medium/large), Color (e.g., yellow/red), Ripeness Level (e.g., ripe/unripe).
-   - Vegetables Table: Freshness Level (e.g., fresh/slightly wilted), Size (small/medium/large), Color (e.g., green/red).
-   - Spices Table: Volatile Oil Content (%), Aroma Quality (e.g., strong/mild), Purity (%).
-   - Fibers Table: Staple Length (mm), Fiber Strength (g/tex), Trash Content (%).
-   - Sugarcane Table: Variety, Brix Content (%), Fiber Content (%), Stalk Length (cm).
-   - Flowers Table: Freshness Level (e.g., fresh/slightly wilted), Fragrance Quality (e.g., strong/mild), Stem Length (cm).
-   - Medicinal and Aromatic Plants Table: Essential Oil Yield (%), Purity of Extracts (%), Moisture Content (%).
+   - Json for below produce_category:
+   - Food Grains : Variety, Moisture Content (%) , Foreign Matter (%) , Protein Content (%).
+   - Oilseeds : Oil Content (%), Seed Size (small/medium/large), Moisture Content (%).     
+   - Fruits : Sweetness (Brix level), Size (small/medium/large), Color (e.g., yellow/red), Ripeness Level (e.g., ripe/unripe).
+   - Vegetables : Freshness Level (e.g., fresh/slightly wilted), Size (small/medium/large), Color (e.g., green/red).
+   - Spices : Volatile Oil Content (%), Aroma Quality (e.g., strong/mild), Purity (%).
+   - Fibers : Staple Length (mm), Fiber Strength (g/tex), Trash Content (%).
+   - Sugarcane : Variety, Brix Content (%), Fiber Content (%), Stalk Length (cm).
+   - Flowers : Freshness Level (e.g., fresh/slightly wilted), Fragrance Quality (e.g., strong/mild), Stem Length (cm).
+   - Medicinal and Aromatic Plants: Essential Oil Yield (%), Purity of Extracts (%), Moisture Content (%).
 
 
 QualityAssessments

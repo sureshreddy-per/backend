@@ -33,7 +33,7 @@ export class AutoOfferService {
       if (!dailyPrice) continue; // Skip if no active daily price
 
       // Calculate distance
-      const distance = this.calculateDistance(produce.location, buyer.location);
+      const distance = this.calculateDistance(produce.location, buyer.lat_lng);
 
       // Calculate offer price based on quality grade and daily price
       const price = this.calculateOfferPrice(
@@ -63,8 +63,8 @@ export class AutoOfferService {
   async generateOffersForBuyer(buyer: Buyer): Promise<void> {
     // Get all produce within 100km radius
     const produces = await this.produceService.findNearby(
-      parseFloat(buyer.location.split('-')[0]),
-      parseFloat(buyer.location.split('-')[1]),
+      parseFloat(buyer.lat_lng.split('-')[0]),
+      parseFloat(buyer.lat_lng.split('-')[1]),
       100
     );
 
@@ -78,7 +78,7 @@ export class AutoOfferService {
       if (!dailyPrice) continue; // Skip if no matching daily price
 
       // Calculate distance
-      const distance = this.calculateDistance(produce.location, buyer.location);
+      const distance = this.calculateDistance(produce.location, buyer.lat_lng);
 
       // Calculate offer price based on quality grade and daily price
       const price = this.calculateOfferPrice(

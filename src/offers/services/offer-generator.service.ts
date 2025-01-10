@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 import { QualityGrade } from '../../produce/enums/quality-grade.enum';
 import { DailyPriceService } from './daily-price.service';
 import { BuyersService } from '../../buyers/buyers.service';
@@ -69,7 +69,7 @@ export class OfferGeneratorService {
         }
 
         // Calculate distance
-        const distance = this.calculateDistance(produce.location, buyer.location);
+        const distance = this.calculateDistance(produce.location, buyer.lat_lng);
 
         // Calculate offer price based on quality grade and daily price
         const price = this.calculatePrice(
@@ -224,7 +224,7 @@ export class OfferGeneratorService {
         if (attributes.stem_length === 'optimal') multiplier *= 1.05;
         break;
 
-      case ProduceCategory.MEDICINAL:
+      case ProduceCategory.MEDICINAL_PLANTS:
         // Medicinal plants specific attributes
         if (attributes.active_compounds) {
           multiplier *= (1 + (attributes.active_compounds / 100) * 0.2);
@@ -300,7 +300,7 @@ export class OfferGeneratorService {
     // Calculate inspection fee based on distance and produce category
     const inspectionFee = this.calculateInspectionFee(
       produce.produce_category,
-      this.calculateDistance(produce.location, buyer.location)
+      this.calculateDistance(produce.location, buyer.lat_lng)
     );
 
     // Update produce with inspection request
@@ -325,7 +325,7 @@ export class OfferGeneratorService {
     // Always request inspection for high-value categories
     if ([
       ProduceCategory.SPICES,
-      ProduceCategory.MEDICINAL
+      ProduceCategory.MEDICINAL_PLANTS
     ].includes(produce.produce_category)) {
       return true;
     }
@@ -354,7 +354,7 @@ export class OfferGeneratorService {
       [ProduceCategory.FIBERS]: 200, // kg
       [ProduceCategory.SUGARCANE]: 1000, // kg
       [ProduceCategory.FLOWERS]: 100, // bunches
-      [ProduceCategory.MEDICINAL]: 50 // kg
+      [ProduceCategory.MEDICINAL_PLANTS]: 50 // kg
     };
 
     return produce.quantity > (thresholds[produce.produce_category] || 0);
@@ -377,7 +377,7 @@ export class OfferGeneratorService {
       [ProduceCategory.FIBERS]: 600,
       [ProduceCategory.SUGARCANE]: 500,
       [ProduceCategory.FLOWERS]: 300,
-      [ProduceCategory.MEDICINAL]: 1000
+      [ProduceCategory.MEDICINAL_PLANTS]: 1000
     };
 
     // Get base fee for category

@@ -286,12 +286,7 @@ CREATE TABLE synonyms (
 -- Create quality_grade enum if it doesn't exist
 DROP TYPE IF EXISTS quality_grade_enum CASCADE;
 CREATE TYPE quality_grade_enum AS ENUM (
-  'A',
-  'B',
-  'C',
-  'D',
-  'PENDING',
-  'REJECTED'
+  'GRADE_10', 'GRADE_9', 'GRADE_8', 'GRADE_7', 'GRADE_6', 'GRADE_5', 'GRADE_4', 'GRADE_3', 'GRADE_2', 'GRADE_1', 'PENDING', 'REJECTED'
 );
 
 -- Create quality_assessments table

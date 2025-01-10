@@ -230,7 +230,7 @@ export class ReportService {
 
   private async fetchProduceData(parameters: any) {
     const { date_range, filters } = parameters;
-    const produce = await this.produceService.findAll({
+    const produce = await this.produceService.findAndPaginate({
       where: {
         created_at: Between(date_range.start, date_range.end),
         ...filters
@@ -243,7 +243,7 @@ export class ReportService {
 
   private async fetchQualityData(parameters: any) {
     const { date_range, filters } = parameters;
-    const assessments = await this.produceService.findAll({
+    const assessments = await this.produceService.findAndPaginate({
       where: {
         created_at: Between(date_range.start, date_range.end),
         ...filters
@@ -264,7 +264,7 @@ export class ReportService {
         },
         relations: ['produce']
       }),
-      this.produceService.findAll({
+      this.produceService.findAndPaginate({
         where: {
           created_at: Between(date_range.start, date_range.end),
           ...filters
@@ -291,7 +291,7 @@ export class ReportService {
   private async fetchInspectionData(parameters: any) {
     const { date_range, filters } = parameters;
     const [assessments, inspectors] = await Promise.all([
-      this.produceService.findAll({
+      this.produceService.findAndPaginate({
         where: {
           created_at: Between(date_range.start, date_range.end),
           ...filters

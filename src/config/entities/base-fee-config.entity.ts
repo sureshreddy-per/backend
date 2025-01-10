@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 
 @Entity('inspection_base_fee_config')
 export class InspectionBaseFeeConfig {

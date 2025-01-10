@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsNumber, IsEnum, IsArray, IsUrl } from 'class-validator';
-import { ProduceStatus } from '../entities/produce.entity';
+import { ProduceStatus } from '../enums/produce-status.enum';
 
 export class UpdateProduceDto {
   @IsOptional()

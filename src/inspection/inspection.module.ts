@@ -5,8 +5,8 @@ import { InspectionFeeController } from './controllers/inspection-fee.controller
 import { InspectionService } from './services/inspection.service';
 import { InspectionFeeService } from './services/inspection-fee.service';
 import { InspectionRequest } from './entities/inspection-request.entity';
-import { InspectionBaseFee } from './entities/inspection-base-fee.entity';
-import { InspectionDistanceFee } from './entities/inspection-distance-fee.entity';
+import { InspectionBaseFeeConfig } from '../config/entities/base-fee-config.entity';
+import { InspectionDistanceFeeConfig } from '../config/entities/fee-config.entity';
 import { QualityModule } from '../quality/quality.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ProduceModule } from '../produce/produce.module';
@@ -16,8 +16,8 @@ import { ConfigModule } from '@nestjs/config';
   imports: [
     TypeOrmModule.forFeature([
       InspectionRequest,
-      InspectionBaseFee,
-      InspectionDistanceFee,
+      InspectionBaseFeeConfig,
+      InspectionDistanceFeeConfig,
     ]),
     QualityModule,
     NotificationsModule,

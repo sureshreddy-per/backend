@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ArrayContains } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ProduceSynonym } from '../entities/synonym.entity';
 
 @Injectable()
@@ -48,7 +48,7 @@ export class ProduceSynonymService {
     }
   }
 
-  async findCanonicalName(word: string): Promise<string | null> {
+  async findCanonicalName(word: string): Promise<string> {
     const lowercaseWord = word.toLowerCase();
     
     // Check cache first
@@ -57,12 +57,12 @@ export class ProduceSynonymService {
     }
 
     // If not in cache, check database
-    const synonym = await this.synonymRepository.findOne({
-      where: [
-        { canonical_name: lowercaseWord, is_active: true },
-        { words: ArrayContains([lowercaseWord]), is_active: true }
-      ]
-    });
+    const synonym = await this.synonymRepository
+      .createQueryBuilder('synonym')
+      .where('LOWER(synonym.canonical_name) = LOWER(:word)', { word: lowercaseWord })
+      .orWhere("synonym.words \\? :word", { word: lowercaseWord })
+      .andWhere('synonym.is_active = :isActive', { isActive: true })
+      .getOne();
 
     if (synonym) {
       // Update cache
@@ -70,7 +70,8 @@ export class ProduceSynonymService {
       return synonym.canonical_name;
     }
 
-    return null;
+    // If no synonym found, use the word itself as canonical name
+    return word;
   }
 
   async addSynonyms(
@@ -106,7 +107,7 @@ export class ProduceSynonymService {
     // Create new synonym
     const newSynonym = await this.synonymRepository.save({
       canonical_name: canonicalName,
-      words,
+      words: words,
       translations,
       is_active: true,
       updated_by: updatedBy

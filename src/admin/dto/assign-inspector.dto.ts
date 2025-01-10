@@ -1,12 +1,21 @@
-import { IsUUID, IsString, IsNotEmpty, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID, IsEnum } from 'class-validator';
+
+export enum InspectionPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+}
 
 export class AssignInspectorDto {
   @IsUUID()
   @IsNotEmpty()
   inspector_id: string;
 
+  @IsEnum(InspectionPriority)
+  @IsNotEmpty()
+  priority: InspectionPriority;
+
   @IsString()
   @IsNotEmpty()
-  @MinLength(10, { message: 'Reason must be at least 10 characters long' })
-  reason: string;
+  notes: string;
 } 

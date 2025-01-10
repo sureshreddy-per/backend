@@ -26,6 +26,7 @@ export class AdminController {
       req.user.id,
       user_id,
       actionDto.reason,
+      actionDto.duration_days || 0,
       req.ip
     );
     return { message: 'User blocked successfully' };
@@ -101,7 +102,8 @@ export class AdminController {
       req.user.id,
       produce_id,
       assignDto.inspector_id,
-      assignDto.reason,
+      assignDto.priority,
+      assignDto.notes,
       req.ip
     );
     return { message: 'Inspector assigned successfully' };
@@ -112,11 +114,9 @@ export class AdminController {
     @Body() configDto: UpdateSystemConfigDto,
     @Req() req: any
   ) {
-    const { reason, ...config } = configDto;
     await this.adminService.updateSystemConfig(
       req.user.id,
-      config,
-      reason,
+      configDto,
       req.ip
     );
     return { message: 'System configuration updated successfully' };
@@ -124,56 +124,36 @@ export class AdminController {
 
   @Get('system/config')
   async getSystemConfig() {
-    return this.adminService.getSystemConfig();
+    return await this.adminService.getSystemConfig();
   }
 
   @Get('audit-logs')
   async getAuditLogs(@Query() filterDto: AuditLogFilterDto) {
-    return this.adminService.getAuditLogs(
-      {
-        action: filterDto.action,
-        admin_id: filterDto.admin_id,
-        entity_type: filterDto.entity_type,
-        from_date: filterDto.from_date,
-        to_date: filterDto.to_date,
-      },
-      filterDto.page,
-      filterDto.limit
-    );
+    return await this.adminService.getAuditLogs(filterDto);
   }
 
   @Get('metrics')
   async getSystemMetrics() {
-    return this.adminService.getSystemMetrics();
+    return await this.adminService.getSystemMetrics();
   }
 
   @Get('stats/users')
   async getUserStats() {
-    const metrics = await this.adminService.getSystemMetrics();
-    return metrics.users;
-  }
-
-  @Get('stats/produce')
-  async getProduceStats() {
-    const metrics = await this.adminService.getSystemMetrics();
-    return metrics.produce;
+    return await this.adminService.getUserStats();
   }
 
   @Get('stats/transactions')
   async getTransactionStats() {
-    const metrics = await this.adminService.getSystemMetrics();
-    return metrics.transactions;
+    return await this.adminService.getTransactionStats();
   }
 
-  @Get('stats/offers')
-  async getOfferStats() {
-    const metrics = await this.adminService.getSystemMetrics();
-    return metrics.offers;
+  @Get('stats/revenue')
+  async getRevenueStats() {
+    return await this.adminService.getRevenueStats();
   }
 
-  @Get('stats/system')
-  async getSystemStats() {
-    const metrics = await this.adminService.getSystemMetrics();
-    return metrics.system;
+  @Get('stats/produce')
+  async getProduceStats() {
+    return await this.adminService.getProduceStats();
   }
 }

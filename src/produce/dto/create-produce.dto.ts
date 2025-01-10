@@ -1,13 +1,15 @@
 import { IsString, IsUUID, IsNumber, IsEnum, IsOptional, IsArray, IsDate } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ProduceCategory, ProduceStatus } from '../entities/produce.entity';
+import { ProduceCategory } from '../enums/produce-category.enum';
+import { ProduceStatus } from '../enums/produce-status.enum';
 import { QualityGrade } from '../enums/quality-grade.enum';
 import { Type } from 'class-transformer';
 
 export class CreateProduceDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsUUID()
-  farmer_id: string;
+  @IsOptional()
+  farmer_id?: string;
 
   @ApiPropertyOptional()
   @IsUUID()

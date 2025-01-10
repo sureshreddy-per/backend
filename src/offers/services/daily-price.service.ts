@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { DailyPrice } from '../entities/daily-price.entity';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 import { CreateDailyPriceDto } from '../dto/create-daily-price.dto';
 import { UpdateDailyPriceDto } from '../dto/update-daily-price.dto';
 

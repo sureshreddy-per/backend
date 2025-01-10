@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, UnauthorizedException, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, UnauthorizedException, Request, NotFoundException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -8,13 +8,23 @@ import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
 import { OffersService } from '../services/offers.service';
 import { CreateOfferDto } from '../dto/create-offer.dto';
+import { ProduceService } from '../../produce/services/produce.service';
 
 @ApiTags('Offers')
 @ApiBearerAuth()
 @Controller('offers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class OffersController {
-  constructor(private readonly offersService: OffersService) {}
+  constructor(
+    private readonly offersService: OffersService,
+    private readonly produceService: ProduceService
+  ) {}
+
+  @Post('admin/create')
+  @Roles(Role.ADMIN)
+  async createByAdmin(@Body() createOfferDto: CreateOfferDto) {
+    return this.offersService.create(createOfferDto);
+  }
 
   @Post()
   @Roles(Role.BUYER)
@@ -22,9 +32,15 @@ export class OffersController {
     @GetUser() user: User,
     @Body() createOfferDto: CreateOfferDto
   ) {
+    const produce = await this.produceService.findOne(createOfferDto.produce_id);
+    if (!produce) {
+      throw new NotFoundException('Produce not found');
+    }
+
     return this.offersService.create({
       ...createOfferDto,
       buyer_id: user.id,
+      farmer_id: produce.farmer_id,
     });
   }
 

@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindManyOptions, Repository } from 'typeorm';
 import { Offer, OfferStatus } from '../entities/offer.entity';
 import { BaseService } from '../../common/base.service';
+import { CreateOfferDto } from '../dto/create-offer.dto';
 
 @Injectable()
 export class OffersService extends BaseService<Offer> {
@@ -11,6 +12,14 @@ export class OffersService extends BaseService<Offer> {
     private readonly offerRepository: Repository<Offer>
   ) {
     super(offerRepository);
+  }
+
+  async create(createOfferDto: CreateOfferDto): Promise<Offer> {
+    const entity = this.offerRepository.create({
+      ...createOfferDto,
+      status: OfferStatus.PENDING,
+    });
+    return this.offerRepository.save(entity);
   }
 
   async findOne(options: FindManyOptions<Offer> | string) {
@@ -73,5 +82,11 @@ export class OffersService extends BaseService<Offer> {
       .where('produce.farmer_id = :farmerId', { farmerId })
       .orderBy('offer.created_at', 'DESC')
       .getMany();
+  }
+
+  async updateStatus(id: string, status: OfferStatus): Promise<Offer> {
+    const offer = await this.findOne(id);
+    offer.status = status;
+    return this.offerRepository.save(offer);
   }
 }

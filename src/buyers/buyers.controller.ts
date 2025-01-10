@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, ParseFloatPipe, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, ParseFloatPipe, UseGuards, UnauthorizedException, Put } from '@nestjs/common';
 import { BuyersService } from './buyers.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -71,5 +71,19 @@ export class BuyersController {
     @Param('offerId') offerId: string
   ) {
     return this.buyersService.getBuyerDetailsByOfferId(offerId, user.id);
+  }
+
+  @Put('profile/preferences')
+  @Roles(Role.BUYER)
+  async updatePreferences(
+    @GetUser() user: User,
+    @Body() updatePreferencesDto: Partial<{
+      min_price: number;
+      max_price: number;
+      categories: string[];
+      notification_enabled: boolean;
+    }>
+  ) {
+    return this.buyersService.updateBuyerDetails(user.id, updatePreferencesDto);
   }
 }

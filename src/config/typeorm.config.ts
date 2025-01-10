@@ -15,6 +15,10 @@ import { Rating } from '../ratings/entities/rating.entity';
 import { ProduceSynonym } from '../produce/entities/synonym.entity';
 import { Notification } from '../notifications/entities/notification.entity';
 import { DailyPrice } from '../offers/entities/daily-price.entity';
+import { InspectionBaseFeeConfig } from './entities/base-fee-config.entity';
+import { InspectionDistanceFeeConfig } from './entities/fee-config.entity';
+import { AdminAuditLog } from '../admin/entities/admin-audit-log.entity';
+import { SystemConfig } from '../admin/entities/system-config.entity';
 
 config();
 
@@ -40,6 +44,10 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
     ProduceSynonym,
     Notification,
     DailyPrice,
+    InspectionBaseFeeConfig,
+    InspectionDistanceFeeConfig,
+    AdminAuditLog,
+    SystemConfig,
   ],
   synchronize: true,
   logging: true,

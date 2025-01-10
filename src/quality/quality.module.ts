@@ -4,6 +4,7 @@ import { QualityAssessment } from './entities/quality-assessment.entity';
 import { QualityAssessmentService } from './services/quality-assessment.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ProduceModule } from '../produce/produce.module';
+import { QualityController } from './quality.controller';
 
 @Module({
   imports: [
@@ -11,6 +12,7 @@ import { ProduceModule } from '../produce/produce.module';
     NotificationsModule,
     ProduceModule,
   ],
+  controllers: [QualityController],
   providers: [
     QualityAssessmentService,
   ],

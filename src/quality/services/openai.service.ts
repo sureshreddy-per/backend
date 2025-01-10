@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 import { QualityGrade } from '../../produce/enums/quality-grade.enum';
 import { FoodGrainsFilterDto } from '../../produce/dto/category-filters.dto';
 import { OilseedsFilterDto } from '../../produce/dto/category-filters.dto';

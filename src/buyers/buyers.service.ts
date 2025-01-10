@@ -19,8 +19,8 @@ export class BuyersService {
     const buyers = await this.buyerRepository.find();
 
     return buyers.filter(buyer => {
-      if (!buyer.location) return false;
-      const [buyerLat, buyerLng] = buyer.location.split('-').map(coord => parseFloat(coord));
+      if (!buyer.lat_lng) return false;
+      const [buyerLat, buyerLng] = buyer.lat_lng.split('-').map(coord => parseFloat(coord));
 
       const R = 6371; // Earth's radius in km
       const dLat = this.toRad(buyerLat - lat);
@@ -62,22 +62,27 @@ export class BuyersService {
   async findNearbyBuyers(lat: number, lng: number, radiusKm: number): Promise<Buyer[]> {
     const buyers = await this.buyerRepository.find();
     return buyers.filter(buyer => {
-      if (!buyer.location) return false;
-      const [buyerLat, buyerLng] = buyer.location.split('-').map(coord => parseFloat(coord));
+      try {
+        if (!buyer.lat_lng) return false;
+        const [buyerLat, buyerLng] = buyer.lat_lng.split('-').map(coord => parseFloat(coord));
 
-      const R = 6371; // Earth's radius in km
-      const dLat = this.toRad(buyerLat - lat);
-      const dLon = this.toRad(buyerLng - lng);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(this.toRad(lat)) *
-          Math.cos(this.toRad(buyerLat)) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = R * c;
+        const R = 6371; // Earth's radius in km
+        const dLat = this.toRad(buyerLat - lat);
+        const dLon = this.toRad(buyerLng - lng);
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(this.toRad(lat)) *
+            Math.cos(this.toRad(buyerLat)) *
+            Math.sin(dLon / 2) *
+            Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        const distance = R * c;
 
-      return distance <= radiusKm;
+        return distance <= radiusKm;
+      } catch (error) {
+        // Skip invalid lat_lng values
+        return false;
+      }
     });
   }
 

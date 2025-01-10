@@ -23,7 +23,7 @@ export class Buyer {
   registration_number: string;
 
   @Column({ nullable: true })
-  location: string;
+  lat_lng: string;
 
   @Column({ nullable: true })
   location_name: string;

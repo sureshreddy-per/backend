@@ -1,15 +1,13 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 export enum AdminActionType {
-  USER_BLOCK = 'USER_BLOCK',
-  USER_UNBLOCK = 'USER_UNBLOCK',
-  USER_DELETE = 'USER_DELETE',
-  PRODUCE_DELETE = 'PRODUCE_DELETE',
-  PRODUCE_UPDATE = 'PRODUCE_UPDATE',
-  OFFER_CANCEL = 'OFFER_CANCEL',
-  TRANSACTION_CANCEL = 'TRANSACTION_CANCEL',
-  INSPECTION_ASSIGN = 'INSPECTION_ASSIGN',
-  SYSTEM_CONFIG_UPDATE = 'SYSTEM_CONFIG_UPDATE'
+  BLOCK_USER = 'BLOCK_USER',
+  UNBLOCK_USER = 'UNBLOCK_USER',
+  DELETE_PRODUCE = 'DELETE_PRODUCE',
+  CANCEL_OFFER = 'CANCEL_OFFER',
+  CANCEL_TRANSACTION = 'CANCEL_TRANSACTION',
+  ASSIGN_INSPECTOR = 'ASSIGN_INSPECTOR',
+  UPDATE_SYSTEM_CONFIG = 'UPDATE_SYSTEM_CONFIG',
 }
 
 @Entity('admin_audit_logs')
@@ -17,32 +15,30 @@ export class AdminAuditLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'admin_id' })
+  @Column()
   admin_id: string;
 
   @Column({
     type: 'enum',
-    enum: AdminActionType
+    enum: AdminActionType,
   })
   action: AdminActionType;
 
-  @Column({ name: 'entity_id', nullable: true })
+  @Column('uuid')
   entity_id: string;
 
-  @Column({ name: 'entity_type', nullable: true })
+  @Column('jsonb')
+  details: any;
+
+  @Column({ nullable: true })
   entity_type: string;
 
-  @Column('jsonb')
-  details: {
-    previous_state?: any;
-    new_state?: any;
-    reason?: string;
-    metadata?: Record<string, any>;
-  };
-
-  @Column({ name: 'ip_address', nullable: true })
+  @Column({ nullable: true })
   ip_address: string;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 } 

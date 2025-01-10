@@ -1,6 +1,6 @@
-import { IsNumber, Min, Max, IsEnum } from 'class-validator';
+import { IsNotEmpty, IsEnum, IsNumber, Min, Max } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { ProduceCategory } from '../../produce/entities/produce.entity';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 
 export class UpdateInspectionBaseFeeDto {
   @ApiProperty({
