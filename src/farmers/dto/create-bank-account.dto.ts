@@ -2,9 +2,10 @@ import { IsString, IsUUID, IsBoolean, IsOptional } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBankAccountDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsUUID()
-  farmer_id: string;
+  @IsOptional()
+  farmer_id?: string;
 
   @ApiProperty()
   @IsString()
