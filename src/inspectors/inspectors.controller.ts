@@ -10,6 +10,7 @@ import {
   ParseFloatPipe,
   UseGuards,
   UnauthorizedException,
+  NotFoundException,
 } from "@nestjs/common";
 import { InspectorsService } from "./inspectors.service";
 import { CreateInspectorDto } from "./dto/create-inspector.dto";
@@ -27,15 +28,33 @@ export class InspectorsController {
   constructor(private readonly inspectorsService: InspectorsService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
-  create(@Body() createInspectorDto: CreateInspectorDto) {
-    return this.inspectorsService.create(createInspectorDto);
+  @Roles(Role.INSPECTOR)
+  create(@GetUser() user: User, @Body() createInspectorDto: CreateInspectorDto) {
+    return this.inspectorsService.create({
+      name: user.name,
+      mobile_number: user.mobile_number,
+      location: createInspectorDto.location,
+      user_id: user.id,
+    });
   }
 
   @Get()
   @Roles(Role.ADMIN)
   findAll() {
     return this.inspectorsService.findAll();
+  }
+
+  @Get("profile")
+  @Roles(Role.INSPECTOR)
+  async getProfile(@GetUser() user: User) {
+    try {
+      return await this.inspectorsService.findByUserId(user.id);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new Error(`Error getting inspector profile: ${error.message}`);
+    }
   }
 
   @Get("nearby")
@@ -66,9 +85,9 @@ export class InspectorsController {
     @Param("id") id: string,
     @Body() updateInspectorDto: UpdateInspectorDto,
   ) {
-    const inspector = await this.inspectorsService.findOne(id);
+    const userInspector = await this.inspectorsService.findByUserId(user.id);
 
-    if (user.role !== Role.ADMIN && inspector.id !== user.id) {
+    if (user.role !== Role.ADMIN && userInspector.id !== id) {
       throw new UnauthorizedException(
         "You can only update your own inspector profile",
       );

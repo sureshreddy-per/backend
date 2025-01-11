@@ -6,20 +6,20 @@ export class Synonym {
   id: string;
 
   @Column({ name: 'canonical_name' })
-  canonicalName: string;
+  canonical_name: string;
 
   @Column()
   synonym: string;
 
-  @Column({ default: true })
-  isActive: boolean;
+  @Column({ name: 'is_active', default: true })
+  is_active: boolean;
 
   @Column({ nullable: true })
   language: string;
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @CreateDateColumn({ name: 'created_at' })
+  created_at: Date;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @UpdateDateColumn({ name: 'updated_at' })
+  updated_at: Date;
 }

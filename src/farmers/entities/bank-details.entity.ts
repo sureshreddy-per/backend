@@ -10,7 +10,7 @@ import {
 import { ApiProperty } from "@nestjs/swagger";
 import { Farmer } from "./farmer.entity";
 
-@Entity("bank_details")
+@Entity("bank_accounts")
 export class BankDetails {
   @PrimaryGeneratedColumn("uuid")
   @ApiProperty({ description: "Unique identifier for bank details" })

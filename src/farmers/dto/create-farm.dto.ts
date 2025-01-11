@@ -22,7 +22,8 @@ export class CreateFarmDto {
 
   @ApiProperty()
   @IsString()
-  address: string;
+  @IsOptional()
+  address?: string;
 
   @ApiPropertyOptional()
   @IsString()

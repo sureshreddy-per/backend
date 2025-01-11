@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  JoinColumn,
+  OneToOne,
 } from "typeorm";
+import { User } from "../../users/entities/user.entity";
 
 @Entity("inspectors")
 export class Inspector {
@@ -19,6 +22,13 @@ export class Inspector {
 
   @Column()
   mobile_number: string;
+
+  @Column({ name: "user_id" })
+  user_id: string;
+
+  @OneToOne(() => User)
+  @JoinColumn({ name: "user_id" })
+  user: User;
 
   @CreateDateColumn({ name: "created_at" })
   created_at: Date;

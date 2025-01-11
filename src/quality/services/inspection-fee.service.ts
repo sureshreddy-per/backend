@@ -3,8 +3,9 @@ import { ProduceCategory } from "../../produce/enums/produce-category.enum";
 
 @Injectable()
 export class InspectionFeeService {
-  public readonly BASE_FEE = 50; // Base inspection fee in currency units
-  private readonly DISTANCE_RATE = 2; // Rate per km in currency units
+  private base_fee = 50; // Base inspection fee in currency units
+  private distance_rate = 2; // Rate per km in currency units
+  private max_distance_fee = 500; // Maximum distance fee
   private readonly CATEGORY_MULTIPLIERS = {
     [ProduceCategory.FOOD_GRAINS]: 1.0,
     [ProduceCategory.VEGETABLES]: 1.2,
@@ -22,8 +23,8 @@ export class InspectionFeeService {
     distance_km: number;
   }): Promise<{ base_fee: number; distance_fee: number; total_fee: number }> {
     const categoryMultiplier = this.CATEGORY_MULTIPLIERS[data.category] || 1.0;
-    const baseFee = this.BASE_FEE * categoryMultiplier;
-    const distanceFee = data.distance_km * this.DISTANCE_RATE;
+    const baseFee = this.base_fee * categoryMultiplier;
+    const distanceFee = Math.min(data.distance_km * this.distance_rate, this.max_distance_fee);
     const totalFee = baseFee + distanceFee;
 
     return {
@@ -34,6 +35,31 @@ export class InspectionFeeService {
   }
 
   getBaseFee(): number {
-    return this.BASE_FEE;
+    return this.base_fee;
+  }
+
+  getDistanceFeeConfig(): { fee_per_km: number; max_fee: number } {
+    return {
+      fee_per_km: this.distance_rate,
+      max_fee: this.max_distance_fee,
+    };
+  }
+
+  updateBaseFee(fee: number): void {
+    if (fee <= 0) {
+      throw new Error("Base fee must be greater than 0");
+    }
+    this.base_fee = fee;
+  }
+
+  updateDistanceFeeConfig(config: { fee_per_km: number; max_fee: number }): void {
+    if (config.fee_per_km <= 0) {
+      throw new Error("Fee per km must be greater than 0");
+    }
+    if (config.max_fee <= 0) {
+      throw new Error("Max fee must be greater than 0");
+    }
+    this.distance_rate = config.fee_per_km;
+    this.max_distance_fee = config.max_fee;
   }
 } 

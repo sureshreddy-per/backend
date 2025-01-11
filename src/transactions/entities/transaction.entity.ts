@@ -8,7 +8,7 @@ import {
   JoinColumn,
 } from "typeorm";
 import { Offer } from "../../offers/entities/offer.entity";
-import { Produce } from '../../produce';
+import { Produce } from '../../produce/entities/produce.entity';
 
 export enum TransactionStatus {
   PENDING = "PENDING",

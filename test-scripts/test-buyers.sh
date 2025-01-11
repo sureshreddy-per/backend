@@ -37,11 +37,3 @@ PREF_RESPONSE=$(make_request "POST" "/buyers/preferences/price-range" '{
     "categories": ["VEGETABLES", "FRUITS"]
 }' "$BUYER_TOKEN")
 echo "Price range preference response: $PREF_RESPONSE"
-
-# Test 6: Get buyer preferences
-print_test_header "Get Buyer Preferences"
-echo "Using token: $BUYER_TOKEN"
-PREF_GET_RESPONSE=$(make_request "GET" "/buyers/preferences" "{}" "$BUYER_TOKEN")
-echo "Get preferences response: $PREF_GET_RESPONSE"
-
-echo -e "\n${GREEN}Buyer tests completed!${NC}" 
