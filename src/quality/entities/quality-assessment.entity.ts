@@ -33,10 +33,10 @@ export class QualityAssessment {
   @Column("float")
   confidence_level: number;
 
-  @Column("simple-array", { nullable: true })
+  @Column("text", { array: true, default: [] })
   defects: string[];
 
-  @Column("simple-array", { nullable: true })
+  @Column("text", { array: true, default: [] })
   recommendations: string[];
 
   @Column({ nullable: true })
