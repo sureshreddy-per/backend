@@ -3,15 +3,19 @@
 # Set API base URL
 API_BASE_URL="http://localhost:3000/api"
 
+# Enable debug output
+DEBUG=true
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
 # Print functions
 print_error() {
-    echo -e "${RED}ERROR: $1${NC}"
+    echo -e "${RED}ERROR: $1${NC}" >&2
 }
 
 print_success() {
@@ -22,8 +26,18 @@ print_warning() {
     echo -e "${YELLOW}WARNING: $1${NC}"
 }
 
+print_info() {
+    echo -e "${BLUE}$1${NC}"
+}
+
 print_header() {
-    echo -e "\n${GREEN}$1${NC}"
+    echo -e "\n${BLUE}$1${NC}"
+}
+
+print_debug() {
+    if [ "${DEBUG:-false}" = "true" ]; then
+        echo -e "Debug - $1" >&2
+    fi
 }
 
 print_test_header() {
@@ -36,158 +50,148 @@ make_request() {
     local endpoint="$2"
     local data="$3"
     local token="$4"
-    local response=""
-    local http_code=""
-    local headers=""
-    local body=""
-    
+
     # Remove /api prefix if present
     endpoint=${endpoint#/api}
     # Remove leading slash if present
     endpoint=${endpoint#/}
-    local full_url="${API_BASE_URL}/${endpoint}"
-    
-    # Debug output
-    >&2 echo "Debug - Request details:"
-    >&2 echo "Method: $method"
-    >&2 echo "Endpoint: ${full_url}"
-    >&2 echo "Data: $data"
-    [ -n "$token" ] && >&2 echo "Token: ${token:0:20}..."
-    
-    # Temporary file for response
-    local tmp_file=$(mktemp)
-    
-    # Build curl command
+
     local curl_cmd="curl -s -X $method"
     curl_cmd+=" -H 'Content-Type: application/json'"
+    curl_cmd+=" -H 'Accept: application/json'"
     
     if [ -n "$token" ]; then
-        # Remove any newlines and whitespace from token
-        token=$(echo "$token" | tr -d '\n' | tr -d ' ')
         curl_cmd+=" -H 'Authorization: Bearer $token'"
     fi
     
     if [ -n "$data" ]; then
-        # Properly escape the data
-        data=$(echo "$data" | sed 's/"/\\"/g')
-        curl_cmd+=" -d \"$data\""
+        # Write data to a temporary file to avoid escaping issues
+        local data_file=$(mktemp)
+        echo "$data" > "$data_file"
+        curl_cmd+=" --data-binary @$data_file"
+    fi
+
+    local headers_file=$(mktemp)
+    local body_file=$(mktemp)
+    local url="$API_BASE_URL/$endpoint"
+    
+    # Execute curl command and save response
+    eval "$curl_cmd -o '$body_file' '$url'"
+    local status_code=$(curl -s -o /dev/null -w "%{http_code}" -X "$method" \
+        -H "Content-Type: application/json" \
+        -H "Accept: application/json" \
+        ${token:+-H "Authorization: Bearer $token"} \
+        ${data:+--data-binary @"$data_file"} \
+        "$url")
+    
+    print_debug "Request details:"
+    print_debug "Method: $method"
+    print_debug "Endpoint: $url"
+    if [ -n "$data" ]; then
+        print_debug "Data: $data"
+    fi
+    if [ -n "$token" ]; then
+        print_debug "Token: $token"
+    fi
+    print_debug "Curl command:"
+    print_debug "$curl_cmd -o '$body_file' '$url'"
+    
+    print_debug "HTTP Status Code: $status_code"
+    print_debug "Response Body:"
+    cat "$body_file"
+    
+    # Clean up data file if it exists
+    if [ -n "$data" ]; then
+        rm -f "$data_file"
     fi
     
-    # Add output handling
-    curl_cmd+=" -D '${tmp_file}.headers'"
-    curl_cmd+=" -o '${tmp_file}.body'"
-    curl_cmd+=" -w '%{http_code}'"
-    curl_cmd+=" '${full_url}'"
-    curl_cmd+=" > '${tmp_file}.code'"
-    
-    # Debug the curl command
-    >&2 echo "Debug - Curl command:"
-    >&2 echo "$curl_cmd"
-    
-    # Execute the curl command
-    eval "$curl_cmd"
-    
-    # Read status code, headers and body
-    http_code=$(cat "${tmp_file}.code")
-    headers=$(cat "${tmp_file}.headers")
-    body=$(cat "${tmp_file}.body")
-    
-    # Debug output
-    >&2 echo "Debug - HTTP Status Code: $http_code"
-    >&2 echo "Debug - Response Headers:"
-    >&2 echo "$headers"
-    >&2 echo "Debug - Response Body:"
-    >&2 echo "$body"
-    
-    # Cleanup temp files
-    rm -f "${tmp_file}" "${tmp_file}.headers" "${tmp_file}.body" "${tmp_file}.code"
-    
-    # Check if the response is empty
-    if [ -z "$body" ] && [ "$http_code" != "204" ]; then
-        >&2 echo "Error: Empty response received (Status Code: $http_code)"
+    if [ "$status_code" -lt 200 ] || [ "$status_code" -ge 300 ]; then
+        print_error "Request failed with status code $status_code"
         return 1
     fi
     
-    # Check if the status code indicates success
-    if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
-        >&2 echo "Error: Request failed with status code $http_code"
-        if [ -n "$body" ]; then
-            echo "$body"
-        fi
+    # Check if response is empty
+    if [ ! -s "$body_file" ]; then
+        print_error "Empty response received"
         return 1
     fi
     
-    # If we have a body, check if it's valid JSON
-    if [ -n "$body" ]; then
-        if ! echo "$body" | jq . >/dev/null 2>&1; then
-            >&2 echo "Error: Invalid JSON response"
-            >&2 echo "Raw response: $body"
-            return 1
-        fi
-        echo "$body"
+    # Validate JSON response
+    local response
+    response=$(cat "$body_file")
+    if ! echo "$response" | jq '.' >/dev/null 2>&1; then
+        print_error "Invalid JSON response"
+        print_debug "Raw response: $response"
+        return 1
     fi
     
+    cat "$body_file"
     return 0
 }
 
 # Get auth token with proper error handling
 get_auth_token() {
-    local mobile="$1"
-    local role="$2"
-    local name="Test ${role}"
-    local email="test.$(echo "$role" | tr '[:upper:]' '[:lower:]')@test.com"
-    local token=""
+    local mobile_number="$1"
+    local name="$2"
+    local role="$3"
+    local email="$4"
     
-    # Check mobile number first
-    local check_mobile_data="{\"mobile_number\":\"$mobile\"}"
-    local check_response=$(make_request "POST" "/auth/check-mobile" "$check_mobile_data")
-    
+    # Step 1: Check if mobile number is registered
+    local check_response
+    check_response=$(make_request "POST" "/auth/check-mobile" "{\"mobile_number\":\"$mobile_number\"}")
     if [ $? -ne 0 ]; then
-        print_warning "Mobile check failed, proceeding with registration"
+        print_error "Failed to check mobile number"
+        return 1
     fi
     
-    # Register user
-    local register_data="{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"$email\"}"
-    local register_response=$(make_request "POST" "/auth/register" "$register_data")
+    local is_registered
+    is_registered=$(echo "$check_response" | jq -r '.isRegistered // false')
     
-    if [ $? -ne 0 ]; then
-        print_warning "Registration failed, user might already exist"
+    # Step 2: Register if not registered
+    if [ "$is_registered" = "false" ]; then
+        local register_data="{\"mobile_number\":\"$mobile_number\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"$email\"}"
+        local register_response
+        register_response=$(make_request "POST" "/auth/register" "$register_data")
+        if [ $? -ne 0 ]; then
+            print_error "Failed to register user"
+            return 1
+        fi
     fi
     
-    # Request OTP
-    local otp_data="{\"mobile_number\":\"$mobile\"}"
-    local otp_response=$(make_request "POST" "/auth/otp/request" "$otp_data")
-    
+    # Step 3: Request OTP
+    local otp_response
+    otp_response=$(make_request "POST" "/auth/otp/request" "{\"mobile_number\":\"$mobile_number\"}")
     if [ $? -ne 0 ]; then
         print_error "Failed to request OTP"
         return 1
     fi
     
-    # Extract OTP from response message
-    local otp=$(echo "$otp_response" | jq -r '.message' | grep -o '[0-9]\{6\}')
+    local otp
+    otp=$(echo "$otp_response" | jq -r '.message' | sed -n 's/.*OTP sent successfully: \([0-9]\{6\}\).*/\1/p')
     if [ -z "$otp" ]; then
         print_error "Could not extract OTP from response"
+        print_debug "OTP Response: $otp_response"
         return 1
     fi
     
-    # Verify OTP and get token
-    local verify_data="{\"mobile_number\":\"$mobile\",\"otp\":\"$otp\"}"
-    local verify_response=$(make_request "POST" "/auth/otp/verify" "$verify_data")
-    
+    # Step 4: Verify OTP
+    local verify_response
+    verify_response=$(make_request "POST" "/auth/otp/verify" "{\"mobile_number\":\"$mobile_number\",\"otp\":\"$otp\"}")
     if [ $? -ne 0 ]; then
         print_error "Failed to verify OTP"
         return 1
     fi
     
-    # Extract token from verify response
-    token=$(echo "$verify_response" | jq -r '.token')
-    if [ -z "$token" ] || [ "$token" = "null" ]; then
+    local token
+    token=$(echo "$verify_response" | jq -r '.token // empty')
+    if [ -z "$token" ]; then
         print_error "Could not extract token from response"
+        print_debug "Verify Response: $verify_response"
         return 1
     fi
     
-    # Clean and return the token
-    echo "$token" | tr -d '\n' | tr -d ' '
+    print_success "Got $role token: ${token:0:20}..."
+    echo "$verify_response"
     return 0
 }
 
@@ -259,10 +263,10 @@ print_header "Testing: Offer Endpoints"
 # Get tokens for different roles
 print_test_header "Getting Farmer Token"
 FARMER_TOKEN=""
-FARMER_TOKEN_RESPONSE=$(get_auth_token "+1111222233" "FARMER")
+FARMER_TOKEN_RESPONSE=$(get_auth_token "+1111222233" "Test FARMER" "FARMER" "test.farmer@test.com")
 if [ $? -eq 0 ]; then
     FARMER_TOKEN="$FARMER_TOKEN_RESPONSE"
-    print_success "Got farmer token: ${FARMER_TOKEN:0:20}..."
+    print_success "Got farmer token"
 else
     print_error "Failed to get farmer token"
     exit 1
@@ -270,10 +274,10 @@ fi
 
 print_test_header "Getting Buyer Token"
 BUYER_TOKEN=""
-BUYER_TOKEN_RESPONSE=$(get_auth_token "+1111222244" "BUYER")
+BUYER_TOKEN_RESPONSE=$(get_auth_token "+1111222244" "Test BUYER" "BUYER" "test.buyer@test.com")
 if [ $? -eq 0 ]; then
     BUYER_TOKEN="$BUYER_TOKEN_RESPONSE"
-    print_success "Got buyer token: ${BUYER_TOKEN:0:20}..."
+    print_success "Got buyer token"
 else
     print_error "Failed to get buyer token"
     exit 1
@@ -281,10 +285,10 @@ fi
 
 print_test_header "Getting Admin Token"
 ADMIN_TOKEN=""
-ADMIN_TOKEN_RESPONSE=$(get_auth_token "+1111222255" "ADMIN")
+ADMIN_TOKEN_RESPONSE=$(get_auth_token "+1111222255" "Test ADMIN" "ADMIN" "test.admin@test.com")
 if [ $? -eq 0 ]; then
     ADMIN_TOKEN="$ADMIN_TOKEN_RESPONSE"
-    print_success "Got admin token: ${ADMIN_TOKEN:0:20}..."
+    print_success "Got admin token"
 else
     print_error "Failed to get admin token"
     exit 1
@@ -307,16 +311,16 @@ else
     echo "Debug - Error Response: $BUYER_UPDATE_RESPONSE"
 fi
 
-# Create test produce
-echo -e "\nTesting: Creating Test Produce"
+# Testing: Creating Test Produce
+print_header "Creating Test Produce"
 PRODUCE_DATA='{
-    "name": "Offer Test Produce",
-    "description": "Test produce for offers",
+    "name": "Notification Test Produce",
+    "description": "Test produce for notifications",
     "product_variety": "Test Variety",
     "produce_category": "VEGETABLES",
     "quantity": 100,
     "unit": "KG",
-    "price_per_unit": 45.00,
+    "price_per_unit": 50,
     "location": "12.9716,77.5946",
     "location_name": "Test Farm",
     "images": ["https://example.com/test-image1.jpg"],
@@ -325,149 +329,100 @@ PRODUCE_DATA='{
 
 PRODUCE_RESPONSE=$(make_request "POST" "/produce" "$PRODUCE_DATA" "$FARMER_TOKEN")
 if [ $? -eq 0 ]; then
-    echo "✓ Created test produce"
-    echo "Debug - Produce Response: $PRODUCE_RESPONSE"
+    print_success "Created test produce"
+    print_debug "Produce Response: $PRODUCE_RESPONSE"
     PRODUCE_ID=$(echo "$PRODUCE_RESPONSE" | jq -r '.id')
-    echo "Debug - Produce ID: $PRODUCE_ID"
+    print_debug "Produce ID: $PRODUCE_ID"
 else
-    echo "ERROR: Failed to create produce"
-    echo "Debug - Error Response: $PRODUCE_RESPONSE"
-    cleanup
+    print_error "Failed to create test produce"
     exit 1
 fi
 
-# Wait for AI assessment and auto-offer generation
-echo -e "\nWaiting for AI assessment and auto-offer generation..."
-sleep 15  # Increased wait time to ensure AI assessment completes
+print_header "Waiting for AI Assessment and Auto-Offer Generation"
+print_info "Waiting 15 seconds for AI assessment and auto-offer generation..."
+sleep 15
 
-# Create test offer directly
-echo -e "\nTesting: Creating Test Offer"
-OFFER_DATA='{
-    "produce_id": "'$PRODUCE_ID'",
-    "price": 45.00,
-    "quantity": 100,
-    "message": "Test offer for produce",
-    "metadata": {
-        "inspection_result": {
-            "quality_grade": 6,
-            "distance_km": 0,
-            "inspection_fee": 60
-        }
-    }
-}'
-
-OFFER_RESPONSE=$(make_request "POST" "/offers" "$OFFER_DATA" "$BUYER_TOKEN")
-if [ $? -eq 0 ]; then
-    echo "✓ Created test offer"
-    echo "Debug - Offer Response: $OFFER_RESPONSE"
-    OFFER_ID=$(echo "$OFFER_RESPONSE" | jq -r '.id')
-    echo "Debug - Offer ID: $OFFER_ID"
-else
-    echo "ERROR: Failed to create offer"
-    echo "Debug - Error Response: $OFFER_RESPONSE"
-    cleanup
-    exit 1
-fi
-
-# Wait for AI assessment and auto-offer generation
-echo -e "\nWaiting for AI assessment and auto-offer generation..."
-sleep 15  # Increased wait time to ensure AI assessment completes
-
-# Function to get offers with retry
+print_header "Getting All Offers"
 get_offers_with_retry() {
     local max_attempts=5
     local attempt=1
     local wait_time=5
-
+    
     while [ $attempt -le $max_attempts ]; do
-        echo "Attempt $attempt to get offers..."
+        print_debug "Attempt $attempt to get offers"
         OFFERS_RESPONSE=$(make_request "GET" "/offers" "" "$BUYER_TOKEN")
         if [ $? -eq 0 ]; then
             local total_offers=$(echo "$OFFERS_RESPONSE" | jq -r '.total')
             if [ "$total_offers" -gt 0 ]; then
-                echo "✓ Found $total_offers offers"
-                echo "Debug - Offers Response: $OFFERS_RESPONSE"
+                echo "$OFFERS_RESPONSE"
                 return 0
             fi
         fi
-        echo "No valid offers found, waiting $wait_time seconds before retry..."
-        sleep $wait_time
+        
+        if [ $attempt -lt $max_attempts ]; then
+            print_info "No offers found yet, waiting $wait_time seconds before retry..."
+            sleep $wait_time
+        fi
         attempt=$((attempt + 1))
     done
-    echo "ERROR: No valid offers found after $max_attempts attempts"
+    
     return 1
 }
 
-# Wait for AI assessment and auto-offer generation
-echo -e "\nWaiting for AI assessment and auto-offer generation..."
-sleep 15  # Increased wait time to ensure AI assessment completes
-
-# Get all offers
-echo -e "\nTesting: Getting All Offers"
-if ! get_offers_with_retry; then
-    echo "ERROR: Failed to get offers"
-    cleanup
-    exit 1
-fi
-
-# Get the first offer ID
-OFFER_ID=$(echo "$OFFERS_RESPONSE" | jq -r '.items[0].id')
-if [ -z "$OFFER_ID" ] || [ "$OFFER_ID" = "null" ]; then
-    echo "ERROR: No valid offer ID found"
-    cleanup
-    exit 1
-fi
-
-# Test rejecting an offer
-echo -e "\nTesting: Rejecting Offer"
-REJECT_DATA='{
-    "reason": "Test rejection"
-}'
-REJECT_RESPONSE=$(make_request "POST" "/offers/$OFFER_ID/reject" "$REJECT_DATA" "$BUYER_TOKEN")
+OFFERS_RESPONSE=$(get_offers_with_retry)
 if [ $? -eq 0 ]; then
-    echo "✓ Rejected offer"
-    echo "Debug - Reject Response: $REJECT_RESPONSE"
+    print_success "Got offers"
+    print_debug "Offers Response: $OFFERS_RESPONSE"
+    OFFER_ID=$(echo "$OFFERS_RESPONSE" | jq -r '.items[0].id')
+    if [ -n "$OFFER_ID" ] && [ "$OFFER_ID" != "null" ]; then
+        print_debug "First Offer ID: $OFFER_ID"
+    else
+        print_error "No valid offer ID found"
+        exit 1
+    fi
 else
-    echo "ERROR: Failed to reject offer"
-    echo "Debug - Error Response: $REJECT_RESPONSE"
-    cleanup
+    print_error "Failed to get offers"
     exit 1
+fi
+
+# Test: Reject Offer
+print_header "Rejecting Offer"
+REJECT_DATA="{\"reason\":\"Test rejection\"}"
+REJECT_RESPONSE=$(make_request "POST" "/offers/$OFFER_ID/reject" "$BUYER_TOKEN" "$REJECT_DATA")
+if [ $? -eq 0 ]; then
+    print_success "Offer rejected successfully"
+else
+    print_error "Failed to reject offer"
+    echo "Debug - Error Response: $REJECT_RESPONSE"
 fi
 
 # Wait for new auto-offer generation
-echo -e "\nWaiting for new auto-offer generation..."
-sleep 15
+echo "Waiting 10 seconds for new auto-offer generation..."
+sleep 10
 
 # Get all offers again
-echo -e "\nTesting: Getting All Offers Again"
-if ! get_offers_with_retry; then
-    echo "ERROR: Failed to get offers"
-    cleanup
+OFFERS_RESPONSE=$(get_offers_with_retry)
+if [ $? -ne 0 ]; then
+    print_error "Failed to get offers after rejection"
     exit 1
 fi
 
-# Get the first offer ID
-OFFER_ID=$(echo "$OFFERS_RESPONSE" | jq -r '.items[0].id')
-if [ -z "$OFFER_ID" ] || [ "$OFFER_ID" = "null" ]; then
-    echo "ERROR: No valid offer ID found"
-    cleanup
+# Extract the new offer ID
+NEW_OFFER_ID=$(echo "$OFFERS_RESPONSE" | jq -r '.items[0].id')
+if [ -z "$NEW_OFFER_ID" ] || [ "$NEW_OFFER_ID" = "null" ]; then
+    print_error "No valid offer ID found after rejection"
     exit 1
 fi
 
-# Test cancelling an offer
-echo -e "\nTesting: Cancelling Offer"
-CANCEL_DATA='{
-    "reason": "Test cancellation"
-}'
-CANCEL_RESPONSE=$(make_request "POST" "/offers/$OFFER_ID/cancel" "$CANCEL_DATA" "$BUYER_TOKEN")
+# Test: Cancel Offer
+print_header "Cancelling Offer"
+CANCEL_DATA="{\"reason\":\"Test cancellation\"}"
+CANCEL_RESPONSE=$(make_request "POST" "/offers/$NEW_OFFER_ID/cancel" "$BUYER_TOKEN" "$CANCEL_DATA")
 if [ $? -eq 0 ]; then
-    echo "✓ Cancelled offer"
-    echo "Debug - Cancel Response: $CANCEL_RESPONSE"
+    print_success "Offer cancelled successfully"
 else
-    echo "ERROR: Failed to cancel offer"
+    print_error "Failed to cancel offer"
     echo "Debug - Error Response: $CANCEL_RESPONSE"
-    cleanup
-    exit 1
 fi
 
 # Get offer by ID
