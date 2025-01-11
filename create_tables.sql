@@ -1,13 +1,14 @@
 -- Drop existing tables if they exist
-DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS produce CASCADE;
-DROP TABLE IF EXISTS farmers CASCADE;
-DROP TABLE IF EXISTS farms CASCADE;
-DROP TABLE IF EXISTS produce_synonyms CASCADE;
 DROP TABLE IF EXISTS quality_assessments CASCADE;
+DROP TABLE IF EXISTS inspection_requests CASCADE;
 DROP TABLE IF EXISTS inspection_base_fees CASCADE;
 DROP TABLE IF EXISTS inspection_distance_fees CASCADE;
-DROP TABLE IF EXISTS inspection_requests CASCADE;
+DROP TABLE IF EXISTS produce CASCADE;
+DROP TABLE IF EXISTS farms CASCADE;
+DROP TABLE IF EXISTS farmers CASCADE;
+DROP TABLE IF EXISTS inspectors CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+DROP TABLE IF EXISTS produce_synonyms CASCADE;
 DROP TABLE IF EXISTS admin_audit_logs CASCADE;
 DROP TABLE IF EXISTS system_config CASCADE;
 DROP TABLE IF EXISTS buyers CASCADE;
@@ -22,7 +23,6 @@ DROP TABLE IF EXISTS support_tickets CASCADE;
 DROP TABLE IF EXISTS synonyms CASCADE;
 DROP TABLE IF EXISTS daily_prices CASCADE;
 DROP TABLE IF EXISTS business_metrics CASCADE;
-DROP TABLE IF EXISTS inspectors CASCADE;
 
 -- Drop ALL existing enums
 DROP TYPE IF EXISTS user_role_enum CASCADE;
@@ -46,7 +46,7 @@ DROP TYPE IF EXISTS support_category_enum CASCADE;
 DROP TYPE IF EXISTS business_metric_type_enum CASCADE;
 DROP TYPE IF EXISTS system_config_key_enum CASCADE;
 
--- Create enum types
+-- Create all enums first
 CREATE TYPE user_role_enum AS ENUM (
   'ADMIN',
   'FARMER',
@@ -204,7 +204,8 @@ CREATE TYPE system_config_key_enum AS ENUM (
   'inspection_fee_per_km'
 );
 
--- Create users table
+-- Create tables in dependency order
+-- 1. First create users table (no dependencies)
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
@@ -223,7 +224,7 @@ CREATE TABLE users (
   CONSTRAINT valid_mobile_number CHECK (mobile_number ~ '^\+[1-9]\d{1,14}$')
 );
 
--- Create inspectors table
+-- 2. Create inspectors table (depends on users)
 CREATE TABLE inspectors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name VARCHAR(255) NOT NULL,
@@ -238,12 +239,7 @@ CREATE TABLE inspectors (
   CONSTRAINT valid_longitude CHECK (CAST(split_part(location, ',', 2) AS DECIMAL) BETWEEN -180 AND 180)
 );
 
--- Create index for inspectors table
-CREATE INDEX idx_inspectors_mobile_number ON inspectors(mobile_number);
-CREATE INDEX idx_inspectors_location ON inspectors(location);
-CREATE INDEX idx_inspectors_user_id ON inspectors(user_id);
-
--- Create farmers table
+-- 3. Create farmers table (depends on users)
 CREATE TABLE farmers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -251,23 +247,7 @@ CREATE TABLE farmers (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create bank_accounts table
-CREATE TABLE bank_accounts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
-  account_name VARCHAR(255) NOT NULL,
-  account_number VARCHAR(50) NOT NULL,
-  bank_name VARCHAR(255) NOT NULL,
-  branch_code VARCHAR(50) NOT NULL,
-  is_primary BOOLEAN DEFAULT false,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create index for bank_accounts table
-CREATE INDEX idx_bank_accounts_farmer_id ON bank_accounts(farmer_id);
-
--- Create farms table
+-- 4. Create farms table (depends on farmers)
 CREATE TABLE farms (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
@@ -285,7 +265,7 @@ CREATE TABLE farms (
   CONSTRAINT valid_longitude CHECK (CAST(split_part(location, ',', 2) AS DECIMAL) BETWEEN -180 AND 180)
 );
 
--- Create produce table
+-- 5. Create produce table (depends on farmers and farms)
 CREATE TABLE produce (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   farmer_id UUID NOT NULL REFERENCES farmers(id),
@@ -315,30 +295,37 @@ CREATE TABLE produce (
   CONSTRAINT check_quality_grade CHECK (quality_grade >= -1 AND quality_grade <= 10)
 );
 
--- Create produce_synonyms table
-CREATE TABLE produce_synonyms (
+-- 6. Create inspection_requests table (depends on produce and users)
+CREATE TABLE inspection_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  canonical_name VARCHAR(255) NOT NULL,
-  synonym VARCHAR(255) NOT NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  language VARCHAR(255),
+  produce_id UUID NOT NULL REFERENCES produce(id),
+  requester_id UUID NOT NULL REFERENCES users(id),
+  inspector_id UUID REFERENCES users(id),
+  status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
+  inspection_fee DECIMAL(10,2) NOT NULL,
+  inspection_result JSONB,
+  scheduled_at TIMESTAMP,
+  completed_at TIMESTAMP,
+  metadata JSONB,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create quality_assessments table
+-- 7. Create quality_assessments table (depends on produce, inspectors, and inspection_requests)
 CREATE TABLE quality_assessments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   produce_id UUID NOT NULL REFERENCES produce(id),
   source assessment_source_enum NOT NULL DEFAULT 'AI',
   quality_grade INTEGER NOT NULL,
   confidence_level DECIMAL(5,2) NOT NULL,
-  defects TEXT[] NULL,
-  recommendations TEXT[] NULL,
+  defects TEXT[] DEFAULT ARRAY[]::TEXT[],
+  recommendations TEXT[] DEFAULT ARRAY[]::TEXT[],
   description TEXT NULL,
   category produce_category_enum NOT NULL,
   category_specific_assessment JSONB NOT NULL,
   metadata JSONB NULL,
+  inspector_id UUID REFERENCES inspectors(id),
+  inspection_request_id UUID REFERENCES inspection_requests(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT check_quality_grade CHECK (quality_grade >= -1 AND quality_grade <= 10),
@@ -390,6 +377,43 @@ CREATE TABLE quality_assessments (
   )
 );
 
+-- Create indexes for quality_assessments table
+CREATE INDEX idx_quality_assessments_produce_id ON quality_assessments(produce_id);
+CREATE INDEX idx_quality_assessments_inspector_id ON quality_assessments(inspector_id);
+CREATE INDEX idx_quality_assessments_inspection_request_id ON quality_assessments(inspection_request_id);
+
+-- Create index for inspectors table
+CREATE INDEX idx_inspectors_mobile_number ON inspectors(mobile_number);
+CREATE INDEX idx_inspectors_location ON inspectors(location);
+CREATE INDEX idx_inspectors_user_id ON inspectors(user_id);
+
+-- Create bank_accounts table
+CREATE TABLE bank_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
+  account_name VARCHAR(255) NOT NULL,
+  account_number VARCHAR(50) NOT NULL,
+  bank_name VARCHAR(255) NOT NULL,
+  branch_code VARCHAR(50) NOT NULL,
+  is_primary BOOLEAN DEFAULT false,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index for bank_accounts table
+CREATE INDEX idx_bank_accounts_farmer_id ON bank_accounts(farmer_id);
+
+-- Create produce_synonyms table
+CREATE TABLE produce_synonyms (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  canonical_name VARCHAR(255) NOT NULL,
+  synonym VARCHAR(255) NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  language VARCHAR(255),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create inspection_base_fees table
 CREATE TABLE inspection_base_fees (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -409,22 +433,6 @@ CREATE TABLE inspection_distance_fees (
   fee DECIMAL(10,2) NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
   updated_by UUID REFERENCES users(id),
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- Create inspection_requests table
-CREATE TABLE inspection_requests (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  produce_id UUID NOT NULL REFERENCES produce(id),
-  requester_id UUID NOT NULL REFERENCES users(id),
-  inspector_id UUID REFERENCES users(id),
-  status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
-  inspection_fee DECIMAL(10,2) NOT NULL,
-  inspection_result JSONB,
-  scheduled_at TIMESTAMP,
-  completed_at TIMESTAMP,
-  metadata JSONB,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -647,19 +655,15 @@ CREATE TABLE inspection_distance_fee_config (
 -- Create system_configs table
 CREATE TABLE system_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  key system_config_key_enum NOT NULL UNIQUE,
+  key system_config_key_enum NOT NULL,
   value TEXT NOT NULL,
   description TEXT,
   is_active BOOLEAN DEFAULT true,
   updated_by UUID REFERENCES users(id),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT system_configs_key_unique UNIQUE (key)
 );
-
--- Create index for produce_synonyms table
-CREATE INDEX idx_produce_synonyms_canonical_name ON produce_synonyms(canonical_name);
-CREATE INDEX idx_produce_synonyms_synonym ON produce_synonyms(synonym);
-CREATE INDEX idx_produce_synonyms_language ON produce_synonyms(language);
 
 -- Create index for system_configs table
 CREATE INDEX idx_system_configs_key ON system_configs(key);
@@ -677,6 +681,11 @@ INSERT INTO system_configs (key, value, description) VALUES
 ON CONFLICT (key) DO UPDATE
 SET value = EXCLUDED.value,
     description = EXCLUDED.description;
+
+-- Add constraint to ensure value is not empty
+ALTER TABLE system_configs
+ADD CONSTRAINT system_configs_value_not_empty
+CHECK (value <> '');
 
 -- Create trigger to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -730,7 +739,6 @@ CREATE INDEX idx_produce_farmer_id ON produce(farmer_id);
 CREATE INDEX idx_produce_farm_id ON produce(farm_id);
 CREATE INDEX idx_produce_status ON produce(status);
 CREATE INDEX idx_produce_category ON produce(produce_category);
-CREATE INDEX idx_quality_assessments_produce_id ON quality_assessments(produce_id);
 CREATE INDEX idx_inspection_requests_produce_id ON inspection_requests(produce_id);
 CREATE INDEX idx_inspection_requests_inspector_id ON inspection_requests(inspector_id);
 CREATE INDEX idx_daily_prices_buyer_category ON daily_prices(buyer_id, produce_category);
