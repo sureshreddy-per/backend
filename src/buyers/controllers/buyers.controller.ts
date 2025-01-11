@@ -11,17 +11,21 @@ import {
   DefaultValuePipe,
   Logger,
   InternalServerErrorException,
+  ValidationPipe,
 } from "@nestjs/common";
-import { BuyersService } from "./buyers.service";
-import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { GetUser } from "../auth/decorators/get-user.decorator";
-import { User } from "../users/entities/user.entity";
-import { Buyer } from "./entities/buyer.entity";
-import { RolesGuard } from "../auth/guards/roles.guard";
-import { Roles } from "../auth/decorators/roles.decorator";
-import { Role } from "../auth/enums/role.enum";
-import { UpdateBuyerDetailsDto } from "./dto/update-buyer-details.dto";
+import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { BuyersService } from "../buyers.service";
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { GetUser } from "../../auth/decorators/get-user.decorator";
+import { User } from "../../users/entities/user.entity";
+import { Buyer } from "../entities/buyer.entity";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { Role } from "../../auth/enums/role.enum";
+import { UpdateBuyerDetailsDto } from "../dto/update-buyer-details.dto";
+import { CreateBuyerDto } from "../dto/create-buyer.dto";
 
+@ApiTags('Buyers')
 @Controller("buyers")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class BuyersController {
@@ -30,8 +34,13 @@ export class BuyersController {
   constructor(private readonly buyersService: BuyersService) {}
 
   @Post("profile")
+  @ApiOperation({ summary: 'Create buyer profile' })
+  @ApiResponse({ status: 201, description: 'Profile created successfully', type: Buyer })
   @Roles(Role.ADMIN, Role.BUYER)
-  async createProfile(@GetUser() user: User, @Body() createBuyerDto: Partial<Buyer>) {
+  async createProfile(
+    @GetUser() user: User,
+    @Body(ValidationPipe) createBuyerDto: CreateBuyerDto
+  ): Promise<Buyer> {
     try {
       this.logger.debug(`Creating profile for user ${user.id}`);
       const result = await this.buyersService.createBuyer(user.id, createBuyerDto);
@@ -44,8 +53,10 @@ export class BuyersController {
   }
 
   @Get("profile")
+  @ApiOperation({ summary: 'Get buyer profile' })
+  @ApiResponse({ status: 200, description: 'Profile retrieved successfully', type: Buyer })
   @Roles(Role.ADMIN, Role.BUYER)
-  async getProfile(@GetUser() user: User) {
+  async getProfile(@GetUser() user: User): Promise<Buyer> {
     try {
       this.logger.debug(`Getting profile for user ${user.id}`);
       const result = await this.buyersService.findByUserId(user.id);
@@ -58,8 +69,10 @@ export class BuyersController {
   }
 
   @Get("details")
+  @ApiOperation({ summary: 'Get buyer details' })
+  @ApiResponse({ status: 200, description: 'Details retrieved successfully', type: Buyer })
   @Roles(Role.BUYER)
-  async getBuyerDetails(@GetUser() user: User) {
+  async getBuyerDetails(@GetUser() user: User): Promise<Buyer> {
     try {
       this.logger.debug(`Getting details for user ${user.id}`);
       const result = await this.buyersService.getBuyerDetails(user.id);
@@ -72,11 +85,13 @@ export class BuyersController {
   }
 
   @Post("details/update")
+  @ApiOperation({ summary: 'Update buyer details' })
+  @ApiResponse({ status: 200, description: 'Details updated successfully', type: Buyer })
   @Roles(Role.BUYER)
   async updateBuyerDetails(
     @GetUser() user: User,
-    @Body() updateBuyerDetailsDto: UpdateBuyerDetailsDto,
-  ) {
+    @Body(ValidationPipe) updateBuyerDetailsDto: UpdateBuyerDetailsDto,
+  ): Promise<Buyer> {
     try {
       this.logger.debug(`Updating details for user ${user.id}`);
       const result = await this.buyersService.updateBuyerDetails(
@@ -92,11 +107,13 @@ export class BuyersController {
   }
 
   @Get("details/offer/:offerId")
+  @ApiOperation({ summary: 'Get buyer details by offer ID' })
+  @ApiResponse({ status: 200, description: 'Details retrieved successfully', type: Buyer })
   @Roles(Role.FARMER)
   async getBuyerDetailsByOfferId(
     @GetUser() user: User,
     @Param("offerId") offerId: string,
-  ) {
+  ): Promise<Buyer> {
     try {
       this.logger.debug(`Getting details for offer ${offerId}`);
       const result = await this.buyersService.getBuyerDetailsByOfferId(offerId, user.id);
@@ -109,6 +126,8 @@ export class BuyersController {
   }
 
   @Get("preferences")
+  @ApiOperation({ summary: 'Get buyer preferences' })
+  @ApiResponse({ status: 200, description: 'Preferences retrieved successfully' })
   @Roles(Role.BUYER)
   async getBuyerPreferences(@GetUser() user: User) {
     try {
@@ -123,10 +142,12 @@ export class BuyersController {
   }
 
   @Post("preferences/price-range")
+  @ApiOperation({ summary: 'Update price range preferences' })
+  @ApiResponse({ status: 200, description: 'Price range preferences updated successfully' })
   @Roles(Role.BUYER)
   async updatePriceRangePreferences(
     @GetUser() user: User,
-    @Body() data: { min_price: number; max_price: number; categories?: string[] }
+    @Body(ValidationPipe) data: { min_price: number; max_price: number; categories?: string[] }
   ) {
     try {
       this.logger.debug(`Updating price range preferences for user ${user.id}`);
@@ -140,6 +161,8 @@ export class BuyersController {
   }
 
   @Get("search/nearby")
+  @ApiOperation({ summary: 'Find nearby buyers' })
+  @ApiResponse({ status: 200, description: 'Nearby buyers found successfully' })
   async findNearbyBuyers(
     @Query("lat", ParseFloatPipe) lat: number,
     @Query("lng", ParseFloatPipe) lng: number,
@@ -169,7 +192,12 @@ export class BuyersController {
   }
 
   @Get(":id")
-  async findOne(@GetUser() user: User, @Param("id") id: string) {
+  @ApiOperation({ summary: 'Find buyer by ID' })
+  @ApiResponse({ status: 200, description: 'Buyer found successfully', type: Buyer })
+  async findOne(
+    @GetUser() user: User,
+    @Param("id") id: string
+  ): Promise<Buyer> {
     try {
       this.logger.debug(`Finding buyer with ID ${id}`);
       const buyer = await this.buyersService.findOne(id);

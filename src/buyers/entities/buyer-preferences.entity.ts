@@ -22,26 +22,20 @@ export class BuyerPreferences {
   @JoinColumn({ name: "buyer_id" })
   buyer: Buyer;
 
-  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
-  min_price: number;
-
-  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
-  max_price: number;
-
   @Column({ type: 'enum', enum: ProduceCategory, array: true, nullable: true })
   categories: ProduceCategory[];
 
   @Column({ default: true })
   notification_enabled: boolean;
 
-  @Column({ type: "jsonb", nullable: true })
+  @Column({ type: "text", array: true, nullable: true })
   notification_methods: string[];
-
-  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
-  target_price: number;
 
   @Column({ nullable: true })
   price_alert_condition: string;
+
+  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
+  target_price: number;
 
   @Column({ type: "timestamp", nullable: true })
   expiry_date: Date;

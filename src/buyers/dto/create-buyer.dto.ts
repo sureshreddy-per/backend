@@ -13,9 +13,9 @@ export class CreateBuyerDto {
   registration_number?: string;
 
   @IsString()
-  @Matches(/^-?\d+\.\d+-?\d+\.\d+$/, {
+  @Matches(/^-?\d+\.\d+,-?\d+\.\d+$/, {
     message:
-      'lat_lng must be in format "latitude-longitude" (e.g., "12.9716-77.5946")',
+      'lat_lng must be in format "latitude,longitude" (e.g., "12.9716,77.5946")',
   })
   lat_lng: string;
 

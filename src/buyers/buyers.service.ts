@@ -31,13 +31,13 @@ export class BuyersService {
   async findNearby(location: string, radiusKm: number): Promise<Buyer[]> {
     try {
       this.logger.debug(`Finding nearby buyers at location: ${location}, radius: ${radiusKm}`);
-      const [lat, lng] = location.split("-").map((coord) => parseFloat(coord));
+      const [lat, lng] = location.split(",").map((coord) => parseFloat(coord));
       const buyers = await this.buyerRepository.find();
 
       const nearbyBuyers = buyers.filter((buyer) => {
         if (!buyer.lat_lng) return false;
         const [buyerLat, buyerLng] = buyer.lat_lng
-          .split("-")
+          .split(",")
           .map((coord) => parseFloat(coord));
 
         const R = 6371; // Earth's radius in km
@@ -73,9 +73,9 @@ export class BuyersService {
   ): Promise<Buyer> {
     try {
       this.logger.debug(`Creating buyer for user ${user_id}`);
-      // Convert comma-separated lat_lng to hyphen-separated format if present
+      // Convert hyphen-separated lat_lng to comma-separated format if present
       if (buyerData.lat_lng) {
-        buyerData.lat_lng = buyerData.lat_lng.replace(',', '-');
+        buyerData.lat_lng = buyerData.lat_lng.replace('-', ',');
       }
 
       const buyer = this.buyerRepository.create({
@@ -100,6 +100,12 @@ export class BuyersService {
       if (!buyer) {
         throw new NotFoundException(`Buyer not found for user ${userId}`);
       }
+
+      // Ensure response uses comma format
+      if (buyer.lat_lng) {
+        buyer.lat_lng = buyer.lat_lng.replace('-', ',');
+      }
+
       this.logger.debug(`Buyer found: ${JSON.stringify(buyer)}`);
       return buyer;
     } catch (error) {
@@ -115,6 +121,12 @@ export class BuyersService {
       if (!buyer) {
         throw new NotFoundException(`Buyer not found with ID ${id}`);
       }
+
+      // Ensure response uses comma format
+      if (buyer.lat_lng) {
+        buyer.lat_lng = buyer.lat_lng.replace('-', ',');
+      }
+
       this.logger.debug(`Buyer found: ${JSON.stringify(buyer)}`);
       return buyer;
     } catch (error) {
@@ -150,7 +162,10 @@ export class BuyersService {
         try {
           if (!buyer.lat_lng) return false;
 
-          const [buyerLat, buyerLng] = buyer.lat_lng.split("-").map((coord) => {
+          // Convert hyphen to comma format if needed
+          buyer.lat_lng = buyer.lat_lng.replace('-', ',');
+
+          const [buyerLat, buyerLng] = buyer.lat_lng.split(",").map((coord) => {
             const parsed = parseFloat(coord);
             if (isNaN(parsed)) throw new Error("Invalid coordinates format");
             return parsed;
@@ -181,6 +196,13 @@ export class BuyersService {
         }
       });
 
+      // Ensure all lat_lng values in the response use comma format
+      nearbyBuyers.forEach(buyer => {
+        if (buyer.lat_lng) {
+          buyer.lat_lng = buyer.lat_lng.replace('-', ',');
+        }
+      });
+
       this.logger.debug(`Found ${nearbyBuyers.length} nearby buyers`);
       return nearbyBuyers;
     } catch (error) {
@@ -208,8 +230,20 @@ export class BuyersService {
     try {
       this.logger.debug(`Updating buyer details for user ${userId}`);
       const buyer = await this.findByUserId(userId);
+
+      // Convert hyphen-separated lat_lng to comma-separated format if present
+      if (updateData.lat_lng) {
+        updateData.lat_lng = updateData.lat_lng.replace('-', ',');
+      }
+
       Object.assign(buyer, updateData);
       const result = await this.buyerRepository.save(buyer);
+
+      // Ensure response uses comma format
+      if (result.lat_lng) {
+        result.lat_lng = result.lat_lng.replace('-', ',');
+      }
+
       this.logger.debug(`Buyer details updated: ${JSON.stringify(result)}`);
       return result;
     } catch (error) {
@@ -250,6 +284,11 @@ export class BuyersService {
         throw new NotFoundException(`Buyer not found for user ${userId}`);
       }
 
+      // Ensure buyer's lat_lng uses comma format
+      if (buyer.lat_lng) {
+        buyer.lat_lng = buyer.lat_lng.replace('-', ',');
+      }
+
       const preferences = await this.buyerPreferencesRepository.findOne({
         where: { buyer_id: buyer.id }
       });
@@ -257,54 +296,47 @@ export class BuyersService {
       if (!preferences) {
         // Return default preferences if none exist
         return {
-          min_price: null,
-          max_price: null,
           categories: [],
           location: buyer.lat_lng ? {
-            lat: parseFloat(buyer.lat_lng.split('-')[0]),
-            lng: parseFloat(buyer.lat_lng.split('-')[1])
+            lat: parseFloat(buyer.lat_lng.split(',')[0]),
+            lng: parseFloat(buyer.lat_lng.split(',')[1])
           } : null,
           location_name: buyer.location_name,
           address: buyer.address,
           notification_enabled: true,
           notification_methods: [],
-          target_price: null,
           price_alert_condition: null,
           expiry_date: null
         };
       }
 
       const result = {
-        min_price: preferences.min_price,
-        max_price: preferences.max_price,
         categories: preferences.categories,
         location: buyer.lat_lng ? {
-          lat: parseFloat(buyer.lat_lng.split('-')[0]),
-          lng: parseFloat(buyer.lat_lng.split('-')[1])
+          lat: parseFloat(buyer.lat_lng.split(',')[0]),
+          lng: parseFloat(buyer.lat_lng.split(',')[1])
         } : null,
         location_name: buyer.location_name,
         address: buyer.address,
         notification_enabled: preferences.notification_enabled,
         notification_methods: preferences.notification_methods,
-        target_price: preferences.target_price,
         price_alert_condition: preferences.price_alert_condition,
         expiry_date: preferences.expiry_date
       };
 
-      this.logger.debug(`Buyer preferences found: ${JSON.stringify(result)}`);
       return result;
     } catch (error) {
-      this.logger.error(`Error getting buyer preferences: ${error.message}`, error.stack);
+      this.logger.error('Error in getBuyerPreferences:', error);
       throw error;
     }
   }
 
   async updatePriceRangePreferences(
     userId: string,
-    data: { min_price: number; max_price: number; categories?: string[] }
+    data: { categories?: string[] }
   ): Promise<BuyerPreferences> {
     try {
-      this.logger.debug(`Updating price range preferences for user ${userId}`);
+      this.logger.debug(`Updating preferences for user ${userId}`);
       const buyer = await this.findByUserId(userId);
       if (!buyer) {
         throw new NotFoundException(`Buyer not found for user ${userId}`);
@@ -321,17 +353,15 @@ export class BuyersService {
         });
       }
 
-      preferences.min_price = data.min_price;
-      preferences.max_price = data.max_price;
       if (data.categories) {
         preferences.categories = data.categories.map(category => category as ProduceCategory);
       }
 
       const result = await this.buyerPreferencesRepository.save(preferences);
-      this.logger.debug(`Price range preferences updated: ${JSON.stringify(result)}`);
+      this.logger.debug(`Preferences updated: ${JSON.stringify(result)}`);
       return result;
     } catch (error) {
-      this.logger.error(`Error updating price range preferences: ${error.message}`, error.stack);
+      this.logger.error(`Error updating preferences: ${error.message}`, error.stack);
       throw error;
     }
   }
