@@ -160,10 +160,12 @@ export class AutoOfferService {
     // Find active buyers within matching category
     const buyers = await this.buyerRepository.find({
       where: {
-        categories: ArrayContains([produce.produce_category]),
         is_active: true,
+        preferences: {
+          categories: ArrayContains([produce.produce_category])
+        }
       },
-      relations: ['user'],
+      relations: ['user', 'preferences'],
     });
 
     if (buyers.length === 0) {

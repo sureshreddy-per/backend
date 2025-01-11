@@ -52,7 +52,7 @@ export class BuyerPreferencesController {
   }
 
   @Get("price-alerts")
-  async getPriceAlerts(@GetUser() user: User): Promise<BuyerPreferences> {
+  async getPriceAlerts(@GetUser() user: User): Promise<BuyerPreferences[]> {
     try {
       console.log('Getting price alerts for user:', user.id);
       const result = await this.preferencesService.getPriceAlerts(user.id);
@@ -127,7 +127,7 @@ export class BuyerPreferencesController {
   }
 
   @Get()
-  async getPreferences(@GetUser() user: User): Promise<BuyerPreferences[]> {
+  async getPreferences(@GetUser() user: User): Promise<BuyerPreferences> {
     try {
       console.log('Getting preferences for user:', user.id);
       const result = await this.preferencesService.getPreferences(user.id);

@@ -1,6 +1,6 @@
 import { Injectable, Logger, Inject, NotFoundException, forwardRef } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Repository, In } from "typeorm";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
 import { Offer } from "../entities/offer.entity";
@@ -10,7 +10,10 @@ import { NotificationService } from "../../notifications/services/notification.s
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
 import { PaginatedResponse } from "../../common/interfaces/paginated-response.interface";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { BuyerPricesService } from "../../buyers/services/buyer-prices.service";
+import { ProduceService } from "../../produce/services/produce.service";
+import { BuyersService } from "../../buyers/buyers.service";
+import { DailyPriceService } from "./daily-price.service";
+import { AutoOfferService } from "./auto-offer.service";
 
 const CACHE_TTL = 3600; // 1 hour
 const CACHE_PREFIX = 'offer:';
@@ -23,11 +26,14 @@ export class OffersService {
   constructor(
     @InjectRepository(Offer)
     private readonly offerRepository: Repository<Offer>,
+    private readonly produceService: ProduceService,
+    private readonly buyersService: BuyersService,
     private readonly notificationService: NotificationService,
+    private readonly dailyPriceService: DailyPriceService,
+    @Inject(forwardRef(() => AutoOfferService))
+    private readonly autoOfferService: AutoOfferService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    @Inject(forwardRef(() => BuyerPricesService))
-    private readonly buyerPricesService: BuyerPricesService,
   ) {}
 
   private getCacheKey(key: string): string {

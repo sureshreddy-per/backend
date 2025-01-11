@@ -479,17 +479,18 @@ CREATE TABLE buyers (
 CREATE TABLE buyer_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   buyer_id UUID NOT NULL REFERENCES buyers(id) ON DELETE CASCADE,
-  min_price DECIMAL(10,2),
-  max_price DECIMAL(10,2),
   categories produce_category_enum[],
   notification_enabled BOOLEAN DEFAULT TRUE,
   notification_methods TEXT[],
-  target_price DECIMAL(10,2),
   price_alert_condition VARCHAR(50),
+  target_price DECIMAL(10,2),
   expiry_date TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add unique constraint to ensure only one preference per buyer
+ALTER TABLE buyer_preferences ADD CONSTRAINT unique_buyer_preferences UNIQUE (buyer_id);
 
 -- Create offers table
 CREATE TABLE offers (
@@ -625,11 +626,12 @@ CREATE TABLE synonyms (
 -- Create daily_prices table
 CREATE TABLE daily_prices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  buyer_id UUID NOT NULL REFERENCES users(id),
+  buyer_id UUID NOT NULL REFERENCES buyers(id),
   produce_category produce_category_enum NOT NULL,
   min_price DECIMAL(10,2) NOT NULL,
   max_price DECIMAL(10,2) NOT NULL,
   minimum_quantity INTEGER NOT NULL,
+  update_count INTEGER DEFAULT 0,
   is_active BOOLEAN DEFAULT true,
   valid_from TIMESTAMP WITH TIME ZONE NOT NULL,
   valid_until TIMESTAMP WITH TIME ZONE NOT NULL,
