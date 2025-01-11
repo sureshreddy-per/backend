@@ -1,17 +1,23 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { UserRole } from '../enums/user-role.enum';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from "typeorm";
+import { UserRole } from "../../enums/user-role.enum";
 
 export enum UserStatus {
-  PENDING_VERIFICATION = 'PENDING_VERIFICATION',
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  BLOCKED = 'BLOCKED',
-  DELETED = 'DELETED'
+  PENDING_VERIFICATION = "PENDING_VERIFICATION",
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
+  BLOCKED = "BLOCKED",
+  DELETED = "DELETED",
 }
 
-@Entity('users')
+@Entity("users")
 export class User {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column()
@@ -24,17 +30,17 @@ export class User {
   mobile_number: string;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: UserRole,
-    enumName: 'user_role_enum',
+    enumName: "user_role_enum",
     default: UserRole.BUYER,
   })
   role: UserRole;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: UserStatus,
-    enumName: 'user_status_enum',
+    enumName: "user_status_enum",
     default: UserStatus.PENDING_VERIFICATION,
   })
   status: UserStatus;
@@ -51,10 +57,10 @@ export class User {
   @Column({ default: 0 })
   login_attempts: number;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   last_login_at: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   scheduled_for_deletion_at: Date;
 
   @CreateDateColumn()

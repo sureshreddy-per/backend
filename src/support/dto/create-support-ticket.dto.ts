@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional, IsUUID } from "class-validator";
 
 export class CreateSupportTicketDto {
   @IsUUID()
@@ -24,4 +24,4 @@ export class CreateSupportTicketDto {
   @IsString()
   @IsOptional()
   status?: string;
-} 
+}

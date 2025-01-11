@@ -1,4 +1,4 @@
-import { CircuitBreakerError, ProcessingError } from '../errors';
+import { CircuitBreakerError, ProcessingError } from "../errors";
 
 interface BatchProcessorConfig {
   maxAttempts: number;
@@ -10,7 +10,7 @@ interface BatchProcessorConfig {
 }
 
 interface CircuitBreakerState {
-  state: 'OPEN' | 'CLOSED' | 'HALF_OPEN';
+  state: "OPEN" | "CLOSED" | "HALF_OPEN";
   failureCount: number;
   lastFailureTime: Date;
   resetTimeout: number;
@@ -40,17 +40,17 @@ export class BatchProcessorService {
 
   constructor(private config: BatchProcessorConfig) {
     this.circuitBreaker = {
-      state: 'CLOSED',
+      state: "CLOSED",
       failureCount: 0,
       lastFailureTime: new Date(),
-      resetTimeout: config.resetTimeoutMs
+      resetTimeout: config.resetTimeoutMs,
     };
     this.metrics = {
       totalProcessed: 0,
       successCount: 0,
       errorCount: 0,
       processingTimes: [],
-      errorCategories: {}
+      errorCategories: {},
     };
     this.currentConcurrency = 5; // Default concurrency
     this.maxConcurrency = 10;
@@ -62,18 +62,22 @@ export class BatchProcessorService {
   async process<T, R>({
     data,
     processFn,
-    errorHandler
+    errorHandler,
   }: {
     data: T;
     processFn: (data: T) => Promise<R>;
-    errorHandler?: (error: Error) => { retryable: boolean; category: string; error: Error };
+    errorHandler?: (error: Error) => {
+      retryable: boolean;
+      category: string;
+      error: Error;
+    };
   }): Promise<ProcessResult<R>> {
     if (this.isCircuitOpen()) {
-      throw new CircuitBreakerError('Circuit breaker is open', {
+      throw new CircuitBreakerError("Circuit breaker is open", {
         state: this.circuitBreaker.state,
         failureCount: this.circuitBreaker.failureCount,
         lastFailureTime: this.circuitBreaker.lastFailureTime.toISOString(),
-        resetTimeout: this.circuitBreaker.resetTimeout
+        resetTimeout: this.circuitBreaker.resetTimeout,
       });
     }
 
@@ -88,7 +92,7 @@ export class BatchProcessorService {
         return { success: true, result };
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        
+
         if (errorHandler) {
           const handled = errorHandler(lastError);
           if (!handled.retryable) {
@@ -98,7 +102,7 @@ export class BatchProcessorService {
         }
 
         if (error instanceof ProcessingError && !error.retryable) {
-          this.recordError('non_retryable');
+          this.recordError("non_retryable");
           return { success: false, error, retryable: false };
         }
 
@@ -110,13 +114,17 @@ export class BatchProcessorService {
     }
 
     this.recordFailure();
-    return { success: false, error: new Error('Maximum retry attempts exceeded'), retryable: false };
+    return {
+      success: false,
+      error: new Error("Maximum retry attempts exceeded"),
+      retryable: false,
+    };
   }
 
   async processBatch<T, R>({
     items,
     processFn,
-    concurrency = this.currentConcurrency
+    concurrency = this.currentConcurrency,
   }: {
     items: T[];
     processFn: (item: T) => Promise<R>;
@@ -124,17 +132,19 @@ export class BatchProcessorService {
   }): Promise<Array<ProcessResult<R>>> {
     this.adjustConcurrency();
     const actualConcurrency = Math.min(concurrency, this.currentConcurrency);
-    
+
     const results: Array<ProcessResult<R>> = [];
     const batches = this.splitIntoBatches(items, actualConcurrency);
 
     for (const batch of batches) {
       const batchResults = await Promise.all(
-        batch.map(item => this.process({ data: item, processFn }).catch(error => ({
-          success: false,
-          error,
-          retryable: false
-        })))
+        batch.map((item) =>
+          this.process({ data: item, processFn }).catch((error) => ({
+            success: false,
+            error,
+            retryable: false,
+          })),
+        ),
       );
       results.push(...batchResults);
     }
@@ -152,21 +162,23 @@ export class BatchProcessorService {
 
   private async delay(attempt: number): Promise<void> {
     const delay = Math.min(
-      this.config.initialDelayMs * Math.pow(this.config.backoffFactor, attempt - 1),
-      this.config.maxDelayMs
+      this.config.initialDelayMs *
+        Math.pow(this.config.backoffFactor, attempt - 1),
+      this.config.maxDelayMs,
     );
-    await new Promise(resolve => setTimeout(resolve, delay));
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   private isCircuitOpen(): boolean {
-    if (this.circuitBreaker.state === 'CLOSED') {
+    if (this.circuitBreaker.state === "CLOSED") {
       return false;
     }
 
-    if (this.circuitBreaker.state === 'OPEN') {
-      const timeSinceLastFailure = Date.now() - this.circuitBreaker.lastFailureTime.getTime();
+    if (this.circuitBreaker.state === "OPEN") {
+      const timeSinceLastFailure =
+        Date.now() - this.circuitBreaker.lastFailureTime.getTime();
       if (timeSinceLastFailure >= this.circuitBreaker.resetTimeout) {
-        this.circuitBreaker.state = 'HALF_OPEN';
+        this.circuitBreaker.state = "HALF_OPEN";
         return false;
       }
       return true;
@@ -176,8 +188,8 @@ export class BatchProcessorService {
   }
 
   private recordSuccess(processingTime: number): void {
-    if (this.circuitBreaker.state === 'HALF_OPEN') {
-      this.circuitBreaker.state = 'CLOSED';
+    if (this.circuitBreaker.state === "HALF_OPEN") {
+      this.circuitBreaker.state = "CLOSED";
       this.circuitBreaker.failureCount = 0;
     }
     this.metrics.totalProcessed++;
@@ -185,10 +197,11 @@ export class BatchProcessorService {
     this.metrics.processingTimes.push(processingTime);
   }
 
-  private recordError(category: string = 'unknown'): void {
+  private recordError(category: string = "unknown"): void {
     this.metrics.totalProcessed++;
     this.metrics.errorCount++;
-    this.metrics.errorCategories[category] = (this.metrics.errorCategories[category] || 0) + 1;
+    this.metrics.errorCategories[category] =
+      (this.metrics.errorCategories[category] || 0) + 1;
   }
 
   private recordFailure(): void {
@@ -196,7 +209,7 @@ export class BatchProcessorService {
     this.circuitBreaker.lastFailureTime = new Date();
 
     if (this.circuitBreaker.failureCount >= this.config.failureThreshold) {
-      this.circuitBreaker.state = 'OPEN';
+      this.circuitBreaker.state = "OPEN";
     }
   }
 
@@ -208,13 +221,16 @@ export class BatchProcessorService {
       // Reduce concurrency by 50% but not below minimum
       this.currentConcurrency = Math.max(
         this.minConcurrency,
-        Math.floor(this.currentConcurrency * 0.5)
+        Math.floor(this.currentConcurrency * 0.5),
       );
-    } else if (cpuUsage < this.cpuThreshold / 2 && memoryUsage < this.memoryThreshold / 2) {
+    } else if (
+      cpuUsage < this.cpuThreshold / 2 &&
+      memoryUsage < this.memoryThreshold / 2
+    ) {
       // Increase concurrency by 25% but not above maximum
       this.currentConcurrency = Math.min(
         this.maxConcurrency,
-        Math.ceil(this.currentConcurrency * 1.25)
+        Math.ceil(this.currentConcurrency * 1.25),
       );
     }
   }
@@ -242,15 +258,18 @@ export class BatchProcessorService {
       totalProcessed: this.metrics.totalProcessed,
       successCount: this.metrics.successCount,
       errorCount: this.metrics.errorCount,
-      successRate: (this.metrics.successCount / this.metrics.totalProcessed) * 100,
-      averageProcessingTime: this.metrics.processingTimes.reduce((a, b) => a + b, 0) / this.metrics.processingTimes.length
+      successRate:
+        (this.metrics.successCount / this.metrics.totalProcessed) * 100,
+      averageProcessingTime:
+        this.metrics.processingTimes.reduce((a, b) => a + b, 0) /
+        this.metrics.processingTimes.length,
     };
   }
 
   getErrorStats() {
     return {
       totalErrors: this.metrics.errorCount,
-      errorCategories: { ...this.metrics.errorCategories }
+      errorCategories: { ...this.metrics.errorCategories },
     };
   }
 
@@ -258,7 +277,7 @@ export class BatchProcessorService {
     return {
       memory: process.memoryUsage(),
       cpu: process.cpuUsage(),
-      activeWorkers: this.currentConcurrency
+      activeWorkers: this.currentConcurrency,
     };
   }
-} 
+}

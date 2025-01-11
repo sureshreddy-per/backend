@@ -3,17 +3,19 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { Transaction } from './entities/transaction.entity';
+} from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
+import { Transaction } from "./entities/transaction.entity";
 
 @WebSocketGateway({
-  namespace: 'transactions',
+  namespace: "transactions",
   cors: {
-    origin: '*',
+    origin: "*",
   },
 })
-export class TransactionsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class TransactionsGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -32,7 +34,9 @@ export class TransactionsGateway implements OnGatewayConnection, OnGatewayDiscon
     const user_id = client.handshake.auth.user_id;
     if (user_id) {
       const userSockets = this.userSockets.get(user_id) || [];
-      const updatedSockets = userSockets.filter(socket => socket.id !== client.id);
+      const updatedSockets = userSockets.filter(
+        (socket) => socket.id !== client.id,
+      );
       if (updatedSockets.length > 0) {
         this.userSockets.set(user_id, updatedSockets);
       } else {
@@ -45,16 +49,16 @@ export class TransactionsGateway implements OnGatewayConnection, OnGatewayDiscon
     // Notify the buyer who made the transaction
     const buyerSockets = this.userSockets.get(transaction.buyer_id);
     if (buyerSockets) {
-      buyerSockets.forEach(socket => {
-        socket.emit('newTransaction', transaction);
+      buyerSockets.forEach((socket) => {
+        socket.emit("newTransaction", transaction);
       });
     }
 
     // Notify the farmer who owns the produce
     const farmerSockets = this.userSockets.get(transaction.produce.farmer_id);
     if (farmerSockets) {
-      farmerSockets.forEach(socket => {
-        socket.emit('newTransactionForProduce', transaction);
+      farmerSockets.forEach((socket) => {
+        socket.emit("newTransactionForProduce", transaction);
       });
     }
   }
@@ -63,17 +67,17 @@ export class TransactionsGateway implements OnGatewayConnection, OnGatewayDiscon
     // Notify the buyer
     const buyerSockets = this.userSockets.get(transaction.buyer_id);
     if (buyerSockets) {
-      buyerSockets.forEach(socket => {
-        socket.emit('transactionStatusUpdated', transaction);
+      buyerSockets.forEach((socket) => {
+        socket.emit("transactionStatusUpdated", transaction);
       });
     }
 
     // Notify the farmer
     const farmerSockets = this.userSockets.get(transaction.produce.farmer_id);
     if (farmerSockets) {
-      farmerSockets.forEach(socket => {
-        socket.emit('transactionStatusUpdated', transaction);
+      farmerSockets.forEach((socket) => {
+        socket.emit("transactionStatusUpdated", transaction);
       });
     }
   }
-} 
+}

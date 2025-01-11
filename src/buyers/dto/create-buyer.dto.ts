@@ -1,4 +1,4 @@
-import { IsString, IsOptional, Matches } from 'class-validator';
+import { IsString, IsOptional, Matches } from "class-validator";
 
 export class CreateBuyerDto {
   @IsString()
@@ -14,10 +14,11 @@ export class CreateBuyerDto {
 
   @IsString()
   @Matches(/^-?\d+\.\d+-?\d+\.\d+$/, {
-    message: 'lat_lng must be in format "latitude-longitude" (e.g., "12.9716-77.5946")',
+    message:
+      'lat_lng must be in format "latitude-longitude" (e.g., "12.9716-77.5946")',
   })
   lat_lng: string;
 
   @IsString()
   address: string;
-} 
+}

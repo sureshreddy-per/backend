@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, Min } from 'class-validator';
+import { IsNumber, IsOptional, Min } from "class-validator";
 
 export class UpdateDailyPriceDto {
   @IsNumber()
@@ -23,4 +23,4 @@ export class UpdateDailyPriceDto {
 
   @IsOptional()
   valid_until?: Date;
-} 
+}

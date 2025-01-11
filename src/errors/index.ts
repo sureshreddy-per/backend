@@ -1,28 +1,40 @@
 export class ImageValidationError extends Error {
-  constructor(message: string, public details: ValidationDetails) {
+  constructor(
+    message: string,
+    public details: ValidationDetails,
+  ) {
     super(message);
-    this.name = 'ImageValidationError';
+    this.name = "ImageValidationError";
   }
 }
 
 export class PredictionValidationError extends Error {
-  constructor(message: string, public details: ValidationDetails) {
+  constructor(
+    message: string,
+    public details: ValidationDetails,
+  ) {
     super(message);
-    this.name = 'PredictionValidationError';
+    this.name = "PredictionValidationError";
   }
 }
 
 export class ProcessingError extends Error {
-  constructor(message: string, public retryable: boolean) {
+  constructor(
+    message: string,
+    public retryable: boolean,
+  ) {
     super(message);
-    this.name = 'ProcessingError';
+    this.name = "ProcessingError";
   }
 }
 
 export class CircuitBreakerError extends Error {
-  constructor(message: string, public status: CircuitStatus) {
+  constructor(
+    message: string,
+    public status: CircuitStatus,
+  ) {
     super(message);
-    this.name = 'CircuitBreakerError';
+    this.name = "CircuitBreakerError";
   }
 }
 
@@ -34,8 +46,8 @@ export interface ValidationDetails {
 }
 
 export interface CircuitStatus {
-  state: 'OPEN' | 'CLOSED' | 'HALF_OPEN';
+  state: "OPEN" | "CLOSED" | "HALF_OPEN";
   failureCount: number;
   lastFailureTime: string;
   resetTimeout: number;
-} 
+}

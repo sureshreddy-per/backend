@@ -1,5 +1,12 @@
-import { IsString, IsOptional, IsNumber, IsEnum, IsArray, IsUrl } from 'class-validator';
-import { ProduceStatus } from '../enums/produce-status.enum';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsEnum,
+  IsArray,
+  IsUrl,
+} from "class-validator";
+import { ProduceStatus } from "../enums/produce-status.enum";
 
 export class UpdateProduceDto {
   @IsOptional()
@@ -34,4 +41,4 @@ export class UpdateProduceDto {
   @IsOptional()
   @IsString()
   assigned_inspector?: string;
-} 
+}

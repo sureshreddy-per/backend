@@ -1,5 +1,12 @@
-import { IsNotEmpty, IsNumber, IsEnum, IsOptional, Min, IsUUID } from 'class-validator';
-import { ProduceCategory } from '../../produce/enums/produce-category.enum';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsEnum,
+  IsOptional,
+  Min,
+  IsUUID,
+} from "class-validator";
+import { ProduceCategory } from "../../produce/enums/produce-category.enum";
 
 export class CreateDailyPriceDto {
   @IsUUID()
@@ -20,10 +27,11 @@ export class CreateDailyPriceDto {
 
   @IsNumber()
   @Min(0)
-  minimum_quantity: number;
+  @IsOptional()
+  minimum_quantity?: number;
 
   @IsNumber()
   @Min(1)
   @IsOptional()
   valid_days?: number;
-} 
+}

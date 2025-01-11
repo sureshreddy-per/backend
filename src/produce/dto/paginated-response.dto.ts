@@ -1,6 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Produce } from '../entities/produce.entity';
-import { PaginatedResponse } from '../interfaces/paginated-response.interface';
+import { ApiProperty } from "@nestjs/swagger";
+import { Produce } from "../entities/produce.entity";
+import { PaginatedResponse } from "../interfaces/paginated-response.interface";
 
 export class PaginatedProduceResponseDto implements PaginatedResponse<Produce> {
   @ApiProperty({ type: [Produce] })
@@ -17,4 +17,4 @@ export class PaginatedProduceResponseDto implements PaginatedResponse<Produce> {
 
   @ApiProperty()
   totalPages: number;
-} 
+}

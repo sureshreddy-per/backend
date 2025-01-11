@@ -1,5 +1,5 @@
-import { Repository, FindManyOptions, DeepPartial } from 'typeorm';
-import { PaginatedResponse } from './interfaces/paginated-response.interface';
+import { Repository, FindManyOptions, DeepPartial } from "typeorm";
+import { PaginatedResponse } from "./interfaces/paginated-response.interface";
 
 export class BaseService<T extends { id: string }> {
   constructor(protected readonly repository: Repository<T>) {}
@@ -15,7 +15,7 @@ export class BaseService<T extends { id: string }> {
       total,
       page,
       limit: take,
-      totalPages
+      totalPages,
     };
   }
 
@@ -36,4 +36,4 @@ export class BaseService<T extends { id: string }> {
   async delete(id: string): Promise<void> {
     await this.repository.delete(id);
   }
-} 
+}

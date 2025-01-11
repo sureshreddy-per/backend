@@ -1,4 +1,4 @@
-import { IsString, IsUUID, IsNumber, IsObject } from 'class-validator';
+import { IsString, IsUUID, IsNumber, IsObject } from "class-validator";
 
 export interface QualityMetadata {
   finalPrice?: number;
@@ -26,4 +26,4 @@ export class CreateQualityDto {
 
   @IsObject()
   metadata?: QualityMetadata;
-} 
+}

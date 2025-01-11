@@ -3,7 +3,8 @@ export class MetricService {
   private customMetrics: Map<string, any>;
   private retentionPeriod: number;
 
-  constructor(retentionPeriod: number = 24 * 60 * 60 * 1000) { // 24 hours default
+  constructor(retentionPeriod: number = 24 * 60 * 60 * 1000) {
+    // 24 hours default
     this.metrics = new Map();
     this.customMetrics = new Map();
     this.retentionPeriod = retentionPeriod;
@@ -29,7 +30,10 @@ export class MetricService {
     return this.customMetrics.get(name);
   }
 
-  getStats(name: string, duration?: number): {
+  getStats(
+    name: string,
+    duration?: number,
+  ): {
     avg: number;
     min: number;
     max: number;
@@ -43,7 +47,7 @@ export class MetricService {
         avg: 0,
         min: 0,
         max: 0,
-        count: 0
+        count: 0,
       };
     }
 
@@ -54,7 +58,7 @@ export class MetricService {
       max: sorted[sorted.length - 1],
       count: values.length,
       p95: this.calculatePercentile(sorted, 95),
-      p99: this.calculatePercentile(sorted, 99)
+      p99: this.calculatePercentile(sorted, 99),
     };
   }
 
@@ -106,4 +110,4 @@ export class MetricService {
     this.metrics.clear();
     this.customMetrics.clear();
   }
-} 
+}

@@ -1,149 +1,73 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual, FindManyOptions } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Produce } from '../entities/produce.entity';
-import { ProduceStatus } from '../enums/produce-status.enum';
-import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
-import { ProduceSynonymService } from '../services/synonym.service';
 import { CreateProduceDto } from '../dto/create-produce.dto';
+import { ProduceStatus } from '../enums/produce-status.enum';
+import { OnEvent } from '@nestjs/event-emitter';
+import { QualityAssessmentCompletedEvent } from '../../quality/events/quality-assessment-completed.event';
 
 @Injectable()
 export class ProduceService {
+  private readonly logger = new Logger(ProduceService.name);
+
   constructor(
     @InjectRepository(Produce)
-    protected readonly produceRepository: Repository<Produce>,
-    private readonly synonymService: ProduceSynonymService
+    private readonly produceRepository: Repository<Produce>,
   ) {}
 
-  async findByPriceRange(maxPrice: number): Promise<PaginatedResponse<Produce>> {
-    const [items, total] = await this.produceRepository.findAndCount({
-      where: {
-        price_per_unit: LessThanOrEqual(maxPrice),
-        status: ProduceStatus.AVAILABLE
-      }
+  @OnEvent('quality.assessment.completed')
+  async handleQualityAssessmentCompleted(event: QualityAssessmentCompletedEvent) {
+    const produce = await this.findOne(event.produce_id);
+    
+    // Update produce with AI assessment results
+    produce.quality_grade = event.quality_grade;
+    produce.status = ProduceStatus.AVAILABLE;
+    
+    // If confidence level is too low, mark for manual inspection
+    if (event.confidence_level < 80) {
+      produce.status = ProduceStatus.PENDING_INSPECTION;
+      this.logger.log(`Produce ${produce.id} marked for manual inspection due to low AI confidence`);
+    }
+    
+    await this.produceRepository.save(produce);
+    this.logger.log(`Updated produce ${produce.id} status after quality assessment`);
+  }
+
+  @OnEvent('quality.assessment.failed')
+  async handleQualityAssessmentFailed(event: { produce_id: string; error: string }) {
+    const produce = await this.findOne(event.produce_id);
+    
+    // Update produce status to indicate assessment failure
+    produce.status = ProduceStatus.ASSESSMENT_FAILED;
+    await this.produceRepository.save(produce);
+    
+    this.logger.error(`Quality assessment failed for produce ${produce.id}: ${event.error}`);
+  }
+
+  async create(createProduceDto: CreateProduceDto & { farmer_id: string }): Promise<Produce> {
+    if (!createProduceDto.farmer_id) {
+      throw new BadRequestException('farmer_id is required');
+    }
+
+    const produce = this.produceRepository.create({
+      ...createProduceDto,
+      status: ProduceStatus.PENDING_AI_ASSESSMENT,
     });
 
-    return {
-      items,
-      total,
-      page: 1,
-      limit: 10,
-      totalPages: Math.ceil(total / 10)
-    };
-  }
-
-  async findAndPaginate(options: FindManyOptions<Produce>): Promise<PaginatedResponse<Produce>> {
-    const [items, total] = await this.produceRepository.findAndCount(options);
-    const { take = 10, skip = 0 } = options;
-    const page = Math.floor(skip / take) + 1;
-    const totalPages = Math.ceil(total / take);
-
-    return {
-      items,
-      total,
-      page,
-      limit: take,
-      totalPages
-    };
-  }
-
-  async findById(id: string): Promise<Produce | null> {
-    return this.produceRepository.findOne({ where: { id } });
-  }
-
-  async findNearby(lat: number, lon: number, radius: number = 100): Promise<Produce[]> {
-    // Using Haversine formula directly in PostgreSQL for better performance
-    return this.produceRepository
-      .createQueryBuilder('produce')
-      .where('produce.status = :status', { status: ProduceStatus.AVAILABLE })
-      .andWhere(
-        `(
-          6371 * acos(
-            cos(radians(:lat)) * cos(radians(CAST(split_part(produce.location, ',', 1) AS float))) *
-            cos(radians(CAST(split_part(produce.location, ',', 2) AS float)) - radians(:lon)) +
-            sin(radians(:lat)) * sin(radians(CAST(split_part(produce.location, ',', 1) AS float)))
-          )
-        ) <= :radius`,
-        { lat, lon, radius }
-      )
-      .orderBy(
-        `(
-          6371 * acos(
-            cos(radians(:lat)) * cos(radians(CAST(split_part(produce.location, ',', 1) AS float))) *
-            cos(radians(CAST(split_part(produce.location, ',', 2) AS float)) - radians(:lon)) +
-            sin(radians(:lat)) * sin(radians(CAST(split_part(produce.location, ',', 1) AS float)))
-          )
-        )`,
-        'ASC'
-      )
-      .getMany();
-  }
-
-  private toRad(degrees: number): number {
-    return degrees * (Math.PI/180);
-  }
-
-  async deleteById(id: string): Promise<void> {
-    await this.produceRepository.delete(id);
-  }
-
-  async handleProduceNameSynonyms(name: string, language: string): Promise<string> {
     try {
-      // Get canonical name from synonyms
-      const canonicalName = await this.synonymService.findCanonicalName(name);
-
-      // Add the current name as a synonym if it's different from canonical
-      if (name.toLowerCase() !== canonicalName.toLowerCase()) {
-        await this.synonymService.addSynonyms(canonicalName, [name]);
-      }
-
-      // If language is provided and different from default (English)
-      if (language && language.toLowerCase() !== 'en') {
-        // Add the localized name as a synonym
-        await this.synonymService.addSynonyms(canonicalName, [name]);
-      }
-
-      return canonicalName;
+      return await this.produceRepository.save(produce);
     } catch (error) {
-      // If there's an error handling synonyms, just return the original name
-      return name;
+      this.logger.error(`Failed to create produce: ${error.message}`, error.stack);
+      throw new BadRequestException('Failed to create produce. Please check all required fields.');
     }
   }
 
-  async create(createProduceDto: CreateProduceDto): Promise<Produce> {
-    try {
-      // Handle produce name synonyms
-      const canonicalName = await this.handleProduceNameSynonyms(
-        createProduceDto.name,
-        createProduceDto.language || 'en'
-      );
-
-      // Create the produce entity
-      const produce = this.produceRepository.create({
-        ...createProduceDto,
-        name: canonicalName,
-        status: ProduceStatus.AVAILABLE
-      });
-
-      // Save and return the produce
-      return this.produceRepository.save(produce);
-    } catch (error) {
-      // If there's an error with synonyms, create produce with original name
-      const produce = this.produceRepository.create({
-        ...createProduceDto,
-        status: ProduceStatus.AVAILABLE
-      });
-      return this.produceRepository.save(produce);
-    }
-  }
-
-  async update(id: string, data: Partial<Produce>): Promise<Produce> {
-    await this.produceRepository.update(id, data);
-    const updated = await this.findById(id);
-    if (!updated) {
-      throw new NotFoundException(`Produce with ID ${id} not found`);
-    }
-    return updated;
+  async findAll(filters: any = {}): Promise<Produce[]> {
+    return this.produceRepository.find({
+      where: filters,
+      relations: ['farmer'],
+    });
   }
 
   async findOne(id: string): Promise<Produce> {
@@ -151,20 +75,55 @@ export class ProduceService {
       where: { id },
       relations: ['farmer'],
     });
-
     if (!produce) {
       throw new NotFoundException(`Produce with ID ${id} not found`);
     }
-
     return produce;
   }
 
-  async count(): Promise<number> {
-    return this.produceRepository.count();
+  async findByFarmer(farmerId: string): Promise<Produce[]> {
+    return this.produceRepository.find({
+      where: { farmer_id: farmerId },
+      relations: ['farmer'],
+    });
   }
 
-  async countByStatus(status: ProduceStatus): Promise<number> {
-    return this.produceRepository.count({ where: { status } });
+  async findAvailableInRadius(latitude: number, longitude: number, radiusInKm: number): Promise<Produce[]> {
+    // Simple distance calculation using latitude and longitude
+    const produces = await this.produceRepository.find({
+      where: { status: ProduceStatus.AVAILABLE },
+      relations: ['farmer'],
+    });
+
+    // Filter produces within radius using Haversine formula
+    return produces.filter(produce => {
+      const [produceLat, produceLong] = produce.location.split(',').map(Number);
+      const R = 6371; // Earth's radius in kilometers
+      const dLat = this.toRad(produceLat - latitude);
+      const dLon = this.toRad(produceLong - longitude);
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(this.toRad(latitude)) * Math.cos(this.toRad(produceLat)) * 
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const distance = R * c;
+      return distance <= radiusInKm;
+    });
+  }
+
+  private toRad(degrees: number): number {
+    return degrees * (Math.PI/180);
+  }
+
+  async findAndPaginate(options: any): Promise<any> {
+    const [items, total] = await this.produceRepository.findAndCount(options);
+    return {
+      items,
+      total,
+      page: options.page || 1,
+      limit: options.take || 10,
+      totalPages: Math.ceil(total / (options.take || 10)),
+    };
   }
 
   async updateStatus(id: string, status: ProduceStatus): Promise<Produce> {
@@ -176,34 +135,56 @@ export class ProduceService {
   async assignInspector(id: string, inspector_id: string): Promise<Produce> {
     const produce = await this.findOne(id);
     produce.assigned_inspector = inspector_id;
-    produce.status = ProduceStatus.PENDING_INSPECTION;
     return this.produceRepository.save(produce);
   }
 
+  async count(): Promise<number> {
+    return this.produceRepository.count();
+  }
+
+  async countByStatus(status: ProduceStatus): Promise<number> {
+    return this.produceRepository.count({ where: { status } });
+  }
+
   async getStats() {
-    const [
-      totalProduce,
-      availableProduce,
-      pendingInspection,
-      rejected,
-      sold,
-      cancelled
-    ] = await Promise.all([
+    const [total, available, pending] = await Promise.all([
       this.count(),
       this.countByStatus(ProduceStatus.AVAILABLE),
-      this.countByStatus(ProduceStatus.PENDING_INSPECTION),
-      this.countByStatus(ProduceStatus.REJECTED),
-      this.countByStatus(ProduceStatus.SOLD),
-      this.countByStatus(ProduceStatus.CANCELLED)
+      this.countByStatus(ProduceStatus.PENDING_AI_ASSESSMENT),
     ]);
 
     return {
-      total: totalProduce,
-      available: availableProduce,
-      pending_inspection: pendingInspection,
-      rejected,
-      sold,
-      cancelled
+      total,
+      available,
+      pending,
+      utilization_rate: total > 0 ? (available / total) * 100 : 0,
     };
+  }
+
+  async findByIds(ids: string[]): Promise<Produce[]> {
+    return this.produceRepository.find({
+      where: { id: In(ids) },
+      relations: ['farmer'],
+    });
+  }
+
+  async findNearby(latitude: number, longitude: number, radiusInKm: number): Promise<Produce[]> {
+    return this.findAvailableInRadius(latitude, longitude, radiusInKm);
+  }
+
+  async findById(id: string): Promise<Produce> {
+    return this.findOne(id);
+  }
+
+  async update(id: string, updateData: any): Promise<Produce> {
+    const produce = await this.findOne(id);
+    Object.assign(produce, updateData);
+    return this.produceRepository.save(produce);
+  }
+
+  async deleteById(id: string): Promise<{ message: string }> {
+    const produce = await this.findOne(id);
+    await this.produceRepository.remove(produce);
+    return { message: 'Produce deleted successfully' };
   }
 }

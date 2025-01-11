@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsArray } from 'class-validator';
+import { IsNotEmpty, IsString, IsArray } from "class-validator";
 
 export class CreateSynonymDto {
   @IsNotEmpty()
@@ -9,4 +9,4 @@ export class CreateSynonymDto {
   @IsArray()
   @IsString({ each: true })
   words: string[];
-} 
+}

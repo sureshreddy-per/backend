@@ -1,21 +1,22 @@
-import { Injectable } from '@nestjs/common';
-import { AutoOfferManagerService } from '../../offers/services/auto-offer-manager.service';
-import { OffersService } from '../../offers/services/offers.service';
+import { Injectable } from "@nestjs/common";
+import { AutoOfferService } from "../../offers/services/auto-offer.service";
+import { OffersService } from "../../offers/services/offers.service";
 
 @Injectable()
 export class BuyerPricesService {
   constructor(
     private readonly offersService: OffersService,
-    private readonly autoOfferManager: AutoOfferManagerService,
+    private readonly autoOfferService: AutoOfferService,
   ) {}
 
-  async handlePriceChange(produce_id: string, new_price: number): Promise<void> {
-    const expiredOffers = await this.autoOfferManager.findExpiredOffers();
+  async handlePriceChange(
+    produce_id: string,
+    new_price: number,
+  ): Promise<void> {
+    // When price changes, we need to handle any pending offers
+    const expiredOffers = await this.autoOfferService.findExpiredOffers();
     
-    for (const offer of expiredOffers) {
-      if (offer.produce_id === produce_id) {
-        await this.autoOfferManager.expireOffer(offer);
-      }
-    }
+    // Process expired offers
+    await this.autoOfferService.handleExpiredOffers();
   }
-} 
+}

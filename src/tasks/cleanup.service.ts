@@ -1,8 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { LessThan, Repository } from 'typeorm';
-import { User, UserStatus } from '../users/entities/user.entity';
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { InjectRepository } from "@nestjs/typeorm";
+import { LessThan, Repository } from "typeorm";
+import { User, UserStatus } from "../users/entities/user.entity";
 
 @Injectable()
 export class CleanupService {
@@ -15,7 +15,7 @@ export class CleanupService {
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async handleDeletedAccounts() {
-    this.logger.log('Starting cleanup of deleted accounts...');
+    this.logger.log("Starting cleanup of deleted accounts...");
 
     try {
       const now = new Date();
@@ -31,9 +31,11 @@ export class CleanupService {
         this.logger.log(`Permanently deleted user: ${user.id}`);
       }
 
-      this.logger.log(`Cleanup completed. Deleted ${usersToDelete.length} accounts.`);
+      this.logger.log(
+        `Cleanup completed. Deleted ${usersToDelete.length} accounts.`,
+      );
     } catch (error) {
-      this.logger.error('Error during account cleanup:', error);
+      this.logger.error("Error during account cleanup:", error);
     }
   }
-} 
+}

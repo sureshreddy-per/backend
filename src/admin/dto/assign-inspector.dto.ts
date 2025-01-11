@@ -1,9 +1,9 @@
-import { IsString, IsNotEmpty, IsUUID, IsEnum } from 'class-validator';
+import { IsString, IsNotEmpty, IsUUID, IsEnum } from "class-validator";
 
 export enum InspectionPriority {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
+  LOW = "LOW",
+  MEDIUM = "MEDIUM",
+  HIGH = "HIGH",
 }
 
 export class AssignInspectorDto {
@@ -18,4 +18,4 @@ export class AssignInspectorDto {
   @IsString()
   @IsNotEmpty()
   notes: string;
-} 
+}

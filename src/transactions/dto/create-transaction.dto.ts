@@ -1,4 +1,4 @@
-import { IsUUID, IsNumber, Min } from 'class-validator';
+import { IsUUID, IsNumber, Min } from "class-validator";
 
 export class CreateTransactionDto {
   @IsUUID()
@@ -14,4 +14,4 @@ export class CreateTransactionDto {
   @IsNumber()
   @Min(0)
   final_quantity: number;
-} 
+}

@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Synonym } from './entities/synonym.entity';
-import { CreateSynonymDto } from './dto/create-synonym.dto';
-import { UpdateSynonymDto } from './dto/update-synonym.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Synonym } from "./entities/synonym.entity";
+import { CreateSynonymDto } from "./dto/create-synonym.dto";
+import { UpdateSynonymDto } from "./dto/update-synonym.dto";
 
 @Injectable()
 export class SynonymsService {
@@ -19,13 +19,13 @@ export class SynonymsService {
 
   async findAll(): Promise<Synonym[]> {
     return this.synonymRepository.find({
-      order: { updated_at: 'DESC' }
+      order: { updated_at: "DESC" },
     });
   }
 
   async findOne(id: string): Promise<Synonym> {
     const synonym = await this.synonymRepository.findOne({
-      where: { id }
+      where: { id },
     });
     if (!synonym) {
       throw new NotFoundException(`Synonym with ID ${id} not found`);
@@ -35,7 +35,7 @@ export class SynonymsService {
 
   async findByName(name: string): Promise<Synonym> {
     const synonym = await this.synonymRepository.findOne({
-      where: { name }
+      where: { name },
     });
     if (!synonym) {
       throw new NotFoundException(`Synonym with name ${name} not found`);
@@ -43,7 +43,10 @@ export class SynonymsService {
     return synonym;
   }
 
-  async update(id: string, updateSynonymDto: UpdateSynonymDto): Promise<Synonym> {
+  async update(
+    id: string,
+    updateSynonymDto: UpdateSynonymDto,
+  ): Promise<Synonym> {
     const synonym = await this.findOne(id);
     Object.assign(synonym, updateSynonymDto);
     return this.synonymRepository.save(synonym);
@@ -79,9 +82,11 @@ export class SynonymsService {
 
   async search(query: string): Promise<Synonym[]> {
     const synonyms = await this.findAll();
-    return synonyms.filter(synonym => {
+    return synonyms.filter((synonym) => {
       const words = synonym.words as string[];
-      return words.some(word => word.toLowerCase().includes(query.toLowerCase()));
+      return words.some((word) =>
+        word.toLowerCase().includes(query.toLowerCase()),
+      );
     });
   }
-} 
+}

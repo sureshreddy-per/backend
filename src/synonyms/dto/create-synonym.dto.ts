@@ -1,5 +1,5 @@
-import { IsString, IsArray } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsArray } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateSynonymDto {
   @ApiProperty()
@@ -10,4 +10,4 @@ export class CreateSynonymDto {
   @IsArray()
   @IsString({ each: true })
   words: string[];
-} 
+}

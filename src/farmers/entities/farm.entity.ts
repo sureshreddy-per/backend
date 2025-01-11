@@ -1,29 +1,40 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { Farmer } from './farmer.entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { Farmer } from "./farmer.entity";
 
-@Entity('farms')
+@Entity("farms")
 export class Farm {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column()
   farmer_id: string;
 
   @ManyToOne(() => Farmer)
-  @JoinColumn({ name: 'farmer_id' })
+  @JoinColumn({ name: "farmer_id" })
   farmer: Farmer;
 
   @Column()
   name: string;
 
-  @Column('decimal')
-  size: number;
+  @Column({ nullable: true })
+  description: string;
+
+  @Column("decimal")
+  size_in_acres: number;
 
   @Column()
   address: string;
 
   @Column({ nullable: true })
-  lat_lng: string;
+  location: string;
 
   @Column({ nullable: true })
   image: string;
@@ -33,4 +44,4 @@ export class Farm {
 
   @UpdateDateColumn()
   updated_at: Date;
-} 
+}

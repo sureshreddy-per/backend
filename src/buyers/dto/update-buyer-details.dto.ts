@@ -1,5 +1,5 @@
-import { IsString, IsOptional, Matches } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsOptional, Matches } from "class-validator";
+import { ApiPropertyOptional } from "@nestjs/swagger";
 
 export class UpdateBuyerDetailsDto {
   @ApiPropertyOptional()
@@ -11,7 +11,8 @@ export class UpdateBuyerDetailsDto {
   @IsOptional()
   @IsString()
   @Matches(/^-?\d+\.\d+-?\d+\.\d+$/, {
-    message: 'lat_lng must be in format "latitude-longitude" (e.g., "12.9716-77.5946")',
+    message:
+      'lat_lng must be in format "latitude-longitude" (e.g., "12.9716-77.5946")',
   })
   lat_lng?: string;
 
@@ -29,4 +30,4 @@ export class UpdateBuyerDetailsDto {
   @IsOptional()
   @IsString()
   gst?: string;
-} 
+}

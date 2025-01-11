@@ -11,4 +11,4 @@ export interface TransactionMetadata {
     contact_person: string;
     phone: string;
   };
-} 
+}

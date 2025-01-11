@@ -1,97 +1,96 @@
-import { IsString, IsUUID, IsNumber, IsEnum, IsOptional, IsArray, IsDate } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { ProduceCategory } from '../enums/produce-category.enum';
-import { ProduceStatus } from '../enums/produce-status.enum';
-import { QualityGrade } from '../enums/quality-grade.enum';
-import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsArray,
+  IsLatLong,
+  IsUrl,
+  ArrayMaxSize,
+  ArrayMinSize,
+  MaxLength,
+  IsDate,
+  ValidateIf,
+  IsEnum,
+  IsDecimal,
+} from "class-validator";
+import { Type } from "class-transformer";
+import { ProduceCategory } from "../enums/produce-category.enum";
 
 export class CreateProduceDto {
-  @ApiPropertyOptional()
-  @IsUUID()
+  @ApiPropertyOptional({ description: "ID of the farmer who owns this produce" })
+  @IsString()
   @IsOptional()
   farmer_id?: string;
 
-  @ApiPropertyOptional()
-  @IsUUID()
+  @ApiPropertyOptional({ description: "ID of the farm where produce was grown" })
+  @IsString()
   @IsOptional()
   farm_id?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: "Name of the produce" })
   @IsString()
-  name: string;
+  @IsOptional()
+  name?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: "Description of the produce" })
   @IsString()
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ enum: ProduceCategory })
-  @IsEnum(ProduceCategory)
-  produce_category: ProduceCategory;
+  @ApiPropertyOptional({ description: "Variety of the produce" })
+  @IsString()
+  @IsOptional()
+  product_variety?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: "Category of the produce" })
+  @IsEnum(ProduceCategory)
+  @IsOptional()
+  produce_category?: ProduceCategory;
+
+  @ApiProperty({ description: "Quantity of produce" })
   @IsNumber()
   quantity: number;
 
-  @ApiProperty()
+  @ApiProperty({ description: "Unit of measurement (e.g., kg, tons)" })
   @IsString()
   unit: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: "Price per unit" })
   @IsNumber()
-  price_per_unit: number;
+  @IsOptional()
+  price_per_unit?: number;
 
-  @ApiPropertyOptional()
+  @ApiProperty({ description: "Location in 'latitude,longitude' format" })
+  @IsLatLong()
+  location: string;
+
+  @ApiPropertyOptional({ description: "Optional location name" })
   @IsString()
   @IsOptional()
-  location?: string;
+  @MaxLength(255)
+  location_name?: string;
 
-  @ApiPropertyOptional({ type: [String] })
+  @ApiProperty({ description: "Array of image URLs (1-3 images required)" })
   @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  images?: string[];
+  @IsUrl({}, { each: true })
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
+  images: string[];
 
-  @ApiPropertyOptional({ enum: ProduceStatus })
-  @IsEnum(ProduceStatus)
-  @IsOptional()
-  status?: ProduceStatus;
-
-  @ApiPropertyOptional()
-  @Type(() => Date)
-  @IsDate()
-  @IsOptional()
-  harvested_at?: Date;
-
-  @ApiPropertyOptional()
-  @Type(() => Date)
-  @IsDate()
-  @IsOptional()
-  expiry_date?: Date;
-
-  @ApiPropertyOptional({ enum: QualityGrade })
-  @IsEnum(QualityGrade)
-  @IsOptional()
-  quality_grade?: QualityGrade;
-
-  @ApiPropertyOptional()
-  @Type(() => Date)
-  @IsDate()
-  @IsOptional()
-  produce_tag?: Date;
-
-  @ApiPropertyOptional({ type: [String] })
-  @IsArray()
-  @IsString({ each: true })
-  @IsOptional()
-  image_urls?: string[];
-
-  @ApiPropertyOptional()
-  @IsString()
+  @ApiPropertyOptional({ description: "Optional video URL (≤ 50 MB)" })
+  @IsUrl()
   @IsOptional()
   video_url?: string;
 
+  @ApiPropertyOptional({ description: "Optional harvest date" })
+  @IsDate()
   @IsOptional()
+  @Type(() => Date)
+  harvested_at?: Date;
+
+  @ApiPropertyOptional()
   @IsString()
+  @IsOptional()
   language?: string;
 }

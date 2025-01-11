@@ -3,12 +3,12 @@ import {
   NestInterceptor,
   ExecutionContext,
   CallHandler,
-  HttpException
-} from '@nestjs/common';
-import { Observable, throwError } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
-import { MetricsService } from '../services/metrics.service';
-import { RequestStatus } from '../entities/request-metric.entity';
+  HttpException,
+} from "@nestjs/common";
+import { Observable, throwError } from "rxjs";
+import { catchError, tap } from "rxjs/operators";
+import { MetricsService } from "../services/metrics.service";
+import { RequestStatus } from "../entities/request-metric.entity";
 
 @Injectable()
 export class MetricsInterceptor implements NestInterceptor {
@@ -30,17 +30,20 @@ export class MetricsInterceptor implements NestInterceptor {
           status: RequestStatus.SUCCESS,
           metadata: {
             ip_address: ip,
-            user_agent: headers['user-agent'],
+            user_agent: headers["user-agent"],
             status_code: 200,
             request_body: request.body,
-            response_body: response
-          }
+            response_body: response,
+          },
         });
       }),
       catchError(async (error) => {
         const responseTime = Date.now() - startTime;
         const status = error instanceof HttpException ? error.getStatus() : 500;
-        const message = error instanceof HttpException ? error.message : 'Internal server error';
+        const message =
+          error instanceof HttpException
+            ? error.message
+            : "Internal server error";
 
         await this.metricsService.logRequest({
           path,
@@ -51,14 +54,14 @@ export class MetricsInterceptor implements NestInterceptor {
           error_message: message,
           metadata: {
             ip_address: ip,
-            user_agent: headers['user-agent'],
+            user_agent: headers["user-agent"],
             status_code: status,
-            request_body: request.body
-          }
+            request_body: request.body,
+          },
         });
 
         return throwError(() => error);
-      })
+      }),
     );
   }
-} 
+}
