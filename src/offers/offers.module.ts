@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { Offer } from "./entities/offer.entity";
 import { OffersService } from "./services/offers.service";
@@ -20,14 +20,13 @@ import { OfferNotificationListener } from "./listeners/offer-notification.listen
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Offer, DailyPrice, Buyer, QualityAssessment, Produce]),
-    BuyersModule,
+    TypeOrmModule.forFeature([Offer, DailyPrice, QualityAssessment, Produce, Buyer]),
+    forwardRef(() => BuyersModule),
     ProduceModule,
     NotificationsModule,
-    ConfigModule,
     QualityModule,
+    ConfigModule,
   ],
-  controllers: [OffersController, DailyPriceController],
   providers: [
     OffersService,
     DailyPriceService,
@@ -35,6 +34,7 @@ import { OfferNotificationListener } from "./listeners/offer-notification.listen
     AutoOfferGeneratorTask,
     OfferNotificationListener,
   ],
-  exports: [OffersService, DailyPriceService],
+  controllers: [OffersController, DailyPriceController],
+  exports: [OffersService, DailyPriceService, AutoOfferService],
 })
 export class OffersModule {}

@@ -22,6 +22,9 @@ export class DailyPrice extends BaseEntity {
   @Column("decimal", { precision: 10, scale: 2 })
   max_price: number;
 
+  @Column({ type: "boolean", default: true })
+  is_active: boolean;
+
   @Column({ type: "timestamp" })
   valid_from: Date;
 

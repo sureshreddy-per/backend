@@ -4,9 +4,6 @@ export abstract class BaseEntity {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ type: "boolean", default: true })
-  is_active: boolean;
-
   @CreateDateColumn()
   created_at: Date;
 

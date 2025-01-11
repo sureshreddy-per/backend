@@ -1,17 +1,17 @@
 #!/bin/bash
 
+# Set API base URL
+API_BASE_URL="http://localhost:3000/api"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Base URL for API
-API_BASE_URL="http://localhost:3000"
-
 # Print functions
 print_error() {
-    echo -e "${RED}ERROR: $1${NC}" >&2
+    echo -e "${RED}ERROR: $1${NC}"
 }
 
 print_success() {
@@ -23,79 +23,141 @@ print_warning() {
 }
 
 print_header() {
-    echo -e "\n=== $1 ==="
-}
-
-print_test() {
-    echo -e "\n-> $1"
+    echo -e "\n${GREEN}$1${NC}"
 }
 
 print_test_header() {
     echo -e "\nTesting: $1"
 }
 
-# Make an HTTP request to the API
+# Make HTTP request
 make_request() {
     local method="$1"
     local endpoint="$2"
-    local token="$3"
-    local data="$4"
+    local data="$3"
+    local token="$4"
+    local response=""
     
-    # Add /api prefix if not already present
-    if [[ ! "$endpoint" =~ ^/api ]]; then
-        endpoint="/api${endpoint}"
-    fi
+    # Remove /api prefix if present
+    endpoint=${endpoint#/api}
+    # Remove leading slash if present
+    endpoint=${endpoint#/}
+    local full_url="${API_BASE_URL}/${endpoint}"
     
-    local url="${API_BASE_URL}${endpoint}"
-    local response
-    local status_code
-
-    # Build curl command with verbose output
-    local curl_cmd="curl -v -X $method"
+    # Debug output to stderr
+    >&2 echo "Debug - Request details:"
+    >&2 echo "Method: $method"
+    >&2 echo "Endpoint: ${full_url}"
+    >&2 echo "Data: $data"
+    [ -n "$token" ] && >&2 echo "Token: ${token:0:20}..."
     
-    # Add headers
-    curl_cmd+=" -H 'Content-Type: application/json'"
+    # Make the request
     if [ -n "$token" ]; then
-        # Remove any newlines and extra output from the token
-        token=$(echo "$token" | tr -d '\n' | grep -o 'eyJ.*')
-        if [ -n "$token" ]; then
-            curl_cmd+=" -H 'Authorization: Bearer $token'"
-        fi
+        response=$(curl -s -X "$method" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $token" \
+            -d "$data" \
+            "${full_url}")
+    else
+        response=$(curl -s -X "$method" \
+            -H "Content-Type: application/json" \
+            -d "$data" \
+            "${full_url}")
     fi
     
-    # Add data if present and method is not GET
-    if [ -n "$data" ] && [ "$method" != "GET" ]; then
-        curl_cmd+=" -d '$data'"
-    fi
+    # Debug output to stderr
+    >&2 echo "Debug - Raw response: $response"
     
-    # Add URL
-    curl_cmd+=" '$url'"
-    
-    # Print the curl command for debugging
-    echo "Executing: $curl_cmd" >&2
-    
-    # Execute curl command and capture response
-    response=$(eval "$curl_cmd" 2>/dev/null)
-    status_code=$?
-    
-    # Check if curl command failed
-    if [ $status_code -ne 0 ]; then
-        print_error "Failed to make request to $url (status code: $status_code)"
-        return 1
-    fi
-    
-    # Check if response is empty
+    # Check if the response is empty
     if [ -z "$response" ]; then
-        print_error "Empty response received"
+        >&2 echo "Error: Empty response received"
         return 1
     fi
     
-    # Print response for debugging
-    echo "Response: $response" >&2
+    # Check if the response is valid JSON
+    if ! echo "$response" | jq . >/dev/null 2>&1; then
+        >&2 echo "Error: Invalid JSON response"
+        >&2 echo "Raw response: $response"
+        return 1
+    fi
     
-    # Return response
     echo "$response"
     return 0
+}
+
+# Get auth token
+get_auth_token() {
+    local mobile="$1"
+    local name="$2"
+    local role="$3"
+    local token=""
+    
+    echo "Step 1: Checking mobile number..."
+    # Check mobile number first
+    local check_mobile_data="{\"mobile_number\":\"$mobile\"}"
+    local check_response=$(make_request "POST" "/auth/check-mobile" "$check_mobile_data")
+    
+    if [ $? -ne 0 ]; then
+        print_warning "Mobile check failed, proceeding with registration"
+    fi
+    
+    echo "Step 2: Registering user..."
+    # Register user
+    local register_data="{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"buyer@test.com\"}"
+    local register_response=$(make_request "POST" "/auth/register" "$register_data")
+    
+    if [ $? -ne 0 ]; then
+        print_warning "Registration failed, user might already exist"
+    fi
+    
+    echo "Step 3: Requesting OTP..."
+    # Request OTP
+    local otp_data="{\"mobile_number\":\"$mobile\"}"
+    local otp_response=$(make_request "POST" "/auth/otp/request" "$otp_data")
+    
+    if [ $? -ne 0 ]; then
+        print_error "Failed to request OTP"
+        return 1
+    fi
+    
+    # Extract OTP from response message
+    local otp=$(echo "$otp_response" | jq -r '.message' | grep -o '[0-9]\{6\}')
+    if [ -z "$otp" ]; then
+        print_error "Could not extract OTP from response"
+        return 1
+    fi
+    
+    echo "Step 4: Verifying OTP: $otp"
+    # Verify OTP and get token
+    local verify_data="{\"mobile_number\":\"$mobile\",\"otp\":\"$otp\"}"
+    local verify_response=$(make_request "POST" "/auth/otp/verify" "$verify_data")
+    
+    if [ $? -ne 0 ]; then
+        print_error "Failed to verify OTP"
+        return 1
+    fi
+    
+    # Extract token from verify response
+    token=$(echo "$verify_response" | jq -r '.token')
+    if [ -z "$token" ] || [ "$token" = "null" ]; then
+        print_error "Could not extract token from response"
+        return 1
+    fi
+    
+    echo "$token"
+    return 0
+}
+
+# Check if server is running
+check_server() {
+    echo "Checking if server is running..."
+    if curl -s "http://localhost:3000/api/health" > /dev/null; then
+        print_success "Server is running"
+        return 0
+    else
+        print_error "Server is not running"
+        return 1
+    fi
 }
 
 # Check response for errors
@@ -136,49 +198,6 @@ check_response() {
         return 1
     fi
     
-    return 0
-}
-
-# Get auth token for testing
-get_auth_token() {
-    local mobile="$1"
-    local role="$2"
-    local otp_response
-    local verify_response
-    local otp
-    local name="Test ${role}"
-    
-    # Try to register user first
-    local register_data="{\"mobile_number\":\"$mobile\",\"role\":\"$role\",\"name\":\"$name\"}"
-    register_response=$(make_request "POST" "/auth/register" "" "$register_data")
-    
-    # Request OTP
-    local otp_data="{\"mobile_number\":\"$mobile\"}"
-    otp_response=$(make_request "POST" "/auth/otp/request" "" "$otp_data")
-    
-    if [ $? -ne 0 ]; then
-        print_error "Failed to request OTP"
-        return 1
-    fi
-    
-    # Extract OTP from response message
-    otp=$(echo "$otp_response" | jq -r '.message' | grep -o '[0-9]\{6\}')
-    if [ -z "$otp" ]; then
-        print_error "Could not extract OTP from response"
-        return 1
-    fi
-    
-    # Verify OTP
-    local verify_data="{\"mobile_number\":\"$mobile\",\"otp\":\"$otp\"}"
-    verify_response=$(make_request "POST" "/auth/otp/verify" "" "$verify_data")
-    
-    if [ $? -ne 0 ]; then
-        print_error "Failed to verify OTP"
-        return 1
-    fi
-    
-    # Return the full verify response
-    echo "$verify_response"
     return 0
 }
 

@@ -1,5 +1,5 @@
 import { Entity, Column, ManyToOne, JoinColumn } from "typeorm";
-import { BaseEntity } from "../../common/base.entity";
+import { BaseEntity } from "../../common/entities/base.entity";
 import { Transaction, TransactionStatus } from "./transaction.entity";
 
 export enum TransactionEvent {

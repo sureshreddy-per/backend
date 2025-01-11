@@ -15,6 +15,9 @@ export class AutoOfferRules extends BaseEntity {
   @ManyToOne(() => Buyer)
   @JoinColumn({ name: "buyer_id" })
   buyer: Buyer;
+  
+  @Column({ type: "boolean", default: true })
+  is_active: boolean;
 
   @Column()
   produce_category: string;

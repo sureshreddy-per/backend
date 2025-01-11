@@ -1,103 +1,44 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Buyer } from "./entities/buyer.entity";
+import { BuyerPreferences } from "./entities/buyer-preferences.entity";
+import { ProduceCategory } from "../produce/enums/produce-category.enum";
 
 @Injectable()
 export class BuyersService {
+  private readonly logger = new Logger(BuyersService.name);
+
   constructor(
     @InjectRepository(Buyer)
     private readonly buyerRepository: Repository<Buyer>,
+    @InjectRepository(BuyerPreferences)
+    private readonly buyerPreferencesRepository: Repository<BuyerPreferences>,
   ) {}
 
   async findByPriceRange(price: number): Promise<Buyer[]> {
-    return this.buyerRepository.find();
+    try {
+      this.logger.debug(`Finding buyers by price range: ${price}`);
+      const buyers = await this.buyerRepository.find();
+      this.logger.debug(`Found ${buyers.length} buyers`);
+      return buyers;
+    } catch (error) {
+      this.logger.error(`Error finding buyers by price range: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async findNearby(location: string, radiusKm: number): Promise<Buyer[]> {
-    const [lat, lng] = location.split("-").map((coord) => parseFloat(coord));
-    const buyers = await this.buyerRepository.find();
+    try {
+      this.logger.debug(`Finding nearby buyers at location: ${location}, radius: ${radiusKm}`);
+      const [lat, lng] = location.split("-").map((coord) => parseFloat(coord));
+      const buyers = await this.buyerRepository.find();
 
-    return buyers.filter((buyer) => {
-      if (!buyer.lat_lng) return false;
-      const [buyerLat, buyerLng] = buyer.lat_lng
-        .split("-")
-        .map((coord) => parseFloat(coord));
-
-      const R = 6371; // Earth's radius in km
-      const dLat = this.toRad(buyerLat - lat);
-      const dLon = this.toRad(buyerLng - lng);
-      const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(this.toRad(lat)) *
-          Math.cos(this.toRad(buyerLat)) *
-          Math.sin(dLon / 2) *
-          Math.sin(dLon / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      const distance = R * c;
-
-      return distance <= radiusKm;
-    });
-  }
-
-  private toRad(degrees: number): number {
-    return degrees * (Math.PI / 180);
-  }
-
-  async createBuyer(
-    user_id: string,
-    buyerData: Partial<Buyer>,
-  ): Promise<Buyer> {
-    const buyer = this.buyerRepository.create({
-      user_id,
-      ...buyerData,
-      is_active: true,
-    });
-    return this.buyerRepository.save(buyer);
-  }
-
-  async findByUserId(userId: string): Promise<Buyer> {
-    return this.buyerRepository.findOne({ where: { user_id: userId } });
-  }
-
-  async findOne(id: string): Promise<Buyer> {
-    return this.buyerRepository.findOne({ where: { id } });
-  }
-
-  async findNearbyBuyers(
-    lat: number,
-    lng: number,
-    radiusKm: number,
-  ): Promise<Buyer[]> {
-    if (!lat || !lng || !radiusKm) {
-      throw new Error(
-        "Invalid parameters: latitude, longitude and radius are required",
-      );
-    }
-
-    if (radiusKm <= 0 || radiusKm > 100) {
-      throw new Error("Radius must be between 0 and 100 kilometers");
-    }
-
-    const buyers = await this.buyerRepository.find({
-      where: {
-        is_active: true,
-      },
-    });
-
-    return buyers.filter((buyer) => {
-      try {
+      const nearbyBuyers = buyers.filter((buyer) => {
         if (!buyer.lat_lng) return false;
-
-        const [buyerLat, buyerLng] = buyer.lat_lng.split("-").map((coord) => {
-          const parsed = parseFloat(coord);
-          if (isNaN(parsed)) throw new Error("Invalid coordinates format");
-          return parsed;
-        });
-
-        if (Math.abs(buyerLat) > 90 || Math.abs(buyerLng) > 180) {
-          return false; // Invalid coordinates
-        }
+        const [buyerLat, buyerLng] = buyer.lat_lng
+          .split("-")
+          .map((coord) => parseFloat(coord));
 
         const R = 6371; // Earth's radius in km
         const dLat = this.toRad(buyerLat - lat);
@@ -112,39 +53,286 @@ export class BuyersService {
         const distance = R * c;
 
         return distance <= radiusKm;
-      } catch (error) {
-        console.error(
-          `Error calculating distance for buyer ${buyer.id}: ${error.message}`,
-        );
-        return false;
+      });
+
+      this.logger.debug(`Found ${nearbyBuyers.length} nearby buyers`);
+      return nearbyBuyers;
+    } catch (error) {
+      this.logger.error(`Error finding nearby buyers: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  private toRad(degrees: number): number {
+    return degrees * (Math.PI / 180);
+  }
+
+  async createBuyer(
+    user_id: string,
+    buyerData: Partial<Buyer>,
+  ): Promise<Buyer> {
+    try {
+      this.logger.debug(`Creating buyer for user ${user_id}`);
+      // Convert comma-separated lat_lng to hyphen-separated format if present
+      if (buyerData.lat_lng) {
+        buyerData.lat_lng = buyerData.lat_lng.replace(',', '-');
       }
-    });
+
+      const buyer = this.buyerRepository.create({
+        user_id,
+        ...buyerData,
+        is_active: true,
+      });
+
+      const result = await this.buyerRepository.save(buyer);
+      this.logger.debug(`Buyer created successfully: ${JSON.stringify(result)}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error creating buyer: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async findByUserId(userId: string): Promise<Buyer> {
+    try {
+      this.logger.debug(`Finding buyer by user ID: ${userId}`);
+      const buyer = await this.buyerRepository.findOne({ where: { user_id: userId } });
+      if (!buyer) {
+        throw new NotFoundException(`Buyer not found for user ${userId}`);
+      }
+      this.logger.debug(`Buyer found: ${JSON.stringify(buyer)}`);
+      return buyer;
+    } catch (error) {
+      this.logger.error(`Error finding buyer by user ID: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async findOne(id: string): Promise<Buyer> {
+    try {
+      this.logger.debug(`Finding buyer by ID: ${id}`);
+      const buyer = await this.buyerRepository.findOne({ where: { id } });
+      if (!buyer) {
+        throw new NotFoundException(`Buyer not found with ID ${id}`);
+      }
+      this.logger.debug(`Buyer found: ${JSON.stringify(buyer)}`);
+      return buyer;
+    } catch (error) {
+      this.logger.error(`Error finding buyer by ID: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async findNearbyBuyers(
+    lat: number,
+    lng: number,
+    radiusKm: number,
+  ): Promise<Buyer[]> {
+    try {
+      this.logger.debug(`Finding nearby buyers at lat: ${lat}, lng: ${lng}, radius: ${radiusKm}`);
+      if (!lat || !lng || !radiusKm) {
+        throw new Error(
+          "Invalid parameters: latitude, longitude and radius are required",
+        );
+      }
+
+      if (radiusKm <= 0 || radiusKm > 100) {
+        throw new Error("Radius must be between 0 and 100 kilometers");
+      }
+
+      const buyers = await this.buyerRepository.find({
+        where: {
+          is_active: true,
+        },
+      });
+
+      const nearbyBuyers = buyers.filter((buyer) => {
+        try {
+          if (!buyer.lat_lng) return false;
+
+          const [buyerLat, buyerLng] = buyer.lat_lng.split("-").map((coord) => {
+            const parsed = parseFloat(coord);
+            if (isNaN(parsed)) throw new Error("Invalid coordinates format");
+            return parsed;
+          });
+
+          if (Math.abs(buyerLat) > 90 || Math.abs(buyerLng) > 180) {
+            return false; // Invalid coordinates
+          }
+
+          const R = 6371; // Earth's radius in km
+          const dLat = this.toRad(buyerLat - lat);
+          const dLon = this.toRad(buyerLng - lng);
+          const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(this.toRad(lat)) *
+              Math.cos(this.toRad(buyerLat)) *
+              Math.sin(dLon / 2) *
+              Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          const distance = R * c;
+
+          return distance <= radiusKm;
+        } catch (error) {
+          this.logger.error(
+            `Error calculating distance for buyer ${buyer.id}: ${error.message}`,
+          );
+          return false;
+        }
+      });
+
+      this.logger.debug(`Found ${nearbyBuyers.length} nearby buyers`);
+      return nearbyBuyers;
+    } catch (error) {
+      this.logger.error(`Error finding nearby buyers: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async getBuyerDetails(userId: string): Promise<Buyer> {
-    return this.findByUserId(userId);
+    try {
+      this.logger.debug(`Getting buyer details for user ${userId}`);
+      const buyer = await this.findByUserId(userId);
+      this.logger.debug(`Buyer details found: ${JSON.stringify(buyer)}`);
+      return buyer;
+    } catch (error) {
+      this.logger.error(`Error getting buyer details: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async updateBuyerDetails(
     userId: string,
     updateData: Partial<Buyer>,
   ): Promise<Buyer> {
-    const buyer = await this.findByUserId(userId);
-    Object.assign(buyer, updateData);
-    return this.buyerRepository.save(buyer);
+    try {
+      this.logger.debug(`Updating buyer details for user ${userId}`);
+      const buyer = await this.findByUserId(userId);
+      Object.assign(buyer, updateData);
+      const result = await this.buyerRepository.save(buyer);
+      this.logger.debug(`Buyer details updated: ${JSON.stringify(result)}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error updating buyer details: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   async getBuyerDetailsByOfferId(
     offerId: string,
     userId: string,
   ): Promise<Buyer> {
-    // First find the buyer associated with this offer
-    const buyer = await this.buyerRepository
-      .createQueryBuilder("buyer")
-      .innerJoin("buyer.offers", "offer", "offer.id = :offerId", { offerId })
-      .where("buyer.user_id = :userId", { userId })
-      .getOne();
+    try {
+      this.logger.debug(`Getting buyer details for offer ${offerId} and user ${userId}`);
+      const buyer = await this.buyerRepository
+        .createQueryBuilder("buyer")
+        .innerJoin("buyer.offers", "offer", "offer.id = :offerId", { offerId })
+        .where("buyer.user_id = :userId", { userId })
+        .getOne();
 
-    return buyer;
+      if (!buyer) {
+        throw new NotFoundException(`Buyer not found for offer ${offerId}`);
+      }
+
+      this.logger.debug(`Buyer details found: ${JSON.stringify(buyer)}`);
+      return buyer;
+    } catch (error) {
+      this.logger.error(`Error getting buyer details by offer: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async getBuyerPreferences(userId: string) {
+    try {
+      this.logger.debug(`Getting buyer preferences for user ${userId}`);
+      const buyer = await this.findByUserId(userId);
+      if (!buyer) {
+        throw new NotFoundException(`Buyer not found for user ${userId}`);
+      }
+
+      const preferences = await this.buyerPreferencesRepository.findOne({
+        where: { buyer_id: buyer.id }
+      });
+
+      if (!preferences) {
+        // Return default preferences if none exist
+        return {
+          min_price: null,
+          max_price: null,
+          categories: [],
+          location: buyer.lat_lng ? {
+            lat: parseFloat(buyer.lat_lng.split('-')[0]),
+            lng: parseFloat(buyer.lat_lng.split('-')[1])
+          } : null,
+          location_name: buyer.location_name,
+          address: buyer.address,
+          notification_enabled: true,
+          notification_methods: [],
+          target_price: null,
+          price_alert_condition: null,
+          expiry_date: null
+        };
+      }
+
+      const result = {
+        min_price: preferences.min_price,
+        max_price: preferences.max_price,
+        categories: preferences.categories,
+        location: buyer.lat_lng ? {
+          lat: parseFloat(buyer.lat_lng.split('-')[0]),
+          lng: parseFloat(buyer.lat_lng.split('-')[1])
+        } : null,
+        location_name: buyer.location_name,
+        address: buyer.address,
+        notification_enabled: preferences.notification_enabled,
+        notification_methods: preferences.notification_methods,
+        target_price: preferences.target_price,
+        price_alert_condition: preferences.price_alert_condition,
+        expiry_date: preferences.expiry_date
+      };
+
+      this.logger.debug(`Buyer preferences found: ${JSON.stringify(result)}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error getting buyer preferences: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async updatePriceRangePreferences(
+    userId: string,
+    data: { min_price: number; max_price: number; categories?: string[] }
+  ): Promise<BuyerPreferences> {
+    try {
+      this.logger.debug(`Updating price range preferences for user ${userId}`);
+      const buyer = await this.findByUserId(userId);
+      if (!buyer) {
+        throw new NotFoundException(`Buyer not found for user ${userId}`);
+      }
+
+      let preferences = await this.buyerPreferencesRepository.findOne({
+        where: { buyer_id: buyer.id }
+      });
+
+      if (!preferences) {
+        preferences = this.buyerPreferencesRepository.create({
+          buyer_id: buyer.id,
+          notification_enabled: true
+        });
+      }
+
+      preferences.min_price = data.min_price;
+      preferences.max_price = data.max_price;
+      if (data.categories) {
+        preferences.categories = data.categories.map(category => category as ProduceCategory);
+      }
+
+      const result = await this.buyerPreferencesRepository.save(preferences);
+      this.logger.debug(`Price range preferences updated: ${JSON.stringify(result)}`);
+      return result;
+    } catch (error) {
+      this.logger.error(`Error updating price range preferences: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 }
