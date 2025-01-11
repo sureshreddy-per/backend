@@ -95,6 +95,7 @@ export class AuthService {
     if (userData.role === UserRole.BUYER) {
       await this.buyersService.createBuyer(user.id, {
         business_name: userData.name,
+        address: "Default Address",
       });
     }
 

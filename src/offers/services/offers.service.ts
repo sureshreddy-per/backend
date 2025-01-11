@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, Inject, NotFoundException, forwardRef } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
@@ -9,6 +9,8 @@ import { CreateOfferDto } from "../dto/create-offer.dto";
 import { NotificationService } from "../../notifications/services/notification.service";
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
 import { PaginatedResponse } from "../../common/interfaces/paginated-response.interface";
+import { EventEmitter2 } from "@nestjs/event-emitter";
+import { BuyerPricesService } from "../../buyers/services/buyer-prices.service";
 
 const CACHE_TTL = 3600; // 1 hour
 const CACHE_PREFIX = 'offer:';
@@ -22,7 +24,10 @@ export class OffersService {
     @InjectRepository(Offer)
     private readonly offerRepository: Repository<Offer>,
     private readonly notificationService: NotificationService,
+    private readonly eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    @Inject(forwardRef(() => BuyerPricesService))
+    private readonly buyerPricesService: BuyerPricesService,
   ) {}
 
   private getCacheKey(key: string): string {
@@ -306,5 +311,38 @@ export class OffersService {
     ]);
 
     return updatedOffer;
+  }
+
+  async handlePriceChange(
+    produce_id: string,
+    new_price: number,
+  ): Promise<void> {
+    try {
+      // Find all active offers for this produce
+      const offers = await this.offerRepository.find({
+        where: {
+          produce_id,
+          status: OfferStatus.PENDING,
+        },
+      });
+
+      // Update each offer with the new price
+      for (const offer of offers) {
+        offer.price_per_unit = new_price;
+        await this.offerRepository.save(offer);
+
+        // Emit event for each updated offer
+        this.eventEmitter.emit('offer.price.updated', {
+          offer_id: offer.id,
+          produce_id,
+          old_price: offer.price_per_unit,
+          new_price,
+          timestamp: new Date(),
+        });
+      }
+    } catch (error) {
+      console.error('Error in handlePriceChange:', error);
+      throw error;
+    }
   }
 }

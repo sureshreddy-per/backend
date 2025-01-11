@@ -6,9 +6,10 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from "typeorm";
 import { User } from "../../users/entities/user.entity";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
+import { BuyerPreferences } from "./buyer-preferences.entity";
 
 @Entity("buyers")
 export class Buyer {
@@ -40,17 +41,11 @@ export class Buyer {
   @Column()
   address: string;
 
-  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
-  min_price: number;
-
-  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
-  max_price: number;
-
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ type: 'enum', enum: ProduceCategory, array: true, nullable: true })
-  categories: ProduceCategory[];
+  @OneToMany(() => BuyerPreferences, preferences => preferences.buyer)
+  preferences: BuyerPreferences[];
 
   @CreateDateColumn({ name: "created_at" })
   created_at: Date;

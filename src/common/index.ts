@@ -1,6 +1,6 @@
 export * from "./base.controller";
 export * from "./base.service";
-export * from "./base.entity";
+export * from "./entities/base.entity";
 export * from "./base.dto";
 export * from "./base.response";
 export * from "./interfaces/paginated-response.interface";
