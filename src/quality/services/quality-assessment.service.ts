@@ -281,12 +281,12 @@ export class QualityAssessmentService {
       confidence_level: 1.0, // Manual inspection has 100% confidence
       defects: data.defects,
       recommendations: data.recommendations,
-      category: request.category,
-      category_specific_assessment: data.category_specific_assessment,
-      inspector_id: request.inspector_id,
-      inspection_request_id: request.id,
       images: data.images,
       notes: data.notes,
+      inspector_id: request.inspector_id,
+      inspection_request_id: request.id,
+      category: request.category,
+      category_specific_assessment: data.category_specific_assessment,
     });
 
     // Update inspection request status

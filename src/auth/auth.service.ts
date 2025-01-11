@@ -12,6 +12,7 @@ import { ConfigService } from "@nestjs/config";
 import { RedisService } from "../redis/redis.service";
 import { FarmersService } from "../farmers/farmers.service";
 import { BuyersService } from "../buyers/buyers.service";
+import { InspectorsService } from "../inspectors/inspectors.service";
 import * as crypto from "crypto";
 
 @Injectable()
@@ -23,6 +24,7 @@ export class AuthService {
     private readonly redisService: RedisService,
     private readonly farmersService: FarmersService,
     private readonly buyersService: BuyersService,
+    private readonly inspectorsService: InspectorsService,
   ) {}
 
   private hashOtp(otp: string, mobile_number: string): string {
@@ -93,6 +95,16 @@ export class AuthService {
     if (userData.role === UserRole.BUYER) {
       await this.buyersService.createBuyer(user.id, {
         business_name: userData.name,
+      });
+    }
+
+    // If user has INSPECTOR role, create inspector profile
+    if (userData.role === UserRole.INSPECTOR) {
+      await this.inspectorsService.create({
+        name: user.name,
+        mobile_number: user.mobile_number,
+        location: "0.0,0.0",
+        user_id: user.id,
       });
     }
 

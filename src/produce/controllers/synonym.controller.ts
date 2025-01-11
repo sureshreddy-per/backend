@@ -67,11 +67,11 @@ export class ProduceSynonymController {
     description: "Returns the canonical name if found",
     type: String,
   })
-  async findCanonicalName(@Query("word") word: string): Promise<string | null> {
-    return this.synonymService.findCanonicalName(word);
+  async findcanonical_name(@Query("word") word: string): Promise<string | null> {
+    return this.synonymService.findcanonical_name(word);
   }
 
-  @Delete(":canonicalName")
+  @Delete(":canonical_name")
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: "Deactivate a synonym entry" })
   @ApiResponse({
@@ -79,9 +79,9 @@ export class ProduceSynonymController {
     description: "Synonym entry deactivated successfully",
   })
   async deactivateSynonym(
-    @Param("canonicalName") canonicalName: string,
+    @Param("canonical_name") canonical_name: string,
     @Request() req: any,
   ): Promise<void> {
-    await this.synonymService.deactivateSynonym(canonicalName, req.user.id);
+    await this.synonymService.deactivateSynonym(canonical_name, req.user.id);
   }
 }

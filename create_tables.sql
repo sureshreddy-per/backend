@@ -22,6 +22,7 @@ DROP TABLE IF EXISTS support_tickets CASCADE;
 DROP TABLE IF EXISTS synonyms CASCADE;
 DROP TABLE IF EXISTS daily_prices CASCADE;
 DROP TABLE IF EXISTS business_metrics CASCADE;
+DROP TABLE IF EXISTS inspectors CASCADE;
 
 -- Drop ALL existing enums
 DROP TYPE IF EXISTS user_role_enum CASCADE;
@@ -222,6 +223,26 @@ CREATE TABLE users (
   CONSTRAINT valid_mobile_number CHECK (mobile_number ~ '^\+[1-9]\d{1,14}$')
 );
 
+-- Create inspectors table
+CREATE TABLE inspectors (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name VARCHAR(255) NOT NULL,
+  location TEXT,
+  mobile_number VARCHAR(20) NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT valid_mobile_number CHECK (mobile_number ~ '^\+[1-9]\d{1,14}$'),
+  CONSTRAINT valid_location_format CHECK (location ~ '^-?\d+(\.\d+)?,-?\d+(\.\d+)?$'),
+  CONSTRAINT valid_latitude CHECK (CAST(split_part(location, ',', 1) AS DECIMAL) BETWEEN -90 AND 90),
+  CONSTRAINT valid_longitude CHECK (CAST(split_part(location, ',', 2) AS DECIMAL) BETWEEN -180 AND 180)
+);
+
+-- Create index for inspectors table
+CREATE INDEX idx_inspectors_mobile_number ON inspectors(mobile_number);
+CREATE INDEX idx_inspectors_location ON inspectors(location);
+CREATE INDEX idx_inspectors_user_id ON inspectors(user_id);
+
 -- Create farmers table
 CREATE TABLE farmers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -229,6 +250,22 @@ CREATE TABLE farmers (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create bank_accounts table
+CREATE TABLE bank_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  farmer_id UUID NOT NULL REFERENCES farmers(id) ON DELETE CASCADE,
+  account_name VARCHAR(255) NOT NULL,
+  account_number VARCHAR(50) NOT NULL,
+  bank_name VARCHAR(255) NOT NULL,
+  branch_code VARCHAR(50) NOT NULL,
+  is_primary BOOLEAN DEFAULT false,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create index for bank_accounts table
+CREATE INDEX idx_bank_accounts_farmer_id ON bank_accounts(farmer_id);
 
 -- Create farms table
 CREATE TABLE farms (
@@ -238,6 +275,8 @@ CREATE TABLE farms (
   description TEXT,
   location TEXT NOT NULL,
   size_in_acres DECIMAL(10,2),
+  address VARCHAR(255) NULL,
+  image VARCHAR(255) NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -608,14 +647,23 @@ CREATE TABLE inspection_distance_fee_config (
 -- Create system_configs table
 CREATE TABLE system_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  key system_config_key_enum NOT NULL,
+  key system_config_key_enum NOT NULL UNIQUE,
   value TEXT NOT NULL,
   description TEXT,
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(key)
+  is_active BOOLEAN DEFAULT true,
+  updated_by UUID REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create index for produce_synonyms table
+CREATE INDEX idx_produce_synonyms_canonical_name ON produce_synonyms(canonical_name);
+CREATE INDEX idx_produce_synonyms_synonym ON produce_synonyms(synonym);
+CREATE INDEX idx_produce_synonyms_language ON produce_synonyms(language);
+
+-- Create index for system_configs table
+CREATE INDEX idx_system_configs_key ON system_configs(key);
+CREATE INDEX idx_system_configs_is_active ON system_configs(is_active);
 
 -- Insert default configurations
 INSERT INTO system_configs (key, value, description) VALUES

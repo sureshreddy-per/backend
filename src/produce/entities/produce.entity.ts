@@ -69,7 +69,7 @@ export class Produce {
   @Column({ type: "timestamp", nullable: true })
   inspection_requested_at: Date;
 
-  @Column("text", { array: true })
+  @Column({ type: "text", array: true, nullable: false })
   images: string[];
 
   @Column({
@@ -87,11 +87,12 @@ export class Produce {
   expiry_date: Date;
 
   @Column({
-    type: "enum",
-    enum: QualityGrade,
+    type: "integer",
     nullable: true,
+    default: 0,
+    name: "quality_grade"
   })
-  quality_grade: QualityGrade;
+  quality_grade: number;
 
   @CreateDateColumn({ name: "created_at" })
   created_at: Date;
