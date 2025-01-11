@@ -1,4 +1,4 @@
-import { PartialType } from '@nestjs/swagger';
-import { CreateSynonymDto } from './create-synonym.dto';
+import { PartialType } from "@nestjs/swagger";
+import { CreateSynonymDto } from "./create-synonym.dto";
 
-export class UpdateSynonymDto extends PartialType(CreateSynonymDto) {} 
+export class UpdateSynonymDto extends PartialType(CreateSynonymDto) {}

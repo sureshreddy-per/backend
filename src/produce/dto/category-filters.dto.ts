@@ -1,4 +1,4 @@
-import { IsNumber, IsString, Min, Max, IsOptional } from 'class-validator';
+import { IsNumber, IsString, Min, Max, IsOptional } from "class-validator";
 
 export class FoodGrainsFilterDto {
   @IsNumber()
@@ -206,4 +206,4 @@ export class MedicinalPlantsFilterDto {
   @Min(0)
   @Max(100)
   purity: number;
-} 
+}

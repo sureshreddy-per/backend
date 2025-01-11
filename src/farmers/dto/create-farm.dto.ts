@@ -1,5 +1,5 @@
-import { IsString, IsUUID, IsNumber, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsUUID, IsNumber, IsOptional } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateFarmDto {
   @ApiPropertyOptional()
@@ -11,9 +11,14 @@ export class CreateFarmDto {
   @IsString()
   name: string;
 
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  description?: string;
+
   @ApiProperty()
   @IsNumber()
-  size: number;
+  size_in_acres: number;
 
   @ApiProperty()
   @IsString()
@@ -22,10 +27,10 @@ export class CreateFarmDto {
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
-  lat_lng?: string;
+  location?: string;
 
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   image?: string;
-} 
+}

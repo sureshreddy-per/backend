@@ -1,57 +1,36 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
 
 export enum MediaType {
-  IMAGE = 'IMAGE',
-  VIDEO = 'VIDEO',
-  DOCUMENT = 'DOCUMENT'
+  IMAGE = "IMAGE",
+  VIDEO = "VIDEO",
+  DOCUMENT = "DOCUMENT"
 }
 
-export enum MediaCategory {
-  PRODUCE = 'PRODUCE',
-  PROFILE = 'PROFILE',
-  INSPECTION = 'INSPECTION',
-  QUALITY_ASSESSMENT = 'QUALITY_ASSESSMENT'
-}
-
-@Entity('media')
+@Entity("media")
 export class Media {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
-
-  @Column()
-  original_name: string;
-
-  @Column()
-  mime_type: string;
-
-  @Column()
-  size: number;
 
   @Column()
   url: string;
 
-  @Column()
-  key: string;
-
   @Column({
-    type: 'enum',
-    enum: MediaType
+    type: "enum",
+    enum: MediaType,
+    default: MediaType.IMAGE
   })
   type: MediaType;
 
-  @Column({
-    type: 'enum',
-    enum: MediaCategory
-  })
-  category: MediaCategory;
+  @Column({ nullable: true })
+  mime_type: string;
 
-  @Column({ name: 'entity_id' })
-  entity_id: string;
+  @Column({ nullable: true })
+  size: number;
 
-  @Column({ name: 'user_id' })
-  user_id: string;
+  @Column({ nullable: true })
+  original_name: string;
 
-  @Column('jsonb', { nullable: true })
+  @Column("jsonb", { nullable: true })
   metadata: {
     width?: number;
     height?: number;
@@ -59,9 +38,9 @@ export class Media {
     thumbnail_url?: string;
   };
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn()
   created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn()
   updated_at: Date;
-} 
+}

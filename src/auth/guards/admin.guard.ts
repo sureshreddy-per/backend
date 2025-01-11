@@ -1,5 +1,5 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { Injectable, CanActivate, ExecutionContext } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 
 @Injectable()
 export class AdminGuard implements CanActivate {
@@ -14,6 +14,6 @@ export class AdminGuard implements CanActivate {
       return false;
     }
 
-    return user.roles.includes('admin');
+    return user.roles.includes("admin");
   }
-} 
+}

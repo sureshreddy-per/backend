@@ -26,4 +26,4 @@ export interface BatchProcessorConfig {
   concurrencyLimit: number;
   circuitBreakerThreshold: number;
   circuitBreakerTimeout: number;
-} 
+}

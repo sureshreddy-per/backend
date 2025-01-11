@@ -18,4 +18,4 @@ export class BaseResponse<T> {
   static error<T>(message: string, error?: any): BaseResponse<T> {
     return new BaseResponse(false, undefined, message, error);
   }
-} 
+}

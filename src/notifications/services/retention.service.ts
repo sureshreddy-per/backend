@@ -1,8 +1,8 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
-import { Notification } from '../entities/notification.entity';
-import { Cron } from '@nestjs/schedule';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, LessThan } from "typeorm";
+import { Notification } from "../entities/notification.entity";
+import { Cron } from "@nestjs/schedule";
 
 @Injectable()
 export class RetentionService {
@@ -11,7 +11,7 @@ export class RetentionService {
     private readonly notificationRepository: Repository<Notification>,
   ) {}
 
-  @Cron('0 0 * * *') // Run daily at midnight
+  @Cron("0 0 * * *") // Run daily at midnight
   async cleanupOldNotifications() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -21,4 +21,4 @@ export class RetentionService {
       is_read: true,
     });
   }
-} 
+}

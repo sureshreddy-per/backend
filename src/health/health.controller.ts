@@ -1,9 +1,9 @@
-import { Controller, Get } from '@nestjs/common';
-import { HealthService } from './health.service';
-import { Public } from '../auth/decorators/public.decorator';
-import { ApiExcludeController } from '@nestjs/swagger';
+import { Controller, Get } from "@nestjs/common";
+import { HealthService } from "./health.service";
+import { Public } from "../auth/decorators/public.decorator";
+import { ApiExcludeController } from "@nestjs/swagger";
 
-@Controller('health')
+@Controller("health")
 @ApiExcludeController()
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
@@ -13,4 +13,4 @@ export class HealthController {
   async getHealth() {
     return this.healthService.checkHealth();
   }
-} 
+}

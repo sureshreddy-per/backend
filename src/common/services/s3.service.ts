@@ -1,10 +1,14 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { Upload } from '@aws-sdk/lib-storage';
-import { v4 as uuidv4 } from 'uuid';
+import { Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
+import { Upload } from "@aws-sdk/lib-storage";
+import { v4 as uuidv4 } from "uuid";
 
-export type S3UploadType = 'images' | 'videos' | 'thumbnails' | 'reports';
+export type S3UploadType = "images" | "videos" | "thumbnails" | "reports";
 
 @Injectable()
 export class S3Service {
@@ -12,16 +16,19 @@ export class S3Service {
 
   constructor(private configService: ConfigService) {
     this.s3Client = new S3Client({
-      region: this.configService.get('aws.region'),
+      region: this.configService.get("aws.region"),
       credentials: {
-        accessKeyId: this.configService.get('aws.accessKeyId'),
-        secretAccessKey: this.configService.get('aws.secretAccessKey'),
+        accessKeyId: this.configService.get("aws.accessKeyId"),
+        secretAccessKey: this.configService.get("aws.secretAccessKey"),
       },
     });
   }
 
-  async uploadFile(file: Express.Multer.File, type: S3UploadType = 'images'): Promise<string> {
-    const bucket = this.configService.get('aws.s3.bucket');
+  async uploadFile(
+    file: Express.Multer.File,
+    type: S3UploadType = "images",
+  ): Promise<string> {
+    const bucket = this.configService.get("aws.s3.bucket");
     const uniqueFileName = `${type}/${uuidv4()}-${file.originalname}`;
 
     const upload = new Upload({
@@ -31,7 +38,7 @@ export class S3Service {
         Key: uniqueFileName,
         Body: file.buffer,
         ContentType: file.mimetype,
-        ACL: this.configService.get('aws.s3.acl'),
+        ACL: this.configService.get("aws.s3.acl"),
       },
     });
 
@@ -40,7 +47,7 @@ export class S3Service {
   }
 
   async deleteFile(fileUrl: string): Promise<void> {
-    const bucket = this.configService.get('aws.s3.bucket');
+    const bucket = this.configService.get("aws.s3.bucket");
     const key = this.extractKeyFromUrl(fileUrl);
 
     const command = new DeleteObjectCommand({
@@ -52,7 +59,7 @@ export class S3Service {
   }
 
   extractKeyFromUrl(fileUrl: string): string {
-    const urlParts = fileUrl.split('/');
-    return urlParts.slice(3).join('/');
+    const urlParts = fileUrl.split("/");
+    return urlParts.slice(3).join("/");
   }
-} 
+}

@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsOptional, IsNumber, Min } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsNumber,
+  Min,
+} from "class-validator";
 
 export class AdminActionDto {
   @IsString()
@@ -9,4 +15,4 @@ export class AdminActionDto {
   @IsOptional()
   @Min(1)
   duration_days?: number;
-} 
+}

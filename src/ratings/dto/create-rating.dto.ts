@@ -1,27 +1,40 @@
-import { IsUUID, IsString, IsOptional, IsNumber, Min, Max } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  IsUUID,
+  IsOptional,
+  Min,
+  Max,
+} from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateRatingDto {
-  @ApiProperty()
+  @ApiProperty({
+    description: "Transaction ID for which rating is being submitted",
+  })
   @IsUUID()
-  rated_user_id: string;
-
-  @ApiProperty()
-  @IsUUID()
-  rating_user_id: string;
-
-  @ApiProperty()
-  @IsUUID()
+  @IsNotEmpty()
   transaction_id: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: "Rating score (1-5)" })
   @IsNumber()
-  @Min(0)
+  @Min(1)
   @Max(5)
-  stars: number;
+  @IsNotEmpty()
+  rating: number;
 
-  @ApiPropertyOptional()
+  @ApiProperty({ description: "Optional feedback comment" })
   @IsString()
   @IsOptional()
   comment?: string;
-} 
+
+  @ApiProperty({ description: "Specific aspects ratings", required: false })
+  @IsOptional()
+  aspects?: {
+    quality_accuracy?: number; // How accurate was the quality assessment
+    communication?: number; // Communication during transaction
+    reliability?: number; // Reliability of the other party
+    timeliness?: number; // Timeliness in responses/delivery
+  };
+}

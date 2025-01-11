@@ -1,17 +1,17 @@
-import { Injectable } from '@nestjs/common';
-import { ProduceCategory } from '../../produce/enums/produce-category.enum';
-import { QualityGrade } from '../../produce/enums/quality-grade.enum';
-import { FoodGrainsFilterDto } from '../../produce/dto/category-filters.dto';
-import { OilseedsFilterDto } from '../../produce/dto/category-filters.dto';
-import { FruitsFilterDto } from '../../produce/dto/category-filters.dto';
-import { VegetablesFilterDto } from '../../produce/dto/category-filters.dto';
-import { SpicesFilterDto } from '../../produce/dto/category-filters.dto';
-import { FibersFilterDto } from '../../produce/dto/category-filters.dto';
-import { SugarcaneFilterDto } from '../../produce/dto/category-filters.dto';
-import { FlowersFilterDto } from '../../produce/dto/category-filters.dto';
-import { MedicinalPlantsFilterDto } from '../../produce/dto/category-filters.dto';
-import { ConfigService } from '@nestjs/config';
-import { HttpService } from '@nestjs/axios';
+import { Injectable } from "@nestjs/common";
+import { ProduceCategory } from "../../produce/enums/produce-category.enum";
+import { QualityGrade } from "../../produce/enums/quality-grade.enum";
+import { FoodGrainsFilterDto } from "../../produce/dto/category-filters.dto";
+import { OilseedsFilterDto } from "../../produce/dto/category-filters.dto";
+import { FruitsFilterDto } from "../../produce/dto/category-filters.dto";
+import { VegetablesFilterDto } from "../../produce/dto/category-filters.dto";
+import { SpicesFilterDto } from "../../produce/dto/category-filters.dto";
+import { FibersFilterDto } from "../../produce/dto/category-filters.dto";
+import { SugarcaneFilterDto } from "../../produce/dto/category-filters.dto";
+import { FlowersFilterDto } from "../../produce/dto/category-filters.dto";
+import { MedicinalPlantsFilterDto } from "../../produce/dto/category-filters.dto";
+import { ConfigService } from "@nestjs/config";
+import { HttpService } from "@nestjs/axios";
 
 export interface AIAnalysisResult {
   name: string;
@@ -22,30 +22,42 @@ export interface AIAnalysisResult {
   confidence_level: number;
   detected_defects: string[];
   recommendations: string[];
-  category_specific_attributes: FoodGrainsFilterDto | OilseedsFilterDto | FruitsFilterDto | VegetablesFilterDto | SpicesFilterDto | FibersFilterDto | SugarcaneFilterDto | FlowersFilterDto | MedicinalPlantsFilterDto;
+  category_specific_attributes:
+    | FoodGrainsFilterDto
+    | OilseedsFilterDto
+    | FruitsFilterDto
+    | VegetablesFilterDto
+    | SpicesFilterDto
+    | FibersFilterDto
+    | SugarcaneFilterDto
+    | FlowersFilterDto
+    | MedicinalPlantsFilterDto;
 }
 
 @Injectable()
 export class OpenAIService {
   constructor(
     private readonly configService: ConfigService,
-    private readonly httpService: HttpService
+    private readonly httpService: HttpService,
   ) {}
 
   async analyzeProduceImage(imageUrl: string): Promise<AIAnalysisResult> {
-    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    const apiUrl = 'https://api.openai.com/v1/chat/completions';
+    const apiKey = this.configService.get<string>("OPENAI_API_KEY");
+    const apiUrl = "https://api.openai.com/v1/chat/completions";
 
     try {
-      const response = await this.httpService.post(apiUrl, {
-        model: "gpt-4-vision-preview",
-        messages: [
+      const response = await this.httpService
+        .post(
+          apiUrl,
           {
-            role: "user",
-            content: [
+            model: "gpt-4-vision-preview",
+            messages: [
               {
-                type: "text",
-                text: `Analyze this agricultural produce image and provide a detailed assessment in the following JSON format:
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: `Analyze this agricultural produce image and provide a detailed assessment in the following JSON format:
                 {
                   "name": "produce name",
                   "produce_category": "one of [FOOD_GRAINS, OILSEEDS, FRUITS, VEGETABLES, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL]",
@@ -98,22 +110,25 @@ export class OpenAIService {
                     "plant_maturity": "string",
                     "therapeutic_grade": "number"
                   }
-                }`
+                }`,
+                  },
+                  {
+                    type: "image_url",
+                    image_url: imageUrl,
+                  },
+                ],
               },
-              {
-                type: "image_url",
-                image_url: imageUrl
-              }
-            ]
-          }
-        ],
-        max_tokens: 1000
-      }, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        }
-      }).toPromise();
+            ],
+            max_tokens: 1000,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+          },
+        )
+        .toPromise();
 
       const result = response.data.choices[0].message.content;
       return JSON.parse(result) as AIAnalysisResult;

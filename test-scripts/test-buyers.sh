@@ -6,7 +6,7 @@ source "$(dirname "$0")/utils.sh"
 print_test_header "Buyer Endpoints"
 
 # Get buyer token
-BUYER_TOKEN=$(get_auth_token "+1111222258" "Test Buyer" "BUYER")
+BUYER_TOKEN=$(get_auth_token "+1111222258" "Test Buyer" "BUYER" "buyer@test.com")
 
 # Test 1: Create buyer profile
 print_test_header "Create Buyer Profile"
@@ -31,11 +31,17 @@ make_request "GET" "/buyers/search/nearby?lat=12.9716&lng=77.5946&radius=10" "{}
 
 # Test 5: Update buyer preferences
 print_test_header "Update Buyer Preferences"
-make_request "PUT" "/buyers/profile/preferences" '{
+PREF_RESPONSE=$(make_request "POST" "/buyers/preferences/price-range" '{
     "min_price": 40,
     "max_price": 60,
-    "categories": ["VEGETABLES", "FRUITS"],
-    "notification_enabled": true
-}' "$BUYER_TOKEN"
+    "categories": ["VEGETABLES", "FRUITS"]
+}' "$BUYER_TOKEN")
+echo "Price range preference response: $PREF_RESPONSE"
+
+# Test 6: Get buyer preferences
+print_test_header "Get Buyer Preferences"
+echo "Using token: $BUYER_TOKEN"
+PREF_GET_RESPONSE=$(make_request "GET" "/buyers/preferences" "{}" "$BUYER_TOKEN")
+echo "Get preferences response: $PREF_GET_RESPONSE"
 
 echo -e "\n${GREEN}Buyer tests completed!${NC}" 

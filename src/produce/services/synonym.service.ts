@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { ProduceSynonym } from '../entities/synonym.entity';
+import { Synonym } from '../entities/synonym.entity';
 
 @Injectable()
 export class ProduceSynonymService {
@@ -10,8 +10,8 @@ export class ProduceSynonymService {
   private canonicalCache: Map<string, string> = new Map();
 
   constructor(
-    @InjectRepository(ProduceSynonym)
-    private readonly synonymRepository: Repository<ProduceSynonym>
+    @InjectRepository(Synonym)
+    private readonly synonymRepository: Repository<Synonym>,
   ) {
     this.initializeSynonymCache();
   }
@@ -19,26 +19,22 @@ export class ProduceSynonymService {
   private async initializeSynonymCache(): Promise<void> {
     try {
       const synonyms = await this.synonymRepository.find({
-        where: { is_active: true }
+        where: { isActive: true },
       });
 
-      synonyms.forEach(synonym => {
-        // Cache canonical name to words mapping
-        this.synonymCache.set(
-          synonym.canonical_name.toLowerCase(),
-          synonym.words.map(word => word.toLowerCase())
-        );
+      synonyms.forEach((synonym) => {
+        // Cache canonical name to synonyms mapping
+        const existingSynonyms = this.synonymCache.get(synonym.canonicalName.toLowerCase()) || [];
+        existingSynonyms.push(synonym.synonym.toLowerCase());
+        this.synonymCache.set(synonym.canonicalName.toLowerCase(), existingSynonyms);
 
-        // Cache word to canonical name mapping
-        synonym.words.forEach(word => {
-          this.canonicalCache.set(word.toLowerCase(), synonym.canonical_name);
-        });
+        // Cache synonym to canonical name mapping
+        this.canonicalCache.set(synonym.synonym.toLowerCase(), synonym.canonicalName);
 
-        // Cache translations
-        if (synonym.translations) {
-          Object.values(synonym.translations).forEach(translation => {
-            this.canonicalCache.set(translation.toLowerCase(), synonym.canonical_name);
-          });
+        // If the language is specified, create language-specific mappings
+        if (synonym.language) {
+          const languageKey = `${synonym.synonym.toLowerCase()}:${synonym.language}`;
+          this.canonicalCache.set(languageKey, synonym.canonicalName);
         }
       });
 
@@ -48,143 +44,166 @@ export class ProduceSynonymService {
     }
   }
 
-  async findCanonicalName(word: string): Promise<string> {
+  async findCanonicalName(word: string, language?: string): Promise<string> {
     const lowercaseWord = word.toLowerCase();
-    
-    // Check cache first
+
+    // Check language-specific cache first if language is provided
+    if (language) {
+      const languageKey = `${lowercaseWord}:${language}`;
+      if (this.canonicalCache.has(languageKey)) {
+        return this.canonicalCache.get(languageKey);
+      }
+    }
+
+    // Check general cache
     if (this.canonicalCache.has(lowercaseWord)) {
       return this.canonicalCache.get(lowercaseWord);
     }
 
     // If not in cache, check database
-    const synonym = await this.synonymRepository
+    const query = this.synonymRepository
       .createQueryBuilder('synonym')
-      .where('LOWER(synonym.canonical_name) = LOWER(:word)', { word: lowercaseWord })
-      .orWhere("synonym.words \\? :word", { word: lowercaseWord })
-      .andWhere('synonym.is_active = :isActive', { isActive: true })
-      .getOne();
+      .where('LOWER(synonym.canonicalName) = LOWER(:word)', { word: lowercaseWord })
+      .orWhere('LOWER(synonym.synonym) = LOWER(:word)', { word: lowercaseWord })
+      .andWhere('synonym.isActive = :isActive', { isActive: true });
+
+    if (language) {
+      query.andWhere('synonym.language = :language', { language });
+    }
+
+    const synonym = await query.getOne();
 
     if (synonym) {
       // Update cache
-      this.canonicalCache.set(lowercaseWord, synonym.canonical_name);
-      return synonym.canonical_name;
+      this.canonicalCache.set(lowercaseWord, synonym.canonicalName);
+      if (language) {
+        this.canonicalCache.set(`${lowercaseWord}:${language}`, synonym.canonicalName);
+      }
+      return synonym.canonicalName;
     }
 
-    // If no synonym found, use the word itself as canonical name
     return word;
   }
 
-  async addSynonyms(
-    canonicalName: string,
-    words: string[],
-    translations?: Record<string, string>,
-    updatedBy?: string
-  ): Promise<ProduceSynonym> {
-    const existingSynonym = await this.synonymRepository.findOne({
-      where: { canonical_name: canonicalName, is_active: true }
-    });
+  async addSynonyms(canonicalName: string, synonyms: string[], language?: string): Promise<void> {
+    try {
+      const lowercaseCanonical = canonicalName.toLowerCase();
+      const entities = synonyms.map(synonym => ({
+        canonicalName: lowercaseCanonical,
+        synonym: synonym.toLowerCase(),
+        language,
+        isActive: true,
+      }));
 
-    if (existingSynonym) {
-      // Update existing synonym
-      const updatedWords = Array.from(new Set([...existingSynonym.words, ...words]));
-      const updatedTranslations = {
-        ...existingSynonym.translations,
-        ...translations
-      };
-
-      const updated = await this.synonymRepository.save({
-        ...existingSynonym,
-        words: updatedWords,
-        translations: updatedTranslations,
-        updated_by: updatedBy
-      });
+      // Save to database
+      const savedSynonyms = await this.synonymRepository.save(entities);
 
       // Update cache
-      this.updateCache(updated);
-      return updated;
+      savedSynonyms.forEach(synonym => {
+        // Update canonical name to synonyms mapping
+        const existingSynonyms = this.synonymCache.get(lowercaseCanonical) || [];
+        existingSynonyms.push(synonym.synonym.toLowerCase());
+        this.synonymCache.set(lowercaseCanonical, existingSynonyms);
+
+        // Update synonym to canonical name mapping
+        this.canonicalCache.set(synonym.synonym.toLowerCase(), lowercaseCanonical);
+
+        // If language is specified, update language-specific mapping
+        if (language) {
+          const languageKey = `${synonym.synonym.toLowerCase()}:${language}`;
+          this.canonicalCache.set(languageKey, lowercaseCanonical);
+        }
+      });
+    } catch (error) {
+      this.logger.error(`Error adding synonyms for ${canonicalName}: ${error.message}`);
+      throw error;
     }
-
-    // Create new synonym
-    const newSynonym = await this.synonymRepository.save({
-      canonical_name: canonicalName,
-      words: words,
-      translations,
-      is_active: true,
-      updated_by: updatedBy
-    });
-
-    // Update cache
-    this.updateCache(newSynonym);
-    return newSynonym;
   }
 
-  private updateCache(synonym: ProduceSynonym): void {
-    // Update canonical name to words mapping
-    this.synonymCache.set(
-      synonym.canonical_name.toLowerCase(),
-      synonym.words.map(word => word.toLowerCase())
+  async findAllSynonyms(canonicalName: string, language?: string): Promise<string[]> {
+    const lowercaseCanonical = canonicalName.toLowerCase();
+
+    // Check cache first
+    if (!language && this.synonymCache.has(lowercaseCanonical)) {
+      return this.synonymCache.get(lowercaseCanonical);
+    }
+
+    // Query database
+    const query = this.synonymRepository
+      .createQueryBuilder('synonym')
+      .where('LOWER(synonym.canonicalName) = LOWER(:canonicalName)', { canonicalName: lowercaseCanonical })
+      .andWhere('synonym.isActive = :isActive', { isActive: true });
+
+    if (language) {
+      query.andWhere('synonym.language = :language', { language });
+    }
+
+    const synonyms = await query.getMany();
+    const synonymList = synonyms.map(s => s.synonym);
+
+    // Update cache if no language filter
+    if (!language) {
+      this.synonymCache.set(lowercaseCanonical, synonymList);
+    }
+
+    return synonymList;
+  }
+
+  async deactivateSynonym(canonicalName: string, synonym: string): Promise<void> {
+    const lowercaseCanonical = canonicalName.toLowerCase();
+    const lowercaseSynonym = synonym.toLowerCase();
+
+    await this.synonymRepository.update(
+      {
+        canonicalName: lowercaseCanonical,
+        synonym: lowercaseSynonym,
+      },
+      { isActive: false }
     );
 
-    // Update word to canonical name mapping
-    synonym.words.forEach(word => {
-      this.canonicalCache.set(word.toLowerCase(), synonym.canonical_name);
-    });
-
-    // Update translations in cache
-    if (synonym.translations) {
-      Object.values(synonym.translations).forEach(translation => {
-        this.canonicalCache.set(translation.toLowerCase(), synonym.canonical_name);
-      });
-    }
+    // Update cache
+    this.canonicalCache.delete(lowercaseSynonym);
+    const synonyms = this.synonymCache.get(lowercaseCanonical) || [];
+    this.synonymCache.set(
+      lowercaseCanonical,
+      synonyms.filter(s => s !== lowercaseSynonym)
+    );
   }
 
-  async searchSynonyms(query: string): Promise<string[]> {
+  async searchSynonyms(query: string, language?: string): Promise<string[]> {
     const lowercaseQuery = query.toLowerCase();
     const results = new Set<string>();
 
     // Check cache first
-    this.synonymCache.forEach((words, canonicalName) => {
-      if (canonicalName.includes(lowercaseQuery) || 
-          words.some(word => word.includes(lowercaseQuery))) {
+    this.synonymCache.forEach((synonyms, canonicalName) => {
+      if (
+        canonicalName.includes(lowercaseQuery) ||
+        synonyms.some(synonym => synonym.includes(lowercaseQuery))
+      ) {
         results.add(canonicalName);
       }
     });
 
-    // If no results in cache, check database
-    if (results.size === 0) {
-      const synonyms = await this.synonymRepository.find({
-        where: { is_active: true }
-      });
+    // If no results in cache or language filter is applied, check database
+    if (results.size === 0 || language) {
+      const queryBuilder = this.synonymRepository
+        .createQueryBuilder('synonym')
+        .where('synonym.isActive = :isActive', { isActive: true })
+        .andWhere(
+          '(LOWER(synonym.canonicalName) LIKE :query OR LOWER(synonym.synonym) LIKE :query)',
+          { query: `%${lowercaseQuery}%` }
+        );
 
-      synonyms.forEach(synonym => {
-        if (synonym.canonical_name.toLowerCase().includes(lowercaseQuery) ||
-            synonym.words.some(word => word.toLowerCase().includes(lowercaseQuery)) ||
-            Object.values(synonym.translations || {}).some(translation => 
-              translation.toLowerCase().includes(lowercaseQuery)
-            )) {
-          results.add(synonym.canonical_name);
-        }
+      if (language) {
+        queryBuilder.andWhere('synonym.language = :language', { language });
+      }
+
+      const dbSynonyms = await queryBuilder.getMany();
+      dbSynonyms.forEach(synonym => {
+        results.add(synonym.canonicalName);
       });
     }
 
     return Array.from(results);
-  }
-
-  async deactivateSynonym(canonicalName: string, updatedBy: string): Promise<void> {
-    await this.synonymRepository.update(
-      { canonical_name: canonicalName },
-      { 
-        is_active: false,
-        updated_by: updatedBy
-      }
-    );
-
-    // Remove from cache
-    this.synonymCache.delete(canonicalName.toLowerCase());
-    this.canonicalCache.forEach((canonical, word) => {
-      if (canonical.toLowerCase() === canonicalName.toLowerCase()) {
-        this.canonicalCache.delete(word);
-      }
-    });
   }
 }

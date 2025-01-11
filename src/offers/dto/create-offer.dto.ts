@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsUUID, Min } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsUUID, Min } from "class-validator";
 
 export class CreateOfferDto {
   @IsUUID()
@@ -33,4 +33,4 @@ export class CreateOfferDto {
     inspection_result?: any;
     [key: string]: any;
   };
-} 
+}

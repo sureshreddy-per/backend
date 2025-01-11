@@ -1,20 +1,21 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ProduceController } from './produce.controller';
-import { ProduceService } from './services/produce.service';
 import { Produce } from './entities/produce.entity';
+import { Synonym } from './entities/synonym.entity';
+import { ProduceService } from './services/produce.service';
 import { ProduceSynonymService } from './services/synonym.service';
-import { ProduceSynonym } from './entities/synonym.entity';
+import { ProduceController } from './produce.controller';
+import { ConfigModule } from '@nestjs/config';
 import { FarmersModule } from '../farmers/farmers.module';
-import { ProduceSynonymController } from './controllers/synonym.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Produce, ProduceSynonym]),
-    FarmersModule
+    TypeOrmModule.forFeature([Produce, Synonym]),
+    ConfigModule,
+    FarmersModule,
   ],
-  controllers: [ProduceController, ProduceSynonymController],
   providers: [ProduceService, ProduceSynonymService],
-  exports: [ProduceService]
+  controllers: [ProduceController],
+  exports: [ProduceService, ProduceSynonymService],
 })
-export class ProduceModule {} 
+export class ProduceModule {}

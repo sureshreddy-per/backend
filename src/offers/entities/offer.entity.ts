@@ -1,47 +1,58 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { Produce } from '../../produce/entities/produce.entity';
-import { User } from '../../users/entities/user.entity';
+import {
+  Entity,
+  Column,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { Produce } from "../../produce/entities/produce.entity";
+import { Buyer } from "../../buyers/entities/buyer.entity";
+import { OfferStatus } from "../enums/offer-status.enum";
+import { BaseEntity } from "../../common/entities/base.entity";
 
-export enum OfferStatus {
-  PENDING = 'PENDING',
-  ACTIVE = 'ACTIVE',
-  ACCEPTED = 'ACCEPTED',
-  REJECTED = 'REJECTED',
-  EXPIRED = 'EXPIRED',
-  CANCELLED = 'CANCELLED',
-  INSPECTION_REQUESTED = 'INSPECTION_REQUESTED',
-  COMPLETED = 'COMPLETED'
-}
-
-@Entity('offers')
-export class Offer {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Column({ name: 'buyer_id' })
-  buyer_id: string;
-
-  @Column({ name: 'farmer_id' })
-  farmer_id: string;
-
-  @Column({ name: 'produce_id' })
+@Entity("offers")
+export class Offer extends BaseEntity {
+  @Column({ name: "produce_id" })
   produce_id: string;
 
-  @Column('decimal', { precision: 10, scale: 2 })
-  price: number;
+  @Column({ name: "buyer_id" })
+  buyer_id: string;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column({ name: "farmer_id" })
+  farmer_id: string;
+
+  @Column("decimal", { precision: 10, scale: 2 })
+  price_per_unit: number;
+
+  @Column("decimal", { precision: 10, scale: 2 })
   quantity: number;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: OfferStatus,
-    default: OfferStatus.PENDING
+    default: OfferStatus.PENDING,
   })
   status: OfferStatus;
 
-  @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any>;
+  @Column({ type: "timestamp", nullable: true })
+  valid_until: Date;
+
+  @Column({ default: false })
+  is_auto_generated: boolean;
+
+  @Column("decimal", { precision: 10, scale: 2 })
+  buyer_min_price: number;
+
+  @Column("decimal", { precision: 10, scale: 2 })
+  buyer_max_price: number;
+
+  @Column("int")
+  quality_grade: number;
+
+  @Column("decimal", { precision: 10, scale: 2 })
+  distance_km: number;
+
+  @Column("decimal", { precision: 10, scale: 2 })
+  inspection_fee: number;
 
   @Column({ nullable: true })
   rejection_reason: string;
@@ -49,21 +60,43 @@ export class Offer {
   @Column({ nullable: true })
   cancellation_reason: string;
 
-  @CreateDateColumn({ name: 'created_at' })
-  created_at: Date;
+  @Column({ default: false })
+  is_price_overridden: boolean;
 
-  @UpdateDateColumn({ name: 'updated_at' })
-  updated_at: Date;
+  @Column({ nullable: true })
+  price_override_reason: string;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'buyer_id' })
-  buyer: User;
+  @Column({ type: "timestamp", nullable: true })
+  price_override_at: Date;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'farmer_id' })
-  farmer: User;
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: {
+    valid_until?: Date;
+    auto_generated?: boolean;
+    ai_confidence?: number;
+    inspection_fee_details?: {
+      base_fee: number;
+      distance_fee: number;
+      total_fee: number;
+    };
+    quality_assessment?: {
+      grade: number;
+      defects: string[];
+      recommendations: string[];
+    };
+    price_history?: Array<{
+      price: number;
+      timestamp: Date;
+      reason?: string;
+    }>;
+    [key: string]: any;
+  };
 
   @ManyToOne(() => Produce)
-  @JoinColumn({ name: 'produce_id' })
+  @JoinColumn({ name: "produce_id" })
   produce: Produce;
-} 
+
+  @ManyToOne(() => Buyer)
+  @JoinColumn({ name: "buyer_id" })
+  buyer: Buyer;
+}

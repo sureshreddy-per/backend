@@ -1,23 +1,32 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { Farmer } from '../../farmers/entities/farmer.entity';
-import { Farm } from '../../farmers/entities/farm.entity';
-import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
-import { QualityGrade } from '../enums/quality-grade.enum';
-import { ProduceCategory } from '../enums/produce-category.enum';
-import { ProduceStatus } from '../enums/produce-status.enum';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from "typeorm";
+import { Farmer } from "../../farmers/entities/farmer.entity";
+import { Farm } from "../../farmers/entities/farm.entity";
+import { QualityAssessment } from "../../quality/entities/quality-assessment.entity";
+import { QualityGrade } from "../enums/quality-grade.enum";
+import { ProduceCategory } from "../enums/produce-category.enum";
+import { ProduceStatus } from "../enums/produce-status.enum";
 
-@Entity('produce')
+@Entity("produce")
 export class Produce {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ name: 'farmer_id' })
+  @Column({ name: "farmer_id" })
   farmer_id: string;
 
-  @Column({ name: 'farm_id', nullable: true })
+  @Column({ name: "farm_id", nullable: true })
   farm_id: string;
 
-  @Column()
+  @Column({ nullable: true })
   name: string;
 
   @Column({ nullable: true })
@@ -27,82 +36,83 @@ export class Produce {
   product_variety: string;
 
   @Column({
-    type: 'enum',
-    enum: ProduceCategory
+    type: "enum",
+    enum: ProduceCategory,
+    nullable: true,
   })
   produce_category: ProduceCategory;
 
-  @Column('decimal')
+  @Column("decimal", { precision: 10, scale: 2 })
   quantity: number;
 
-  @Column()
+  @Column({ nullable: true })
   unit: string;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column("decimal", { precision: 10, scale: 2, nullable: true })
   price_per_unit: number;
 
-  @Column({ nullable: true })
+  @Column()
   location: string;
 
   @Column({ nullable: true })
   location_name: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
   inspection_fee: number;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: "boolean", default: false })
   is_inspection_requested: boolean;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({ type: "uuid", nullable: true })
   inspection_requested_by: string;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   inspection_requested_at: Date;
 
-  @Column('text', { array: true, nullable: true })
+  @Column("text", { array: true })
   images: string[];
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: ProduceStatus,
-    default: ProduceStatus.AVAILABLE
+    default: ProduceStatus.PENDING_AI_ASSESSMENT,
+    nullable: true
   })
   status: ProduceStatus;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   harvested_at: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   expiry_date: Date;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: QualityGrade,
-    nullable: true
+    nullable: true,
   })
   quality_grade: QualityGrade;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updated_at: Date;
 
-  @Column({ type: 'varchar', nullable: true })
+  @Column({ type: "varchar", nullable: true })
   video_url: string;
 
-  @Column({ name: 'assigned_inspector', nullable: true })
+  @Column({ name: "assigned_inspector", nullable: true })
   assigned_inspector: string;
 
   @ManyToOne(() => Farmer)
-  @JoinColumn({ name: 'farmer_id' })
+  @JoinColumn({ name: "farmer_id" })
   farmer: Farmer;
 
   @ManyToOne(() => Farm)
-  @JoinColumn({ name: 'farm_id' })
+  @JoinColumn({ name: "farm_id" })
   farm: Farm;
 
-  // Reverse relationships
-  @OneToMany(() => QualityAssessment, assessment => assessment.produce)
+  @OneToMany(() => QualityAssessment, (assessment) => assessment.produce)
   quality_assessments: QualityAssessment[];
-} 
+}

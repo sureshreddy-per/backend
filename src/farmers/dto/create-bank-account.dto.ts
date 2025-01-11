@@ -1,5 +1,5 @@
-import { IsString, IsUUID, IsBoolean, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsUUID, IsBoolean, IsOptional } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateBankAccountDto {
   @ApiPropertyOptional()
@@ -27,4 +27,4 @@ export class CreateBankAccountDto {
   @IsBoolean()
   @IsOptional()
   is_primary?: boolean;
-} 
+}

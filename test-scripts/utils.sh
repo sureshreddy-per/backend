@@ -38,19 +38,8 @@ print_test_header() {
 make_request() {
     local method="$1"
     local endpoint="$2"
-    local param3="$3"
-    local param4="$4"
-    local data=""
-    local token=""
-    
-    # Determine which parameter is the token and which is the data
-    if [[ "$param3" == *"Bearer"* || "$param3" == "" ]]; then
-        token="$param3"
-        data="$param4"
-    else
-        data="$param3"
-        token="$param4"
-    fi
+    local token="$3"
+    local data="$4"
     
     # Add /api prefix if not already present
     if [[ ! "$endpoint" =~ ^/api ]]; then
@@ -67,13 +56,15 @@ make_request() {
     # Add headers
     curl_cmd+=" -H 'Content-Type: application/json'"
     if [ -n "$token" ]; then
-        # Remove any newlines from the token
-        token=$(echo "$token" | tr -d '\n')
-        curl_cmd+=" -H 'Authorization: Bearer $token'"
+        # Remove any newlines and extra output from the token
+        token=$(echo "$token" | tr -d '\n' | grep -o 'eyJ.*')
+        if [ -n "$token" ]; then
+            curl_cmd+=" -H 'Authorization: Bearer $token'"
+        fi
     fi
     
-    # Add data if present
-    if [ -n "$data" ]; then
+    # Add data if present and method is not GET
+    if [ -n "$data" ] && [ "$method" != "GET" ]; then
         curl_cmd+=" -d '$data'"
     fi
     
@@ -151,19 +142,19 @@ check_response() {
 # Get auth token for testing
 get_auth_token() {
     local mobile="$1"
-    local name="$2"
-    local role="$3"
+    local role="$2"
     local otp_response
     local verify_response
     local otp
+    local name="Test ${role}"
     
-    # Try to register user
-    local register_data="{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\"}"
-    register_response=$(make_request "POST" "/auth/register" "$register_data")
+    # Try to register user first
+    local register_data="{\"mobile_number\":\"$mobile\",\"role\":\"$role\",\"name\":\"$name\"}"
+    register_response=$(make_request "POST" "/auth/register" "" "$register_data")
     
-    # Request OTP regardless of registration (user might already exist)
+    # Request OTP
     local otp_data="{\"mobile_number\":\"$mobile\"}"
-    otp_response=$(make_request "POST" "/auth/otp/request" "$otp_data")
+    otp_response=$(make_request "POST" "/auth/otp/request" "" "$otp_data")
     
     if [ $? -ne 0 ]; then
         print_error "Failed to request OTP"
@@ -179,22 +170,15 @@ get_auth_token() {
     
     # Verify OTP
     local verify_data="{\"mobile_number\":\"$mobile\",\"otp\":\"$otp\"}"
-    verify_response=$(make_request "POST" "/auth/otp/verify" "$verify_data")
+    verify_response=$(make_request "POST" "/auth/otp/verify" "" "$verify_data")
     
     if [ $? -ne 0 ]; then
         print_error "Failed to verify OTP"
         return 1
     fi
     
-    # Extract token from response
-    local token=$(echo "$verify_response" | jq -r '.token')
-    if [ "$token" = "null" ] || [ -z "$token" ]; then
-        print_error "No token found in response"
-        return 1
-    fi
-    
-    print_success "Got token for $mobile" >&2
-    echo "$token"
+    # Return the full verify response
+    echo "$verify_response"
     return 0
 }
 

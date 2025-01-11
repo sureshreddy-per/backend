@@ -1,11 +1,11 @@
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { v4 as uuidv4 } from 'uuid';
-import { BadRequestException } from '@nestjs/common';
+import { diskStorage } from "multer";
+import { extname } from "path";
+import { v4 as uuidv4 } from "uuid";
+import { BadRequestException } from "@nestjs/common";
 
 export const imageConfig = {
   storage: diskStorage({
-    destination: './uploads/produce/images',
+    destination: "./uploads/produce/images",
     filename: (req, file, callback) => {
       const uniqueSuffix = uuidv4();
       callback(null, `${uniqueSuffix}${extname(file.originalname)}`);
@@ -13,7 +13,10 @@ export const imageConfig = {
   }),
   fileFilter: (req, file, callback) => {
     if (!file.originalname.match(/\.(jpg|jpeg|png|gif)$/)) {
-      return callback(new BadRequestException('Only image files are allowed!'), false);
+      return callback(
+        new BadRequestException("Only image files are allowed!"),
+        false,
+      );
     }
     callback(null, true);
   },
@@ -24,7 +27,7 @@ export const imageConfig = {
 
 export const videoConfig = {
   storage: diskStorage({
-    destination: './uploads/produce/videos',
+    destination: "./uploads/produce/videos",
     filename: (req, file, callback) => {
       const uniqueSuffix = uuidv4();
       callback(null, `${uniqueSuffix}${extname(file.originalname)}`);
@@ -32,11 +35,16 @@ export const videoConfig = {
   }),
   fileFilter: (req, file, callback) => {
     if (!file.originalname.match(/\.(mp4|mov|avi)$/)) {
-      return callback(new BadRequestException('Only video files (mp4, mov, avi) are allowed!'), false);
+      return callback(
+        new BadRequestException(
+          "Only video files (mp4, mov, avi) are allowed!",
+        ),
+        false,
+      );
     }
     callback(null, true);
   },
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB limit for videos
   },
-}; 
+};

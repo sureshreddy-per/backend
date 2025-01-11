@@ -1,10 +1,11 @@
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { INestApplication } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { INestApplication } from "@nestjs/common";
 
 export function setupSwagger(app: INestApplication) {
   const config = new DocumentBuilder()
-    .setTitle('Customer-Buyer Application API')
-    .setDescription(`
+    .setTitle("Customer-Buyer Application API")
+    .setDescription(
+      `
       API documentation for the Customer-Buyer Application.
 
       This application provides a platform for agricultural produce trading between customers (farmers) and buyers.
@@ -44,30 +45,31 @@ export function setupSwagger(app: INestApplication) {
       ## Rate Limiting
 
       API endpoints are rate-limited to prevent abuse. See response headers for limit details.
-    `)
-    .setVersion('1.0')
+    `,
+    )
+    .setVersion("1.0")
     .addBearerAuth()
-    .addTag('Auth', 'Authentication endpoints')
-    .addTag('Customers', 'Customer management endpoints')
-    .addTag('Buyers', 'Buyer management endpoints')
-    .addTag('Produce', 'Produce listing endpoints')
-    .addTag('Quality', 'Quality assessment endpoints')
-    .addTag('Offers', 'Offer management endpoints')
-    .addTag('Transactions', 'Transaction processing endpoints')
-    .addTag('Notifications', 'Notification management endpoints')
-    .addTag('Support', 'Support system endpoints')
+    .addTag("Auth", "Authentication endpoints")
+    .addTag("Customers", "Customer management endpoints")
+    .addTag("Buyers", "Buyer management endpoints")
+    .addTag("Produce", "Produce listing endpoints")
+    .addTag("Quality", "Quality assessment endpoints")
+    .addTag("Offers", "Offer management endpoints")
+    .addTag("Transactions", "Transaction processing endpoints")
+    .addTag("Notifications", "Notification management endpoints")
+    .addTag("Support", "Support system endpoints")
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document, {
+  SwaggerModule.setup("api/docs", app, document, {
     swaggerOptions: {
       persistAuthorization: true,
-      tagsSorter: 'alpha',
-      operationsSorter: 'alpha',
+      tagsSorter: "alpha",
+      operationsSorter: "alpha",
     },
-    customSiteTitle: 'Customer-Buyer API Documentation',
-    customfavIcon: 'https://nestjs.com/img/logo_text.svg',
-    customJs: 'your-custom-js-url',
-    customCssUrl: 'your-custom-css-url',
+    customSiteTitle: "Customer-Buyer API Documentation",
+    customfavIcon: "https://nestjs.com/img/logo_text.svg",
+    customJs: "your-custom-js-url",
+    customCssUrl: "your-custom-css-url",
   });
 }

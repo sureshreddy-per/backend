@@ -1,17 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InspectionBaseFeeConfig } from '../entities/base-fee-config.entity';
-import { ProduceCategory } from '../../produce/enums/produce-category.enum';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { InspectionBaseFeeConfig } from "../entities/base-fee-config.entity";
+import { ProduceCategory } from "../../produce/enums/produce-category.enum";
 
 @Injectable()
 export class InspectionBaseFeeService {
   private readonly logger = new Logger(InspectionBaseFeeService.name);
-  private cachedConfigs: Map<ProduceCategory, InspectionBaseFeeConfig> = new Map();
+  private cachedConfigs: Map<ProduceCategory, InspectionBaseFeeConfig> =
+    new Map();
 
   constructor(
     @InjectRepository(InspectionBaseFeeConfig)
-    private readonly inspectionBaseFeeRepository: Repository<InspectionBaseFeeConfig>
+    private readonly inspectionBaseFeeRepository: Repository<InspectionBaseFeeConfig>,
   ) {
     this.initializeCache();
   }
@@ -19,7 +20,7 @@ export class InspectionBaseFeeService {
   private async initializeCache(): Promise<void> {
     try {
       const configs = await this.getAllActiveConfigs();
-      configs.forEach(config => {
+      configs.forEach((config) => {
         this.cachedConfigs.set(config.produce_category, config);
       });
 
@@ -31,11 +32,16 @@ export class InspectionBaseFeeService {
         }
       }
     } catch (error) {
-      this.logger.error('Failed to initialize inspection base fee config cache', error.stack);
+      this.logger.error(
+        "Failed to initialize inspection base fee config cache",
+        error.stack,
+      );
     }
   }
 
-  private async createDefaultConfig(category: ProduceCategory): Promise<InspectionBaseFeeConfig> {
+  private async createDefaultConfig(
+    category: ProduceCategory,
+  ): Promise<InspectionBaseFeeConfig> {
     const defaultFees: Record<ProduceCategory, number> = {
       [ProduceCategory.FOOD_GRAINS]: 500,
       [ProduceCategory.OILSEEDS]: 600,
@@ -45,13 +51,13 @@ export class InspectionBaseFeeService {
       [ProduceCategory.FIBERS]: 600,
       [ProduceCategory.SUGARCANE]: 500,
       [ProduceCategory.FLOWERS]: 300,
-      [ProduceCategory.MEDICINAL_PLANTS]: 1000
+      [ProduceCategory.MEDICINAL_PLANTS]: 1000,
     };
 
     const defaultConfig = this.inspectionBaseFeeRepository.create({
       produce_category: category,
       inspection_base_fee: defaultFees[category] || 500,
-      is_active: true
+      is_active: true,
     });
 
     return this.inspectionBaseFeeRepository.save(defaultConfig);
@@ -59,7 +65,7 @@ export class InspectionBaseFeeService {
 
   async getAllActiveConfigs(): Promise<InspectionBaseFeeConfig[]> {
     return this.inspectionBaseFeeRepository.find({
-      where: { is_active: true }
+      where: { is_active: true },
     });
   }
 
@@ -76,7 +82,7 @@ export class InspectionBaseFeeService {
         [ProduceCategory.FIBERS]: 600,
         [ProduceCategory.SUGARCANE]: 500,
         [ProduceCategory.FLOWERS]: 300,
-        [ProduceCategory.MEDICINAL_PLANTS]: 1000
+        [ProduceCategory.MEDICINAL_PLANTS]: 1000,
       };
       return defaultFees[category] || 500;
     }
@@ -86,14 +92,14 @@ export class InspectionBaseFeeService {
   async updateInspectionBaseFee(
     category: ProduceCategory,
     inspectionBaseFee: number,
-    updatedBy: string
+    updatedBy: string,
   ): Promise<InspectionBaseFeeConfig> {
     // Deactivate current config
     const currentConfig = this.cachedConfigs.get(category);
     if (currentConfig) {
       await this.inspectionBaseFeeRepository.update(
         { id: currentConfig.id },
-        { is_active: false }
+        { is_active: false },
       );
     }
 
@@ -102,7 +108,7 @@ export class InspectionBaseFeeService {
       produce_category: category,
       inspection_base_fee: inspectionBaseFee,
       is_active: true,
-      updated_by: updatedBy
+      updated_by: updatedBy,
     });
 
     // Save and update cache
@@ -110,4 +116,4 @@ export class InspectionBaseFeeService {
     this.cachedConfigs.set(category, savedConfig);
     return savedConfig;
   }
-} 
+}

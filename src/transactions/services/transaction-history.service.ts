@@ -1,15 +1,18 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { TransactionHistory, TransactionEvent } from '../entities/transaction-history.entity';
-import { Transaction, TransactionStatus } from '../entities/transaction.entity';
-import { BaseService } from '../../common/base.service';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import {
+  TransactionHistory,
+  TransactionEvent,
+} from "../entities/transaction-history.entity";
+import { Transaction, TransactionStatus } from "../entities/transaction.entity";
+import { BaseService } from "../../common/base.service";
 
 @Injectable()
 export class TransactionHistoryService extends BaseService<TransactionHistory> {
   constructor(
     @InjectRepository(TransactionHistory)
-    private readonly historyRepository: Repository<TransactionHistory>
+    private readonly historyRepository: Repository<TransactionHistory>,
   ) {
     super(historyRepository);
   }
@@ -19,7 +22,7 @@ export class TransactionHistoryService extends BaseService<TransactionHistory> {
     oldStatus: TransactionStatus,
     newStatus: TransactionStatus,
     userId: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<TransactionHistory> {
     return this.create({
       transactionId: transaction.id,
@@ -27,7 +30,7 @@ export class TransactionHistoryService extends BaseService<TransactionHistory> {
       oldStatus,
       newStatus,
       userId,
-      metadata
+      metadata,
     });
   }
 
@@ -35,20 +38,22 @@ export class TransactionHistoryService extends BaseService<TransactionHistory> {
     transaction: Transaction,
     event: TransactionEvent,
     userId: string,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<TransactionHistory> {
     return this.create({
       transactionId: transaction.id,
       event,
       userId,
-      metadata
+      metadata,
     });
   }
 
-  async getTransactionHistory(transactionId: string): Promise<TransactionHistory[]> {
+  async getTransactionHistory(
+    transactionId: string,
+  ): Promise<TransactionHistory[]> {
     return this.historyRepository.find({
       where: { transactionId },
-      order: { createdAt: 'DESC' }
+      order: { createdAt: "DESC" },
     });
   }
-} 
+}

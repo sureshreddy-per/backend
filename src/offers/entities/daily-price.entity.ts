@@ -1,41 +1,36 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { ProduceCategory } from '../../produce/enums/produce-category.enum';
+import {
+  Entity,
+  Column,
+} from "typeorm";
+import { ProduceCategory } from "../../produce/enums/produce-category.enum";
+import { BaseEntity } from "../../common/entities/base.entity";
 
-@Entity('daily_prices')
-export class DailyPrice {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Column({ name: 'buyer_id' })
+@Entity("daily_prices")
+export class DailyPrice extends BaseEntity {
+  @Column({ name: "buyer_id" })
   buyer_id: string;
 
   @Column({
-    type: 'enum',
-    enum: ProduceCategory
+    type: "enum",
+    enum: ProduceCategory,
   })
   produce_category: ProduceCategory;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column("decimal", { precision: 10, scale: 2 })
   min_price: number;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column("decimal", { precision: 10, scale: 2 })
   max_price: number;
 
-  @Column({ type: 'boolean', default: true })
-  is_active: boolean;
-
-  @Column({ type: 'timestamp' })
+  @Column({ type: "timestamp" })
   valid_from: Date;
 
-  @Column({ type: 'timestamp' })
+  @Column({ type: "timestamp" })
   valid_until: Date;
 
-  @Column({ type: 'int', default: 1 })
+  @Column({ type: "int", default: 1 })
   valid_days: number;
 
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
-} 
+  @Column({ type: "int", default: 0 })
+  update_count: number;
+}

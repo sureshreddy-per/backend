@@ -1,15 +1,21 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { UserRole } from '../../users/enums/user-role.enum';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from "typeorm";
+import { UserRole } from "../../enums/user-role.enum";
 
 export enum VerificationStatus {
-  PENDING = 'PENDING',
-  VERIFIED = 'VERIFIED',
-  REJECTED = 'REJECTED'
+  PENDING = "PENDING",
+  VERIFIED = "VERIFIED",
+  REJECTED = "REJECTED",
 }
 
-@Entity('users')
+@Entity("users")
 export class User {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column()
@@ -18,19 +24,18 @@ export class User {
   @Column({ unique: true })
   email: string;
 
-
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: UserRole,
     array: true,
-    default: [UserRole.FARMER]
+    default: [UserRole.FARMER],
   })
   roles: UserRole[];
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: VerificationStatus,
-    default: VerificationStatus.PENDING
+    default: VerificationStatus.PENDING,
   })
   verificationStatus: VerificationStatus;
 
@@ -55,19 +60,19 @@ export class User {
   @Column({ default: false })
   isAdmin: boolean;
 
-  @Column({ name: 'is_quality_inspector', default: false })
+  @Column({ name: "is_quality_inspector", default: false })
   isQualityInspector: boolean;
 
-  @Column({ type: 'decimal', precision: 3, scale: 2, default: 0 })
+  @Column({ type: "decimal", precision: 3, scale: 2, default: 0 })
   rating: number;
 
-  @Column({ name: 'rating_count', default: 0 })
+  @Column({ name: "rating_count", default: 0 })
   ratingCount: number;
 
-  @Column({ name: 'last_login_at', type: 'timestamp', nullable: true })
+  @Column({ name: "last_login_at", type: "timestamp", nullable: true })
   lastLoginAt: Date;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: "jsonb", nullable: true })
   profile: {
     businessName?: string;
     address?: string;
@@ -80,7 +85,7 @@ export class User {
     };
   };
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: "jsonb", nullable: true })
   metadata: {
     lastLogin?: Date;
     preferences?: {
@@ -94,12 +99,12 @@ export class User {
   @Column({ default: 0 })
   loginAttempts: number;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   lastLoginAttempt: Date;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updatedAt: Date;
 }

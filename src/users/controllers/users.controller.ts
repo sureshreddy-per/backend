@@ -1,21 +1,30 @@
-import { Controller, Get, Put, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
-import { UsersService } from '../services/users.service';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../enums/user-role.enum';
-import { UpdateUserDto } from '../dto/update-user.dto';
-import { BlockUserDto } from '../dto/block-user.dto';
-import { ScheduleDeletionDto } from '../dto/schedule-deletion.dto';
-import { GetUser } from '../../auth/decorators/get-user.decorator';
-import { User } from '../entities/user.entity';
+import {
+  Controller,
+  Get,
+  Put,
+  Post,
+  Delete,
+  Body,
+  Param,
+  UseGuards,
+} from "@nestjs/common";
+import { UsersService } from "../services/users.service";
+import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
+import { RolesGuard } from "../../auth/guards/roles.guard";
+import { Roles } from "../../auth/decorators/roles.decorator";
+import { UserRole } from "../../enums/user-role.enum";
+import { UpdateUserDto } from "../dto/update-user.dto";
+import { BlockUserDto } from "../dto/block-user.dto";
+import { ScheduleDeletionDto } from "../dto/schedule-deletion.dto";
+import { GetUser } from "../../auth/decorators/get-user.decorator";
+import { User } from "../entities/user.entity";
 
-@Controller('users')
+@Controller("users")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  @Get('me')
+  @Get("me")
   async getProfile(@GetUser() user: User) {
     return this.usersService.findOne(user.id);
   }
@@ -26,64 +35,73 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
-  @Get(':id')
+  @Get(":id")
   @Roles(UserRole.ADMIN)
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param("id") id: string) {
     return this.usersService.findOne(id);
   }
 
-  @Get('role/:role')
+  @Get("role/:role")
   @Roles(UserRole.ADMIN)
-  async findByRole(@Param('role') role: UserRole) {
+  async findByRole(@Param("role") role: UserRole) {
     return this.usersService.findByRole(role);
   }
 
-  @Put(':id')
+  @Put(":id")
   @Roles(UserRole.ADMIN)
-  async update(@Param('id') id: string, @Body() updateUserDto: UpdateUserDto) {
+  async update(@Param("id") id: string, @Body() updateUserDto: UpdateUserDto) {
     return this.usersService.update(id, updateUserDto);
   }
 
-  @Put(':id/verify')
+  @Put(":id/verify")
   @Roles(UserRole.ADMIN)
-  async verifyUser(@Param('id') id: string) {
+  async verifyUser(@Param("id") id: string) {
     return this.usersService.verifyUser(id);
   }
 
-  @Post(':id/block')
+  @Post(":id/block")
   @Roles(UserRole.ADMIN)
-  async blockUser(@Param('id') id: string, @Body() blockUserDto: BlockUserDto) {
+  async blockUser(@Param("id") id: string, @Body() blockUserDto: BlockUserDto) {
     return this.usersService.blockUser(id, blockUserDto.reason);
   }
 
-  @Post(':id/unblock')
+  @Post(":id/unblock")
   @Roles(UserRole.ADMIN)
-  async unblockUser(@Param('id') id: string) {
+  async unblockUser(@Param("id") id: string) {
     return this.usersService.unblockUser(id);
   }
 
-  @Post(':id/schedule-deletion')
+  @Post(":id/schedule-deletion")
   @Roles(UserRole.ADMIN)
   async scheduleDeletion(
-    @Param('id') id: string,
+    @Param("id") id: string,
     @Body() scheduleDeletionDto: ScheduleDeletionDto,
   ) {
-    return this.usersService.scheduleForDeletion(id, scheduleDeletionDto.daysUntilDeletion);
+    return this.usersService.scheduleForDeletion(
+      id,
+      scheduleDeletionDto.daysUntilDeletion,
+    );
   }
 
-  @Post(':id/cancel-deletion')
+  @Post(":id/cancel-deletion")
   @Roles(UserRole.ADMIN)
-  async cancelDeletion(@Param('id') id: string) {
+  async cancelDeletion(@Param("id") id: string) {
     return this.usersService.cancelDeletionSchedule(id);
   }
 
-  @Put(':id/fcm-token')
-  async updateFCMToken(@Param('id') id: string, @Body('fcm_token') fcmToken: string) {
+  @Put(":id/fcm-token")
+  async updateFCMToken(
+    @Param("id") id: string,
+    @Body("fcm_token") fcmToken: string,
+  ) {
     return this.usersService.updateFCMToken(id, fcmToken);
   }
 
-  @Put(':id/avatar')
-  async updateAvatar(@Param('id') id: string, @Body('avatar_url') avatarUrl: string) {
+  @Put(":id/avatar")
+  async updateAvatar(
+    @Param("id") id: string,
+    @Body("avatar_url") avatarUrl: string,
+  ) {
     return this.usersService.updateAvatar(id, avatarUrl);
   }
-} 
+}

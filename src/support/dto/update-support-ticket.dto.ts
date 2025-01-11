@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional } from "class-validator";
 
 export class UpdateSupportTicketDto {
   @IsString()
@@ -20,4 +20,4 @@ export class UpdateSupportTicketDto {
   @IsString()
   @IsOptional()
   status?: string;
-} 
+}

@@ -1,4 +1,4 @@
-import { IsOptional, IsUUID, IsDate } from 'class-validator';
+import { IsOptional, IsUUID, IsDate } from "class-validator";
 
 export class BaseDto {
   @IsUUID()
@@ -13,4 +13,4 @@ export class BaseDto {
   @IsOptional()
   @IsDate()
   deletedAt?: Date;
-} 
+}

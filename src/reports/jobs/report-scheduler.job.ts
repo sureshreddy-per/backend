@@ -1,16 +1,19 @@
-import { Injectable } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
-import { Report, ReportType, ReportFormat, ReportStatus } from '../entities/report.entity';
-import { ReportService } from '../services/report.service';
+import { Injectable } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository, LessThan } from "typeorm";
+import { Report } from "../entities/report.entity";
+import { ReportType } from "../enums/report-type.enum";
+import { ReportFormat } from "../enums/report-format.enum";
+import { ReportStatus } from "../enums/report-status.enum";
+import { ReportService } from "../services/report.service";
 
 @Injectable()
 export class ReportScheduler {
   constructor(
     @InjectRepository(Report)
     private readonly reportRepository: Repository<Report>,
-    private readonly reportService: ReportService
+    private readonly reportService: ReportService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
@@ -27,7 +30,7 @@ export class ReportScheduler {
       this.createDailyReport(ReportType.PRODUCE_ANALYTICS, yesterday, today),
       this.createDailyReport(ReportType.QUALITY_METRICS, yesterday, today),
       this.createDailyReport(ReportType.MARKET_TRENDS, yesterday, today),
-      this.createDailyReport(ReportType.FINANCIAL_SUMMARY, yesterday, today)
+      this.createDailyReport(ReportType.FINANCIAL_SUMMARY, yesterday, today),
     ]);
   }
 
@@ -43,11 +46,31 @@ export class ReportScheduler {
     firstDayOfThisMonth.setHours(0, 0, 0, 0);
 
     await Promise.all([
-      this.createMonthlyReport(ReportType.TRANSACTION_SUMMARY, firstDayOfLastMonth, firstDayOfThisMonth),
-      this.createMonthlyReport(ReportType.PRODUCE_ANALYTICS, firstDayOfLastMonth, firstDayOfThisMonth),
-      this.createMonthlyReport(ReportType.QUALITY_METRICS, firstDayOfLastMonth, firstDayOfThisMonth),
-      this.createMonthlyReport(ReportType.MARKET_TRENDS, firstDayOfLastMonth, firstDayOfThisMonth),
-      this.createMonthlyReport(ReportType.FINANCIAL_SUMMARY, firstDayOfLastMonth, firstDayOfThisMonth)
+      this.createMonthlyReport(
+        ReportType.TRANSACTION_SUMMARY,
+        firstDayOfLastMonth,
+        firstDayOfThisMonth,
+      ),
+      this.createMonthlyReport(
+        ReportType.PRODUCE_ANALYTICS,
+        firstDayOfLastMonth,
+        firstDayOfThisMonth,
+      ),
+      this.createMonthlyReport(
+        ReportType.QUALITY_METRICS,
+        firstDayOfLastMonth,
+        firstDayOfThisMonth,
+      ),
+      this.createMonthlyReport(
+        ReportType.MARKET_TRENDS,
+        firstDayOfLastMonth,
+        firstDayOfThisMonth,
+      ),
+      this.createMonthlyReport(
+        ReportType.FINANCIAL_SUMMARY,
+        firstDayOfLastMonth,
+        firstDayOfThisMonth,
+      ),
     ]);
   }
 
@@ -56,12 +79,23 @@ export class ReportScheduler {
     const scheduledReports = await this.reportRepository.find({
       where: {
         status: ReportStatus.QUEUED,
-        scheduled_time: LessThan(new Date())
-      }
+        scheduled_time: LessThan(new Date()),
+      },
     });
 
     for (const report of scheduledReports) {
-      await this.reportService.generateReport(report.id).catch(console.error);
+      await this.reportService.generateReport(
+        report.type,
+        report.format,
+        report.parameters,
+        report.user_id,
+      ).catch(error => {
+        console.error(`Failed to generate report ${report.id}:`, error);
+        this.reportRepository.update(report.id, {
+          status: ReportStatus.FAILED,
+          error_message: error.message,
+        });
+      });
     }
   }
 
@@ -72,35 +106,25 @@ export class ReportScheduler {
 
     await this.reportRepository.delete({
       created_at: LessThan(thirtyDaysAgo),
-      status: ReportStatus.COMPLETED
+      status: ReportStatus.COMPLETED,
     });
   }
 
   private async createDailyReport(type: ReportType, start: Date, end: Date) {
-    return this.reportService.createReport(
-      'SYSTEM',
-      type,
-      ReportFormat.PDF,
-      {
-        date_range: { start, end },
-        filters: {},
-        grouping: ['date'],
-        metrics: ['count', 'sum', 'average']
-      }
-    );
+    return this.reportService.createReport("SYSTEM", type, ReportFormat.PDF, {
+      date_range: { start, end },
+      filters: {},
+      grouping: ["date"],
+      metrics: ["count", "sum", "average"],
+    });
   }
 
   private async createMonthlyReport(type: ReportType, start: Date, end: Date) {
-    return this.reportService.createReport(
-      'SYSTEM',
-      type,
-      ReportFormat.PDF,
-      {
-        date_range: { start, end },
-        filters: {},
-        grouping: ['week', 'category'],
-        metrics: ['count', 'sum', 'average', 'min', 'max']
-      }
-    );
+    return this.reportService.createReport("SYSTEM", type, ReportFormat.PDF, {
+      date_range: { start, end },
+      filters: {},
+      grouping: ["week", "category"],
+      metrics: ["count", "sum", "average", "min", "max"],
+    });
   }
-} 
+}

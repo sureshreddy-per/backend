@@ -4,7 +4,7 @@ interface AlertRule {
   metric: string;
   threshold: number;
   duration?: number;
-  severity: 'info' | 'warning' | 'error' | 'critical';
+  severity: "info" | "warning" | "error" | "critical";
   enabled?: boolean;
   cooldown?: number;
 }
@@ -13,7 +13,7 @@ interface Alert {
   id: string;
   ruleId: string;
   name: string;
-  status: 'active' | 'acknowledged' | 'resolved';
+  status: "active" | "acknowledged" | "resolved";
   severity: string;
   value: number;
   timestamp: Date;
@@ -42,13 +42,16 @@ export class AlertService {
     const newRule = {
       ...rule,
       id,
-      enabled: rule.enabled ?? true
+      enabled: rule.enabled ?? true,
     };
     this.rules.set(id, newRule);
     return newRule;
   }
 
-  async updateRule(id: string, updates: Partial<AlertRule>): Promise<AlertRule> {
+  async updateRule(
+    id: string,
+    updates: Partial<AlertRule>,
+  ): Promise<AlertRule> {
     const rule = this.rules.get(id);
     if (!rule) {
       throw new Error(`Rule ${id} not found`);
@@ -86,7 +89,11 @@ export class AlertService {
     }
   }
 
-  private async evaluateRule(rule: AlertRule, metric: string, value: number): Promise<boolean> {
+  private async evaluateRule(
+    rule: AlertRule,
+    metric: string,
+    value: number,
+  ): Promise<boolean> {
     if (rule.metric !== metric) return false;
 
     const lastAlertTime = this.lastAlertTimes.get(rule.id!);
@@ -105,10 +112,10 @@ export class AlertService {
       id: this.generateId(),
       ruleId: rule.id!,
       name: rule.name,
-      status: 'active',
+      status: "active",
       severity: rule.severity,
       value,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     this.alerts.set(alert.id, alert);
@@ -118,10 +125,13 @@ export class AlertService {
     return alert;
   }
 
-  async acknowledgeAlert(id: string, acknowledgment: {
-    acknowledgedBy: string;
-    comment?: string;
-  }): Promise<Alert> {
+  async acknowledgeAlert(
+    id: string,
+    acknowledgment: {
+      acknowledgedBy: string;
+      comment?: string;
+    },
+  ): Promise<Alert> {
     const alert = this.alerts.get(id);
     if (!alert) {
       throw new Error(`Alert ${id} not found`);
@@ -129,11 +139,11 @@ export class AlertService {
 
     const updatedAlert = {
       ...alert,
-      status: 'acknowledged' as const,
+      status: "acknowledged" as const,
       acknowledgment: {
         ...acknowledgment,
-        timestamp: new Date()
-      }
+        timestamp: new Date(),
+      },
     };
 
     this.alerts.set(id, updatedAlert);
@@ -144,11 +154,11 @@ export class AlertService {
 
   private async resolveAlerts(ruleId: string): Promise<void> {
     for (const [id, alert] of this.alerts.entries()) {
-      if (alert.ruleId === ruleId && alert.status === 'active') {
+      if (alert.ruleId === ruleId && alert.status === "active") {
         const resolvedAlert = {
           ...alert,
-          status: 'resolved' as const,
-          timestamp: new Date()
+          status: "resolved" as const,
+          timestamp: new Date(),
         };
         this.alerts.set(id, resolvedAlert);
         this.updateAlertHistory(resolvedAlert);
@@ -157,32 +167,35 @@ export class AlertService {
   }
 
   async getActiveAlerts(): Promise<Alert[]> {
-    return Array.from(this.alerts.values())
-      .filter(alert => alert.status === 'active');
+    return Array.from(this.alerts.values()).filter(
+      (alert) => alert.status === "active",
+    );
   }
 
   async getAlert(id: string): Promise<Alert | undefined> {
     return this.alerts.get(id);
   }
 
-  async getAlertHistory(options: {
-    duration?: number;
-    severity?: string;
-    status?: string;
-  } = {}): Promise<Alert[]> {
+  async getAlertHistory(
+    options: {
+      duration?: number;
+      severity?: string;
+      status?: string;
+    } = {},
+  ): Promise<Alert[]> {
     let history = [...this.alertHistory];
 
     if (options.duration) {
       const cutoff = Date.now() - options.duration;
-      history = history.filter(alert => alert.timestamp.getTime() >= cutoff);
+      history = history.filter((alert) => alert.timestamp.getTime() >= cutoff);
     }
 
     if (options.severity) {
-      history = history.filter(alert => alert.severity === options.severity);
+      history = history.filter((alert) => alert.severity === options.severity);
     }
 
     if (options.status) {
-      history = history.filter(alert => alert.status === options.status);
+      history = history.filter((alert) => alert.status === options.status);
     }
 
     return history;
@@ -201,4 +214,4 @@ export class AlertService {
     this.alertHistory = [];
     this.lastAlertTimes.clear();
   }
-} 
+}

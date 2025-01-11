@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsString, IsOptional } from 'class-validator';
+import { IsNotEmpty, IsString, IsOptional } from "class-validator";
 
 export class CreateInspectorDto {
   @IsString()
@@ -12,4 +12,4 @@ export class CreateInspectorDto {
   @IsString()
   @IsOptional()
   location?: string;
-} 
+}

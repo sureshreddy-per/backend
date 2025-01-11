@@ -1,70 +1,78 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { Offer } from '../../offers/entities/offer.entity';
-import { Produce } from '../../produce/entities/produce.entity';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+} from "typeorm";
+import { Offer } from "../../offers/entities/offer.entity";
+import { Produce } from '../../produce';
 
 export enum TransactionStatus {
-  PENDING = 'PENDING',
-  IN_PROGRESS = 'IN_PROGRESS',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  EXPIRED = 'EXPIRED'
+  PENDING = "PENDING",
+  IN_PROGRESS = "IN_PROGRESS",
+  COMPLETED = "COMPLETED",
+  CANCELLED = "CANCELLED",
+  EXPIRED = "EXPIRED",
 }
 
-@Entity('transactions')
+@Entity("transactions")
 export class Transaction {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ name: 'offer_id' })
+  @Column({ name: "offer_id" })
   offer_id: string;
 
-  @Column({ name: 'produce_id' })
+  @Column({ name: "produce_id" })
   produce_id: string;
 
-  @Column({ name: 'buyer_id' })
+  @Column({ name: "buyer_id" })
   buyer_id: string;
 
-  @Column({ name: 'farmer_id' })
+  @Column({ name: "farmer_id" })
   farmer_id: string;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column("decimal", { precision: 10, scale: 2 })
   final_price: number;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column("decimal", { precision: 10, scale: 2 })
   final_quantity: number;
 
   @Column({
-    type: 'enum',
+    type: "enum",
     enum: TransactionStatus,
-    default: TransactionStatus.PENDING
+    default: TransactionStatus.PENDING,
   })
   status: TransactionStatus;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   delivery_window_starts_at: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   delivery_window_ends_at: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   delivery_confirmed_at: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   buyer_inspection_completed_at: Date;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: "boolean", default: false })
   requires_rating: boolean;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: "boolean", default: false })
   rating_completed: boolean;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: "boolean", default: false })
   inspection_fee_paid: boolean;
 
-  @Column({ type: 'timestamp', nullable: true })
+  @Column({ type: "timestamp", nullable: true })
   inspection_fee_paid_at: Date;
 
-  @Column('jsonb', { nullable: true })
+  @Column("jsonb", { nullable: true })
   metadata: {
     completed_at?: Date;
     cancelled_at?: Date;
@@ -80,16 +88,16 @@ export class Transaction {
   };
 
   @ManyToOne(() => Offer)
-  @JoinColumn({ name: 'offer_id' })
+  @JoinColumn({ name: "offer_id" })
   offer: Offer;
 
   @ManyToOne(() => Produce)
-  @JoinColumn({ name: 'produce_id' })
+  @JoinColumn({ name: "produce_id" })
   produce: Produce;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updated_at: Date;
-} 
+}

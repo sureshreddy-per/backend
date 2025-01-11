@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Buyer } from './entities/buyer.entity';
+import { Injectable } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Buyer } from "./entities/buyer.entity";
 
 @Injectable()
 export class BuyersService {
@@ -15,12 +15,14 @@ export class BuyersService {
   }
 
   async findNearby(location: string, radiusKm: number): Promise<Buyer[]> {
-    const [lat, lng] = location.split('-').map(coord => parseFloat(coord));
+    const [lat, lng] = location.split("-").map((coord) => parseFloat(coord));
     const buyers = await this.buyerRepository.find();
 
-    return buyers.filter(buyer => {
+    return buyers.filter((buyer) => {
       if (!buyer.lat_lng) return false;
-      const [buyerLat, buyerLng] = buyer.lat_lng.split('-').map(coord => parseFloat(coord));
+      const [buyerLat, buyerLng] = buyer.lat_lng
+        .split("-")
+        .map((coord) => parseFloat(coord));
 
       const R = 6371; // Earth's radius in km
       const dLat = this.toRad(buyerLat - lat);
@@ -42,11 +44,14 @@ export class BuyersService {
     return degrees * (Math.PI / 180);
   }
 
-  async createBuyer(user_id: string, buyerData: Partial<Buyer>): Promise<Buyer> {
+  async createBuyer(
+    user_id: string,
+    buyerData: Partial<Buyer>,
+  ): Promise<Buyer> {
     const buyer = this.buyerRepository.create({
       user_id,
       ...buyerData,
-      is_active: true
+      is_active: true,
     });
     return this.buyerRepository.save(buyer);
   }
@@ -59,28 +64,34 @@ export class BuyersService {
     return this.buyerRepository.findOne({ where: { id } });
   }
 
-  async findNearbyBuyers(lat: number, lng: number, radiusKm: number): Promise<Buyer[]> {
+  async findNearbyBuyers(
+    lat: number,
+    lng: number,
+    radiusKm: number,
+  ): Promise<Buyer[]> {
     if (!lat || !lng || !radiusKm) {
-      throw new Error('Invalid parameters: latitude, longitude and radius are required');
+      throw new Error(
+        "Invalid parameters: latitude, longitude and radius are required",
+      );
     }
 
     if (radiusKm <= 0 || radiusKm > 100) {
-      throw new Error('Radius must be between 0 and 100 kilometers');
+      throw new Error("Radius must be between 0 and 100 kilometers");
     }
 
     const buyers = await this.buyerRepository.find({
       where: {
-        is_active: true
-      }
+        is_active: true,
+      },
     });
 
-    return buyers.filter(buyer => {
+    return buyers.filter((buyer) => {
       try {
         if (!buyer.lat_lng) return false;
-        
-        const [buyerLat, buyerLng] = buyer.lat_lng.split('-').map(coord => {
+
+        const [buyerLat, buyerLng] = buyer.lat_lng.split("-").map((coord) => {
           const parsed = parseFloat(coord);
-          if (isNaN(parsed)) throw new Error('Invalid coordinates format');
+          if (isNaN(parsed)) throw new Error("Invalid coordinates format");
           return parsed;
         });
 
@@ -102,7 +113,9 @@ export class BuyersService {
 
         return distance <= radiusKm;
       } catch (error) {
-        console.error(`Error calculating distance for buyer ${buyer.id}: ${error.message}`);
+        console.error(
+          `Error calculating distance for buyer ${buyer.id}: ${error.message}`,
+        );
         return false;
       }
     });
@@ -112,18 +125,24 @@ export class BuyersService {
     return this.findByUserId(userId);
   }
 
-  async updateBuyerDetails(userId: string, updateData: Partial<Buyer>): Promise<Buyer> {
+  async updateBuyerDetails(
+    userId: string,
+    updateData: Partial<Buyer>,
+  ): Promise<Buyer> {
     const buyer = await this.findByUserId(userId);
     Object.assign(buyer, updateData);
     return this.buyerRepository.save(buyer);
   }
 
-  async getBuyerDetailsByOfferId(offerId: string, userId: string): Promise<Buyer> {
+  async getBuyerDetailsByOfferId(
+    offerId: string,
+    userId: string,
+  ): Promise<Buyer> {
     // First find the buyer associated with this offer
     const buyer = await this.buyerRepository
-      .createQueryBuilder('buyer')
-      .innerJoin('buyer.offers', 'offer', 'offer.id = :offerId', { offerId })
-      .where('buyer.user_id = :userId', { userId })
+      .createQueryBuilder("buyer")
+      .innerJoin("buyer.offers", "offer", "offer.id = :offerId", { offerId })
+      .where("buyer.user_id = :userId", { userId })
       .getOne();
 
     return buyer;

@@ -1,12 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Notification, NotificationType } from '../entities/notification.entity';
-import { BaseService } from '../../common/base.service';
-import { OnEvent } from '@nestjs/event-emitter';
-import * as admin from 'firebase-admin';
-import { UserRole } from '../../users/enums/user-role.enum';
-import { UsersService } from '../../users/services/users.service';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Notification } from "../entities/notification.entity";
+import { NotificationType } from "../enums/notification-type.enum";
+import { BaseService } from "../../common/base.service";
+import { OnEvent } from "@nestjs/event-emitter";
+import * as admin from "firebase-admin";
+import { UserRole } from "../../enums/user-role.enum";
+import { UsersService } from "../../users/services/users.service";
 
 @Injectable()
 export class NotificationService extends BaseService<Notification> {
@@ -20,12 +21,12 @@ export class NotificationService extends BaseService<Notification> {
     super(notificationRepository);
   }
 
-  @OnEvent('offer.created')
+  @OnEvent("offer.created")
   async handleNewOffer(payload: {
-    buyer_id: string,
-    farmer_id: string,
-    produce_id: string,
-    price: number
+    buyer_id: string;
+    farmer_id: string;
+    produce_id: string;
+    price: number;
   }) {
     await this.createNotification(
       payload.farmer_id,
@@ -33,43 +34,38 @@ export class NotificationService extends BaseService<Notification> {
       {
         produce_id: payload.produce_id,
         buyer_id: payload.buyer_id,
-        price: payload.price
+        price: payload.price,
       },
-      'New offer received for your produce'
+      "New offer received for your produce",
     );
   }
 
-  @OnEvent('offer.status_changed')
+  @OnEvent("offer.status_changed")
   async handleOfferStatusChange(payload: {
-    offer_id: string,
-    old_status: string,
-    new_status: string,
-    buyer_id: string,
-    farmer_id: string
+    offer_id: string;
+    old_status: string;
+    new_status: string;
+    buyer_id: string;
+    farmer_id: string;
   }) {
-    const notifyUserId = payload.new_status === 'ACCEPTED' ? payload.buyer_id : payload.farmer_id;
-    const message = payload.new_status === 'ACCEPTED'
-      ? 'Your offer has been accepted'
-      : `Offer status changed to ${payload.new_status}`;
-
     await this.createNotification(
-      notifyUserId,
-      NotificationType.OFFER_STATUS_CHANGE,
+      payload.farmer_id,
+      NotificationType.OFFER_STATUS_UPDATE,
       {
         offer_id: payload.offer_id,
         old_status: payload.old_status,
-        new_status: payload.new_status
+        new_status: payload.new_status,
       },
-      message
+      `Offer status changed from ${payload.old_status} to ${payload.new_status}`,
     );
   }
 
-  @OnEvent('inspection.completed')
+  @OnEvent("inspection.completed")
   async handleInspectionCompleted(payload: {
-    produce_id: string,
-    farmer_id: string,
-    grade: number,
-    has_offers: boolean
+    produce_id: string;
+    farmer_id: string;
+    grade: number;
+    has_offers: boolean;
   }) {
     await this.createNotification(
       payload.farmer_id,
@@ -77,18 +73,18 @@ export class NotificationService extends BaseService<Notification> {
       {
         produce_id: payload.produce_id,
         grade: payload.grade,
-        has_offers: payload.has_offers
+        has_offers: payload.has_offers,
       },
-      'Quality inspection completed for your produce'
+      "Quality inspection completed for your produce",
     );
   }
 
-  @OnEvent('transaction.updated')
+  @OnEvent("transaction.updated")
   async handleTransactionUpdate(payload: {
-    transaction_id: string,
-    status: string,
-    buyer_id: string,
-    farmer_id: string
+    transaction_id: string;
+    status: string;
+    buyer_id: string;
+    farmer_id: string;
   }) {
     // Notify both buyer and farmer
     await Promise.all([
@@ -97,19 +93,19 @@ export class NotificationService extends BaseService<Notification> {
         NotificationType.TRANSACTION_UPDATE,
         {
           transaction_id: payload.transaction_id,
-          status: payload.status
+          status: payload.status,
         },
-        `Transaction status updated to ${payload.status}`
+        `Transaction status updated to ${payload.status}`,
       ),
       this.createNotification(
         payload.farmer_id,
         NotificationType.TRANSACTION_UPDATE,
         {
           transaction_id: payload.transaction_id,
-          status: payload.status
+          status: payload.status,
         },
-        `Transaction status updated to ${payload.status}`
-      )
+        `Transaction status updated to ${payload.status}`,
+      ),
     ]);
   }
 
@@ -117,7 +113,7 @@ export class NotificationService extends BaseService<Notification> {
     userId: string,
     type: NotificationType,
     data: Record<string, any>,
-    message: string
+    message: string,
   ): Promise<void> {
     try {
       // Create notification in database
@@ -125,44 +121,50 @@ export class NotificationService extends BaseService<Notification> {
         user_id: userId,
         type,
         data,
-        is_read: false
+        is_read: false,
       });
 
       // Send Firebase push notification
       await this.sendPushNotification(userId, {
         notification: {
           title: this.getNotificationTitle(type),
-          body: message
+          body: message,
         },
         data: {
           type,
-          ...data
-        }
+          ...data,
+        },
       });
 
-      this.logger.log(`Notification created for user ${userId} of type ${type}`);
+      this.logger.log(
+        `Notification created for user ${userId} of type ${type}`,
+      );
     } catch (error) {
       this.logger.error(
         `Failed to create notification for user ${userId}`,
-        error.stack
+        error.stack,
       );
     }
   }
 
   private getNotificationTitle(type: NotificationType): string {
-    const titles = {
-      [NotificationType.NEW_OFFER]: 'New Offer',
-      [NotificationType.OFFER_STATUS_CHANGE]: 'Offer Update',
-      [NotificationType.INSPECTION_COMPLETED]: 'Inspection Complete',
-      [NotificationType.TRANSACTION_UPDATE]: 'Transaction Update',
-      [NotificationType.QUALITY_UPDATE]: 'Quality Update'
-    };
-    return titles[type] || 'Notification';
+    switch (type) {
+      case NotificationType.NEW_OFFER:
+        return "New Offer";
+      case NotificationType.OFFER_STATUS_UPDATE:
+        return "Offer Status Update";
+      case NotificationType.INSPECTION_COMPLETED:
+        return "Inspection Completed";
+      case NotificationType.TRANSACTION_UPDATE:
+        return "Transaction Update";
+      default:
+        return "Notification";
+    }
   }
 
   private async sendPushNotification(
     userId: string,
-    payload: admin.messaging.MessagingPayload
+    payload: admin.messaging.MessagingPayload,
   ): Promise<void> {
     try {
       // Get user's FCM token from user service or cache
@@ -177,7 +179,7 @@ export class NotificationService extends BaseService<Notification> {
     } catch (error) {
       this.logger.error(
         `Failed to send push notification to user ${userId}`,
-        error.stack
+        error.stack,
       );
     }
   }
@@ -188,26 +190,23 @@ export class NotificationService extends BaseService<Notification> {
   }
 
   async markAsRead(notificationId: string): Promise<void> {
-    await this.notificationRepository.update(
-      { id: notificationId },
-      {
-        is_read: true,
-        read_at: new Date()
-      }
-    );
+    await this.notificationRepository.update(notificationId, {
+      is_read: true,
+    });
   }
 
   async getUserNotifications(
     userId: string,
     page = 1,
-    limit = 20
+    limit = 20,
   ): Promise<{ notifications: Notification[]; total: number }> {
-    const [notifications, total] = await this.notificationRepository.findAndCount({
-      where: { user_id: userId },
-      order: { created_at: 'DESC' },
-      skip: (page - 1) * limit,
-      take: limit
-    });
+    const [notifications, total] =
+      await this.notificationRepository.findAndCount({
+        where: { user_id: userId },
+        order: { created_at: "DESC" },
+        skip: (page - 1) * limit,
+        take: limit,
+      });
 
     return { notifications, total };
   }
@@ -216,8 +215,8 @@ export class NotificationService extends BaseService<Notification> {
     return this.notificationRepository.count({
       where: {
         user_id: userId,
-        is_read: false
-      }
+        is_read: false,
+      },
     });
   }
 
@@ -243,14 +242,14 @@ export class NotificationService extends BaseService<Notification> {
   async findByUser(user_id: string): Promise<Notification[]> {
     return this.notificationRepository.find({
       where: { user_id },
-      order: { created_at: 'DESC' },
+      order: { created_at: "DESC" },
     });
   }
 
   async markAllAsRead(user_id: string): Promise<void> {
     await this.notificationRepository.update(
       { user_id, is_read: false },
-      { is_read: true, read_at: new Date() },
+      { is_read: true },
     );
   }
 }

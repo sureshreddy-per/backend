@@ -1,30 +1,21 @@
-import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { InspectionDistanceFeeConfig } from './entities/fee-config.entity';
-import { InspectionBaseFeeConfig } from './entities/base-fee-config.entity';
-import { InspectionBaseFeeController } from './controllers/base-fee-config.controller';
-import { InspectionDistanceFeeController } from './controllers/fee-config.controller';
-import { InspectionBaseFeeService } from './services/base-fee-config.service';
-import { InspectionDistanceFeeService } from './services/fee-config.service';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { SystemConfig } from "./entities/system-config.entity";
+import { ConfigAuditLog } from "./entities/config-audit-log.entity";
+import { SystemConfigService } from "./services/system-config.service";
+import { ConfigAuditService } from "./services/config-audit.service";
+import { SystemConfigController } from "./controllers/system-config.controller";
+import { ConfigAuditController } from "./controllers/config-audit.controller";
+import { DatabaseInitializer } from "./database-initializer";
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      InspectionDistanceFeeConfig,
-      InspectionBaseFeeConfig
-    ])
-  ],
-  controllers: [
-    InspectionBaseFeeController,
-    InspectionDistanceFeeController
-  ],
+  imports: [TypeOrmModule.forFeature([SystemConfig, ConfigAuditLog])],
+  controllers: [SystemConfigController, ConfigAuditController],
   providers: [
-    InspectionBaseFeeService,
-    InspectionDistanceFeeService
+    SystemConfigService,
+    ConfigAuditService,
+    DatabaseInitializer,
   ],
-  exports: [
-    InspectionBaseFeeService,
-    InspectionDistanceFeeService
-  ]
+  exports: [SystemConfigService, ConfigAuditService],
 })
-export class ConfigModule {} 
+export class ConfigModule {}

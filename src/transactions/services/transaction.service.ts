@@ -1,28 +1,31 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { FindManyOptions, Repository, LessThan, IsNull } from 'typeorm';
-import { Transaction, TransactionStatus } from '../entities/transaction.entity';
-import { BaseService } from '../../common/base.service';
-import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { FindManyOptions, Repository, LessThan, IsNull } from "typeorm";
+import { Transaction, TransactionStatus } from "../entities/transaction.entity";
+import { BaseService } from "../../common/base.service";
+import { PaginatedResponse } from "../../common/interfaces/paginated-response.interface";
 
 @Injectable()
 export class TransactionService extends BaseService<Transaction> {
   constructor(
     @InjectRepository(Transaction)
-    private readonly transactionRepository: Repository<Transaction>
+    private readonly transactionRepository: Repository<Transaction>,
   ) {
     super(transactionRepository);
   }
 
   async findOne(options: FindManyOptions<Transaction> | string) {
-    if (typeof options === 'string') {
+    if (typeof options === "string") {
       return this.transactionRepository.findOne({ where: { id: options } });
     }
     return this.transactionRepository.findOne(options);
   }
 
-  async findAll(options: FindManyOptions<Transaction>): Promise<PaginatedResponse<Transaction>> {
-    const [items, total] = await this.transactionRepository.findAndCount(options);
+  async findAll(
+    options: FindManyOptions<Transaction>,
+  ): Promise<PaginatedResponse<Transaction>> {
+    const [items, total] =
+      await this.transactionRepository.findAndCount(options);
     const { take = 10, skip = 0 } = options;
     const page = Math.floor(skip / take) + 1;
     const totalPages = Math.ceil(total / take);
@@ -32,7 +35,7 @@ export class TransactionService extends BaseService<Transaction> {
       total,
       page,
       limit: take,
-      totalPages
+      totalPages,
     };
   }
 
@@ -61,13 +64,16 @@ export class TransactionService extends BaseService<Transaction> {
     transaction.delivery_confirmed_at = new Date();
     transaction.metadata = {
       ...transaction.metadata,
-      delivery_notes: notes
+      delivery_notes: notes,
     };
 
     return this.transactionRepository.save(transaction);
   }
 
-  async confirmBuyerInspection(id: string, notes?: string): Promise<Transaction> {
+  async confirmBuyerInspection(
+    id: string,
+    notes?: string,
+  ): Promise<Transaction> {
     const transaction = await this.findOne(id);
     if (!transaction) {
       throw new NotFoundException(`Transaction ${id} not found`);
@@ -76,7 +82,7 @@ export class TransactionService extends BaseService<Transaction> {
     transaction.buyer_inspection_completed_at = new Date();
     transaction.metadata = {
       ...transaction.metadata,
-      inspection_notes: notes
+      inspection_notes: notes,
     };
 
     return this.transactionRepository.save(transaction);
@@ -87,8 +93,8 @@ export class TransactionService extends BaseService<Transaction> {
       where: {
         status: TransactionStatus.IN_PROGRESS,
         delivery_window_ends_at: LessThan(new Date()),
-        delivery_confirmed_at: IsNull()
-      }
+        delivery_confirmed_at: IsNull(),
+      },
     });
 
     for (const transaction of expiredTransactions) {
@@ -104,7 +110,7 @@ export class TransactionService extends BaseService<Transaction> {
     }
 
     if (transaction.status !== TransactionStatus.EXPIRED) {
-      throw new Error('Only expired transactions can be reactivated');
+      throw new Error("Only expired transactions can be reactivated");
     }
 
     return this.startDeliveryWindow(id);
@@ -119,7 +125,7 @@ export class TransactionService extends BaseService<Transaction> {
     transaction.status = TransactionStatus.COMPLETED;
     transaction.metadata = {
       ...transaction.metadata,
-      completed_at: new Date()
+      completed_at: new Date(),
     };
 
     return this.transactionRepository.save(transaction);
@@ -135,7 +141,7 @@ export class TransactionService extends BaseService<Transaction> {
     transaction.metadata = {
       ...transaction.metadata,
       cancelled_at: new Date(),
-      cancellation_reason: reason
+      cancellation_reason: reason,
     };
 
     return this.transactionRepository.save(transaction);
@@ -143,11 +149,16 @@ export class TransactionService extends BaseService<Transaction> {
 
   async calculateTotalValue() {
     const result = await this.transactionRepository
-      .createQueryBuilder('transaction')
-      .select('SUM(transaction.final_price * transaction.final_quantity)', 'total')
-      .where('transaction.status = :status', { status: TransactionStatus.COMPLETED })
+      .createQueryBuilder("transaction")
+      .select(
+        "SUM(transaction.final_price * transaction.final_quantity)",
+        "total",
+      )
+      .where("transaction.status = :status", {
+        status: TransactionStatus.COMPLETED,
+      })
       .getRawOne();
-    
+
     return result?.total || 0;
   }
 
@@ -167,7 +178,7 @@ export class TransactionService extends BaseService<Transaction> {
       completedTransactions,
       cancelledTransactions,
       expiredTransactions,
-      totalValue
+      totalValue,
     ] = await Promise.all([
       this.count(),
       this.countByStatus(TransactionStatus.PENDING),
@@ -175,7 +186,7 @@ export class TransactionService extends BaseService<Transaction> {
       this.countByStatus(TransactionStatus.COMPLETED),
       this.countByStatus(TransactionStatus.CANCELLED),
       this.countByStatus(TransactionStatus.EXPIRED),
-      this.calculateTotalValue()
+      this.calculateTotalValue(),
     ]);
 
     return {
@@ -185,28 +196,30 @@ export class TransactionService extends BaseService<Transaction> {
       completed: completedTransactions,
       cancelled: cancelledTransactions,
       expired: expiredTransactions,
-      total_value: totalValue
+      total_value: totalValue,
     };
   }
 
   async getRevenueStats() {
     const result = await this.transactionRepository
-      .createQueryBuilder('transaction')
+      .createQueryBuilder("transaction")
       .select([
-        'DATE_TRUNC(\'month\', transaction.created_at) as month',
-        'SUM(transaction.final_price * transaction.final_quantity) as revenue',
-        'COUNT(*) as count'
+        "DATE_TRUNC('month', transaction.created_at) as month",
+        "SUM(transaction.final_price * transaction.final_quantity) as revenue",
+        "COUNT(*) as count",
       ])
-      .where('transaction.status = :status', { status: TransactionStatus.COMPLETED })
-      .groupBy('month')
-      .orderBy('month', 'DESC')
+      .where("transaction.status = :status", {
+        status: TransactionStatus.COMPLETED,
+      })
+      .groupBy("month")
+      .orderBy("month", "DESC")
       .limit(12)
       .getRawMany();
 
-    return result.map(item => ({
+    return result.map((item) => ({
       month: item.month,
       revenue: parseFloat(item.revenue) || 0,
-      count: parseInt(item.count)
+      count: parseInt(item.count),
     }));
   }
-} 
+}

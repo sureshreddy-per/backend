@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsOptional, IsDate, IsString } from 'class-validator';
+import { Type } from "class-transformer";
+import { IsOptional, IsDate, IsString } from "class-validator";
 
 export class ProduceHistoryQueryDto {
   @IsOptional()
@@ -37,4 +37,4 @@ export class ProduceHistoryResponseDto {
     totalValue: number;
     averagePrice: number;
   };
-} 
+}

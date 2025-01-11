@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Inspector } from './entities/inspector.entity';
-import { CreateInspectorDto } from './dto/create-inspector.dto';
-import { UpdateInspectorDto } from './dto/update-inspector.dto';
+import { Injectable, NotFoundException } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { Inspector } from "./entities/inspector.entity";
+import { CreateInspectorDto } from "./dto/create-inspector.dto";
+import { UpdateInspectorDto } from "./dto/update-inspector.dto";
 
 @Injectable()
 export class InspectorsService {
@@ -31,13 +31,20 @@ export class InspectorsService {
     return inspector;
   }
 
-  async findNearby(lat: number, lng: number, radiusKm: number): Promise<Inspector[]> {
+  async findNearby(
+    lat: number,
+    lng: number,
+    radiusKm: number,
+  ): Promise<Inspector[]> {
     // TODO: Implement geospatial query using PostGIS
     // For now, return all inspectors
     return this.inspectorRepository.find();
   }
 
-  async update(id: string, updateInspectorDto: UpdateInspectorDto): Promise<Inspector> {
+  async update(
+    id: string,
+    updateInspectorDto: UpdateInspectorDto,
+  ): Promise<Inspector> {
     const inspector = await this.findOne(id);
     Object.assign(inspector, updateInspectorDto);
     return this.inspectorRepository.save(inspector);
@@ -47,4 +54,4 @@ export class InspectorsService {
     const inspector = await this.findOne(id);
     await this.inspectorRepository.remove(inspector);
   }
-} 
+}

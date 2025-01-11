@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsOptional, Min } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, Min } from "class-validator";
 
 export class UpdateSystemConfigDto {
   @IsBoolean()
@@ -19,4 +19,4 @@ export class UpdateSystemConfigDto {
   @IsOptional()
   @Min(1)
   cache_ttl_minutes?: number;
-} 
+}

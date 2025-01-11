@@ -1,8 +1,8 @@
-import { IsString } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString } from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
 
 export class RequestOtpDto {
-  @ApiProperty({ example: '+1234567890' })
+  @ApiProperty({ example: "+1234567890" })
   @IsString()
   mobile_number: string;
 }
@@ -13,4 +13,4 @@ export class RequestOtpResponseDto {
 
   @ApiProperty()
   requestId: string;
-} 
+}

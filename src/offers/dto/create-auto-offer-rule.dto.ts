@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsString, IsNumber, IsOptional, IsUUID, IsBoolean } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsUUID,
+  IsBoolean,
+} from "class-validator";
 
 export class CreateAutoOfferRuleDto {
   @IsNotEmpty()
@@ -32,4 +39,4 @@ export class CreateAutoOfferRuleDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean = true;
-} 
+}

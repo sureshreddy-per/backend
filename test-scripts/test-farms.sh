@@ -12,9 +12,9 @@ FARMER_TOKEN=$(get_auth_token "+1111222268" "Test Farmer" "FARMER")
 print_test_header "Create Farm"
 FARM_RESPONSE=$(make_request "POST" "/farmers/farms" '{
     "name": "Green Valley Farm",
-    "size": 10.5,
+    "size_in_acres": 10.5,
     "address": "123 Farm Road, Rural District",
-    "lat_lng": "12.9716-77.5946",
+    "location": "12.9716,77.5946",
     "image": "https://example.com/farm1.jpg"
 }' "$FARMER_TOKEN")
 
@@ -28,7 +28,7 @@ make_request "GET" "/farmers/farms/$FARM_ID" "{}" "$FARMER_TOKEN"
 print_test_header "Update Farm Details"
 make_request "PATCH" "/farmers/farms/$FARM_ID" '{
     "name": "Green Valley Farm - Updated",
-    "lat_lng": "12.9720-77.5950"
+    "location": "12.9720,77.5950"
 }' "$FARMER_TOKEN"
 
 echo -e "\n${GREEN}Farm management tests completed!${NC}" 
