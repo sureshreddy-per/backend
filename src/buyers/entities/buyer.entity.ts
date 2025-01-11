@@ -8,6 +8,7 @@ import {
   JoinColumn,
 } from "typeorm";
 import { User } from "../../users/entities/user.entity";
+import { ProduceCategory } from "../../produce/enums/produce-category.enum";
 
 @Entity("buyers")
 export class Buyer {
@@ -48,8 +49,8 @@ export class Buyer {
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ type: 'jsonb', nullable: true })
-  categories: string[];
+  @Column({ type: 'enum', enum: ProduceCategory, array: true, nullable: true })
+  categories: ProduceCategory[];
 
   @CreateDateColumn({ name: "created_at" })
   created_at: Date;

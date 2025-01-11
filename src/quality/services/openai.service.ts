@@ -60,7 +60,7 @@ export class OpenAIService {
                     text: `Analyze this agricultural produce image and provide a detailed assessment in the following JSON format:
                 {
                   "name": "produce name",
-                  "produce_category": "one of [FOOD_GRAINS, OILSEEDS, FRUITS, VEGETABLES, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL]",
+                  "produce_category": "one of [FOOD_GRAINS, OILSEEDS, FRUITS, VEGETABLES, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS]",
                   "product_variety": "specific variety name",
                   "description": "detailed description",
                   "quality_grade": "number between 1-10",
@@ -69,46 +69,53 @@ export class OpenAIService {
                   "recommendations": ["list of recommendations"],
                   "category_specific_attributes": {
                     // For FOOD_GRAINS:
+                    "variety": "string",
                     "moisture_content": "number",
                     "foreign_matter": "number",
-                    "broken_grains": "number",
-                    "grain_size": "string",
+                    "protein_content": "number",
+                    "wastage": "number",
 
                     // For OILSEEDS:
                     "oil_content": "number",
-                    "moisture_level": "number",
-                    "seed_size": "string",
+                    "seed_size": "small|medium|large",
+                    "moisture_content": "number",
 
-                    // For FRUITS/VEGETABLES:
-                    "ripeness": "string",
-                    "freshness": "string",
-                    "color_uniformity": "number",
-                    "size_uniformity": "number",
+                    // For FRUITS:
+                    "sweetness_brix": "number",
+                    "size": "small|medium|large",
+                    "color": "string",
+                    "ripeness": "ripe|unripe",
+
+                    // For VEGETABLES:
+                    "freshness_level": "fresh|slightly wilted",
+                    "size": "small|medium|large",
+                    "color": "string",
 
                     // For SPICES:
-                    "aroma_strength": "number",
-                    "color_intensity": "number",
-                    "essential_oil": "number",
+                    "volatile_oil_content": "number",
+                    "aroma_quality": "strong|mild",
+                    "purity": "number",
 
                     // For FIBERS:
-                    "fiber_length": "number",
+                    "staple_length": "number",
                     "fiber_strength": "number",
-                    "fiber_uniformity": "number",
+                    "trash_content": "number",
 
                     // For SUGARCANE:
-                    "sugar_content": "number",
+                    "variety": "string",
+                    "brix_content": "number",
+                    "fiber_content": "number",
                     "stalk_length": "number",
-                    "maturity": "string",
 
                     // For FLOWERS:
-                    "bloom_stage": "string",
+                    "freshness_level": "fresh|slightly wilted",
+                    "fragrance_quality": "strong|mild",
                     "stem_length": "number",
-                    "color_vibrancy": "number",
 
-                    // For MEDICINAL:
-                    "active_compounds": "number",
-                    "plant_maturity": "string",
-                    "therapeutic_grade": "number"
+                    // For MEDICINAL_PLANTS:
+                    "essential_oil_yield": "number",
+                    "purity_of_extracts": "number",
+                    "moisture_content": "number"
                   }
                 }`,
                   },

@@ -301,14 +301,18 @@ CREATE TABLE inspection_requests (
   produce_id UUID NOT NULL REFERENCES produce(id),
   requester_id UUID NOT NULL REFERENCES users(id),
   inspector_id UUID REFERENCES users(id),
+  location TEXT NOT NULL,
   status VARCHAR(50) NOT NULL DEFAULT 'PENDING',
   inspection_fee DECIMAL(10,2) NOT NULL,
-  inspection_result JSONB,
   scheduled_at TIMESTAMP,
+  assigned_at TIMESTAMP,
   completed_at TIMESTAMP,
-  metadata JSONB,
+  notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT valid_location_format CHECK (location ~ '^-?\d+(\.\d+)?,-?\d+(\.\d+)?$'),
+  CONSTRAINT valid_latitude CHECK (CAST(split_part(location, ',', 1) AS DECIMAL) BETWEEN -90 AND 90),
+  CONSTRAINT valid_longitude CHECK (CAST(split_part(location, ',', 2) AS DECIMAL) BETWEEN -180 AND 180)
 );
 
 -- 7. Create quality_assessments table (depends on produce, inspectors, and inspection_requests)
@@ -324,7 +328,7 @@ CREATE TABLE quality_assessments (
   category produce_category_enum NOT NULL,
   category_specific_assessment JSONB NOT NULL,
   metadata JSONB NULL,
-  inspector_id UUID REFERENCES inspectors(id),
+  inspector_id UUID REFERENCES users(id),
   inspection_request_id UUID REFERENCES inspection_requests(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -333,44 +337,44 @@ CREATE TABLE quality_assessments (
   CONSTRAINT category_specific_assessment_validation CHECK (
     CASE category
       WHEN 'FOOD_GRAINS' THEN
-        (category_specific_assessment->>'variety') IS NOT NULL AND
-        (category_specific_assessment->>'moisture_content') IS NOT NULL AND
-        (category_specific_assessment->>'foreign_matter') IS NOT NULL AND
-        (category_specific_assessment->>'protein_content') IS NOT NULL AND
+        (category_specific_assessment->>'variety') IS NOT NULL OR
+        (category_specific_assessment->>'moisture_content') IS NOT NULL OR
+        (category_specific_assessment->>'foreign_matter') IS NOT NULL OR
+        (category_specific_assessment->>'protein_content') IS NOT NULL OR
         (category_specific_assessment->>'wastage') IS NOT NULL
       WHEN 'OILSEEDS' THEN
-        (category_specific_assessment->>'oil_content') IS NOT NULL AND
-        (category_specific_assessment->>'seed_size') IS NOT NULL AND
+        (category_specific_assessment->>'oil_content') IS NOT NULL OR
+        (category_specific_assessment->>'seed_size') IS NOT NULL OR
         (category_specific_assessment->>'moisture_content') IS NOT NULL
       WHEN 'FRUITS' THEN
-        (category_specific_assessment->>'sweetness_brix') IS NOT NULL AND
-        (category_specific_assessment->>'size') IS NOT NULL AND
-        (category_specific_assessment->>'color') IS NOT NULL AND
+        (category_specific_assessment->>'sweetness_brix') IS NOT NULL OR
+        (category_specific_assessment->>'size') IS NOT NULL OR
+        (category_specific_assessment->>'color') IS NOT NULL OR
         (category_specific_assessment->>'ripeness') IS NOT NULL
       WHEN 'VEGETABLES' THEN
-        (category_specific_assessment->>'freshness_level') IS NOT NULL AND
-        (category_specific_assessment->>'size') IS NOT NULL AND
+        (category_specific_assessment->>'freshness_level') IS NOT NULL OR
+        (category_specific_assessment->>'size') IS NOT NULL OR
         (category_specific_assessment->>'color') IS NOT NULL
       WHEN 'SPICES' THEN
-        (category_specific_assessment->>'volatile_oil_content') IS NOT NULL AND
-        (category_specific_assessment->>'aroma_quality') IS NOT NULL AND
+        (category_specific_assessment->>'volatile_oil_content') IS NOT NULL OR
+        (category_specific_assessment->>'aroma_quality') IS NOT NULL OR
         (category_specific_assessment->>'purity') IS NOT NULL
       WHEN 'FIBERS' THEN
-        (category_specific_assessment->>'staple_length') IS NOT NULL AND
-        (category_specific_assessment->>'fiber_strength') IS NOT NULL AND
+        (category_specific_assessment->>'staple_length') IS NOT NULL OR
+        (category_specific_assessment->>'fiber_strength') IS NOT NULL OR
         (category_specific_assessment->>'trash_content') IS NOT NULL
       WHEN 'SUGARCANE' THEN
-        (category_specific_assessment->>'variety') IS NOT NULL AND
-        (category_specific_assessment->>'brix_content') IS NOT NULL AND
-        (category_specific_assessment->>'fiber_content') IS NOT NULL AND
+        (category_specific_assessment->>'variety') IS NOT NULL OR
+        (category_specific_assessment->>'brix_content') IS NOT NULL OR
+        (category_specific_assessment->>'fiber_content') IS NOT NULL OR
         (category_specific_assessment->>'stalk_length') IS NOT NULL
       WHEN 'FLOWERS' THEN
-        (category_specific_assessment->>'freshness_level') IS NOT NULL AND
-        (category_specific_assessment->>'fragrance_quality') IS NOT NULL AND
+        (category_specific_assessment->>'freshness_level') IS NOT NULL OR
+        (category_specific_assessment->>'fragrance_quality') IS NOT NULL OR
         (category_specific_assessment->>'stem_length') IS NOT NULL
       WHEN 'MEDICINAL_PLANTS' THEN
-        (category_specific_assessment->>'essential_oil_yield') IS NOT NULL AND
-        (category_specific_assessment->>'purity_of_extracts') IS NOT NULL AND
+        (category_specific_assessment->>'essential_oil_yield') IS NOT NULL OR
+        (category_specific_assessment->>'purity_of_extracts') IS NOT NULL OR
         (category_specific_assessment->>'moisture_content') IS NOT NULL
       ELSE false
     END
@@ -653,11 +657,12 @@ CREATE TABLE inspection_distance_fee_config (
 );
 
 -- Create system_configs table
+DROP TABLE IF EXISTS system_configs CASCADE;
 CREATE TABLE system_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   key system_config_key_enum NOT NULL,
   value TEXT NOT NULL,
-  description TEXT,
+  description TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
   updated_by UUID REFERENCES users(id),
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -705,14 +710,6 @@ CREATE TRIGGER update_buyer_preferences_updated_at
     BEFORE UPDATE ON buyer_preferences
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
-
--- Add index for faster key lookups
-CREATE INDEX idx_system_configs_key ON system_configs(key);
-
--- Add constraint to ensure value is not empty
-ALTER TABLE system_configs
-ADD CONSTRAINT system_configs_value_not_empty
-CHECK (value <> '');
 
 -- Create indexes
 CREATE INDEX idx_users_mobile_number ON users(mobile_number);

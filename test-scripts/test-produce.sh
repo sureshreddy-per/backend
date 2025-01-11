@@ -3,102 +3,110 @@
 # Source utilities
 source "$(dirname "$0")/utils.sh"
 
-print_test_header "Produce Endpoints"
+print_test_header "Produce Creation and Assessment Flow Tests"
 
-# Get farmer token and extract user ID
-FARMER_AUTH_RESPONSE=$(get_auth_token "+3333333333" "FARMER")
-FARMER_TOKEN=$(echo "$FARMER_AUTH_RESPONSE" | jq -r '.token')
-FARMER_ID=$(echo "$FARMER_AUTH_RESPONSE" | jq -r '.user.id')
+# Get tokens for different roles
+ADMIN_RESPONSE=$(get_auth_token "+5555555555" "ADMIN")
+ADMIN_TOKEN=$(echo "$ADMIN_RESPONSE" | jq -r '.token')
 
-if [ -z "$FARMER_TOKEN" ] || [ "$FARMER_TOKEN" = "null" ]; then
-    print_error "Failed to get farmer token"
-    exit 1
-fi
+INSPECTOR_RESPONSE=$(get_auth_token "+6666666666" "INSPECTOR")
+INSPECTOR_TOKEN=$(echo "$INSPECTOR_RESPONSE" | jq -r '.token')
+INSPECTOR_ID=$(echo "$INSPECTOR_RESPONSE" | jq -r '.user.id')
+INSPECTOR_NAME=$(echo "$INSPECTOR_RESPONSE" | jq -r '.user.name')
+INSPECTOR_MOBILE=$(echo "$INSPECTOR_RESPONSE" | jq -r '.user.mobile_number')
 
-print_success "Got farmer token and ID: $FARMER_ID"
+FARMER_RESPONSE=$(get_auth_token "+7777777777" "FARMER")
+FARMER_TOKEN=$(echo "$FARMER_RESPONSE" | jq -r '.token')
 
-# Test 1: Create produce listing
-print_test_header "Create Produce"
+# Create inspector profile
+print_test_header "Creating Inspector Profile"
+INSPECTOR_PROFILE_RESPONSE=$(make_request "POST" "/inspectors" "$INSPECTOR_TOKEN" "{
+    \"name\": \"$INSPECTOR_NAME\",
+    \"mobile_number\": \"$INSPECTOR_MOBILE\",
+    \"location\": \"12.9716,77.5946\",
+    \"user_id\": \"$INSPECTOR_ID\"
+}")
+check_response "$INSPECTOR_PROFILE_RESPONSE" 201
+print_success "Created inspector profile"
+
+# Step 1: Initial Produce Creation
+print_test_header "1. Initial Produce Creation"
 PRODUCE_RESPONSE=$(make_request "POST" "/produce" "$FARMER_TOKEN" '{
-    "name": "Fresh Tomatoes",
-    "description": "Fresh, ripe tomatoes from our farm",
+    "name": "Test Tomatoes",
+    "description": "Fresh organic tomatoes",
     "product_variety": "Roma",
     "produce_category": "VEGETABLES",
     "quantity": 100,
-    "unit": "kg",
+    "unit": "KG",
     "price_per_unit": 50.00,
     "location": "12.9716,77.5946",
-    "location_name": "Bangalore",
-    "images": ["https://example.com/tomatoes1.jpg", "https://example.com/tomatoes2.jpg"],
-    "video_url": "https://example.com/tomatoes-video.mp4",
-    "harvested_at": "2024-01-20T10:00:00Z"
+    "location_name": "Test Farm",
+    "images": [
+        "https://example.com/test-image1.jpg",
+        "https://example.com/test-image2.jpg"
+    ],
+    "video_url": "https://example.com/test-video.mp4",
+    "harvested_at": "2024-02-01T00:00:00Z"
 }')
 
-# Check if produce creation was successful
-if [ $? -ne 0 ]; then
-    print_error "Failed to create produce"
-    exit 1
-fi
-
-# Extract produce ID and check if it's valid
-PRODUCE_ID=$(echo $PRODUCE_RESPONSE | jq -r '.id')
-if [ -z "$PRODUCE_ID" ] || [ "$PRODUCE_ID" = "null" ]; then
-    print_error "Failed to get produce ID from response"
-    echo "Response was: $PRODUCE_RESPONSE"
-    exit 1
-fi
-
+check_response "$PRODUCE_RESPONSE" 201
+PRODUCE_ID=$(echo "$PRODUCE_RESPONSE" | jq -r '.id')
 print_success "Created produce with ID: $PRODUCE_ID"
 
-# Test 2: Get all produce with filters
-print_test_header "Get All Produce"
-make_request "GET" "/produce?page=1&limit=10&category=VEGETABLES&status=PENDING_AI_ASSESSMENT" "$FARMER_TOKEN"
+# Step 2: Wait for AI Assessment
+print_test_header "2. Waiting for AI Assessment"
+sleep 5 # Give time for AI assessment to complete
 
-# Test 3: Get my produce
-print_test_header "Get My Produce"
-make_request "GET" "/produce/my?page=1&limit=10&status=PENDING_AI_ASSESSMENT" "$FARMER_TOKEN"
+# Step 3: Check AI Assessment Result
+print_test_header "3. Checking AI Assessment Result"
+AI_ASSESSMENT_RESPONSE=$(make_request "GET" "/quality/produce/$PRODUCE_ID/latest" "$FARMER_TOKEN")
+check_response "$AI_ASSESSMENT_RESPONSE"
+print_success "Retrieved AI assessment"
 
-# Test 3.1: Request AI verification for produce
-print_test_header "Request AI Verification"
-if [ -n "$PRODUCE_ID" ] && [ "$PRODUCE_ID" != "null" ]; then
-    make_request "POST" "/produce/request-ai-verification" "$FARMER_TOKEN" "{
-        \"produce_id\": \"$PRODUCE_ID\"
-    }"
-else
-    print_warning "Skipping AI verification test - no valid produce ID"
-fi
+# Step 4: Request Manual Inspection
+print_test_header "4. Requesting Manual Inspection"
+INSPECTION_REQUEST_RESPONSE=$(make_request "POST" "/quality/inspection/request" "$FARMER_TOKEN" "{
+    \"produce_id\": \"$PRODUCE_ID\",
+    \"location\": \"12.9716,77.5946\"
+}")
+check_response "$INSPECTION_REQUEST_RESPONSE" 201
+INSPECTION_ID=$(echo "$INSPECTION_REQUEST_RESPONSE" | jq -r '.id')
+print_success "Created inspection request with ID: $INSPECTION_ID"
 
-# Test 4: Find nearby produce
-print_test_header "Find Nearby Produce"
-make_request "GET" "/produce/nearby?lat=12.9716&lon=77.5946&radius=10" "$FARMER_TOKEN"
+# Step 5: Assign Inspector
+print_test_header "5. Assigning Inspector"
+ASSIGN_RESPONSE=$(make_request "PUT" "/quality/inspection/$INSPECTION_ID/assign" "$INSPECTOR_TOKEN")
+check_response "$ASSIGN_RESPONSE"
+print_success "Assigned inspector to inspection request"
 
-# Test 5: Get produce by ID
-print_test_header "Get Produce by ID"
-if [ -n "$PRODUCE_ID" ] && [ "$PRODUCE_ID" != "null" ]; then
-    make_request "GET" "/produce/$PRODUCE_ID" "$FARMER_TOKEN"
-else
-    print_warning "Skipping get by ID test - no valid produce ID"
-fi
+# Step 6: Submit Inspection Result
+print_test_header "6. Submitting Inspection Result"
+INSPECTION_RESULT_RESPONSE=$(make_request "PUT" "/quality/inspection/$INSPECTION_ID/submit-result" "$INSPECTOR_TOKEN" "{
+    \"quality_grade\": 8,
+    \"defects\": [\"minor_bruising\"],
+    \"recommendations\": [\"Store in cool temperature\"],
+    \"images\": [\"https://example.com/inspection-image1.jpg\"],
+    \"notes\": \"Good quality produce with minor blemishes\",
+    \"category_specific_assessment\": {
+        \"freshness_level\": \"fresh\",
+        \"size\": \"medium\",
+        \"color\": \"red\"
+    }
+}")
+check_response "$INSPECTION_RESULT_RESPONSE"
+print_success "Submitted inspection result"
 
-# Test 6: Update produce
-print_test_header "Update Produce"
-if [ -n "$PRODUCE_ID" ] && [ "$PRODUCE_ID" != "null" ]; then
-    make_request "PATCH" "/produce/$PRODUCE_ID" "$FARMER_TOKEN" '{
-        "quantity": 90,
-        "status": "AVAILABLE",
-        "images": ["https://example.com/tomatoes1-updated.jpg"],
-        "video_url": "https://example.com/tomatoes-video-updated.mp4"
-    }'
-else
-    print_warning "Skipping update test - no valid produce ID"
-fi
+# Step 7: Verify Final Status
+print_test_header "7. Verifying Final Status"
+FINAL_STATUS_RESPONSE=$(make_request "GET" "/produce/$PRODUCE_ID" "$FARMER_TOKEN")
+check_response "$FINAL_STATUS_RESPONSE"
+STATUS=$(echo "$FINAL_STATUS_RESPONSE" | jq -r '.status')
+print_success "Final produce status: $STATUS"
 
-# Test 7: Delete produce
-print_test_header "Delete Produce"
-if [ -n "$PRODUCE_ID" ] && [ "$PRODUCE_ID" != "null" ]; then
-    make_request "DELETE" "/produce/$PRODUCE_ID" "$FARMER_TOKEN"
-else
-    print_warning "Skipping delete test - no valid produce ID"
-fi
+# Step 8: Get All Quality Assessments
+print_test_header "8. Getting All Quality Assessments"
+ALL_ASSESSMENTS_RESPONSE=$(make_request "GET" "/quality/produce/$PRODUCE_ID" "$FARMER_TOKEN")
+check_response "$ALL_ASSESSMENTS_RESPONSE"
+print_success "Retrieved all quality assessments"
 
-echo -e "\n${GREEN}Produce tests completed!${NC}" 
+echo -e "\n${GREEN}All produce creation and assessment tests completed!${NC}" 

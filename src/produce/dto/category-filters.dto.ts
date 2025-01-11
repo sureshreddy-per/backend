@@ -1,6 +1,9 @@
-import { IsNumber, IsString, Min, Max, IsOptional } from "class-validator";
+import { IsNumber, IsString, Min, Max, IsOptional, IsIn } from "class-validator";
 
 export class FoodGrainsFilterDto {
+  @IsString()
+  variety: string;
+
   @IsNumber()
   @Min(0)
   @Max(100)
@@ -14,18 +17,12 @@ export class FoodGrainsFilterDto {
   @IsNumber()
   @Min(0)
   @Max(100)
-  broken_grains: number;
+  protein_content: number;
 
   @IsNumber()
   @Min(0)
   @Max(100)
-  weeviled_grains: number;
-
-  @IsString()
-  grain_size: string;
-
-  @IsString()
-  grain_color: string;
+  wastage: number;
 }
 
 export class OilseedsFilterDto {
@@ -52,44 +49,34 @@ export class OilseedsFilterDto {
 }
 
 export class FruitsFilterDto {
-  @IsString()
-  ripeness: string;
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  sweetness_brix: number;
 
   @IsString()
+  @IsIn(["small", "medium", "large"])
   size: string;
 
   @IsString()
   color: string;
 
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  brix_value: number;
-
   @IsString()
-  skin_condition: string;
-
-  @IsString()
-  sweetness: string;
+  @IsIn(["ripe", "unripe"])
+  ripeness: string;
 }
 
 export class VegetablesFilterDto {
   @IsString()
-  freshness: string;
+  @IsIn(["fresh", "slightly wilted"])
+  freshness_level: string;
 
   @IsString()
+  @IsIn(["small", "medium", "large"])
   size: string;
 
   @IsString()
   color: string;
-
-  @IsString()
-  firmness: string;
-
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  pest_damage: number;
 }
 
 export class SpicesFilterDto {

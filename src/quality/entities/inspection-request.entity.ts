@@ -4,12 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
-  OneToOne,
 } from "typeorm";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
-import { QualityAssessment } from "./quality-assessment.entity";
 
 export enum InspectionRequestStatus {
   PENDING = "PENDING",
@@ -32,12 +27,6 @@ export class InspectionRequest {
 
   @Column({ name: "inspector_id", nullable: true })
   inspector_id?: string;
-
-  @Column({
-    type: "enum",
-    enum: ProduceCategory
-  })
-  category: ProduceCategory;
 
   @Column()
   location: string;
@@ -63,9 +52,6 @@ export class InspectionRequest {
 
   @Column({ type: "text", nullable: true })
   notes?: string;
-
-  @OneToOne(() => QualityAssessment, (assessment) => assessment.inspection_request)
-  quality_assessment: QualityAssessment;
 
   @CreateDateColumn()
   created_at: Date;

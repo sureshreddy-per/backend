@@ -8,6 +8,7 @@ import {
   JoinColumn,
 } from "typeorm";
 import { Buyer } from "./buyer.entity";
+import { ProduceCategory } from "../../produce/enums/produce-category.enum";
 
 @Entity("buyer_preferences")
 export class BuyerPreferences {
@@ -27,8 +28,8 @@ export class BuyerPreferences {
   @Column({ type: "decimal", precision: 10, scale: 2, nullable: true })
   max_price: number;
 
-  @Column({ type: "jsonb", nullable: true })
-  categories: string[];
+  @Column({ type: 'enum', enum: ProduceCategory, array: true, nullable: true })
+  categories: ProduceCategory[];
 
   @Column({ default: true })
   notification_enabled: boolean;

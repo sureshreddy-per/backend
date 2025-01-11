@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, Inject } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In, LessThan } from "typeorm";
+import { Repository, In, LessThan, ArrayContains } from "typeorm";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
@@ -160,7 +160,7 @@ export class AutoOfferService {
     // Find active buyers within matching category
     const buyers = await this.buyerRepository.find({
       where: {
-        categories: In([produce.produce_category]),
+        categories: ArrayContains([produce.produce_category]),
         is_active: true,
       },
       relations: ['user'],
