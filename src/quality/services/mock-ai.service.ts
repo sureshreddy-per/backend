@@ -21,33 +21,28 @@ export class MockAIService {
 
   private getVegetablesAttributes(): VegetablesFilterDto {
     return {
-      freshness: "excellent",
-      size: "medium",
-      color: "bright",
-      firmness: "firm",
-      pest_damage: this.getRandomNumber(0, 20)
+      freshness_level: this.getRandomElement(["fresh", "slightly wilted"]),
+      size: this.getRandomElement(["small", "medium", "large"]),
+      color: this.getRandomElement(["red", "green", "yellow"])
     };
   }
 
   private getFruitsAttributes(): FruitsFilterDto {
     return {
-      ripeness: "good",
-      size: "medium",
-      color: "vibrant",
-      brix_value: this.getRandomNumber(10, 20),
-      skin_condition: "smooth",
-      sweetness: "medium"
+      sweetness_brix: this.getRandomNumber(8, 20),
+      size: this.getRandomElement(["small", "medium", "large"]),
+      color: this.getRandomElement(["red", "yellow", "orange"]),
+      ripeness: this.getRandomElement(["ripe", "unripe"])
     };
   }
 
   private getFoodGrainsAttributes(): FoodGrainsFilterDto {
     return {
-      moisture_content: this.getRandomNumber(10, 15),
+      variety: this.getRandomElement(["Basmati", "Jasmine", "Brown"]),
+      moisture_content: this.getRandomNumber(10, 14),
       foreign_matter: this.getRandomNumber(0, 2),
-      broken_grains: this.getRandomNumber(0, 5),
-      weeviled_grains: this.getRandomNumber(0, 2),
-      grain_size: "medium",
-      grain_color: "golden"
+      protein_content: this.getRandomNumber(6, 12),
+      wastage: this.getRandomNumber(0, 5)
     };
   }
 
@@ -63,24 +58,24 @@ export class MockAIService {
         category: ProduceCategory.VEGETABLES,
         names: ["Tomatoes", "Potatoes", "Carrots", "Onions"],
         varieties: ["Fresh", "Organic", "Premium", "Local"],
-        defects: ["minor_blemishes", "slight_discoloration", "size_variation"],
-        recommendations: ["store_in_cool_place", "consume_within_week", "check_ripeness"],
+        defects: ["slight discoloration", "minor blemishes", "uneven size"],
+        recommendations: ["store in cool place", "consume within a week", "check for freshness"],
         getAttributes: () => this.getVegetablesAttributes()
       },
       {
         category: ProduceCategory.FRUITS,
         names: ["Apples", "Mangoes", "Bananas", "Oranges"],
         varieties: ["Fresh", "Organic", "Premium", "Local"],
-        defects: ["minor_bruising", "ripeness_variation", "surface_marks"],
-        recommendations: ["ripen_at_room_temp", "store_in_cool_place", "check_ripeness"],
+        defects: ["minor bruising", "uneven ripeness", "surface marks"],
+        recommendations: ["ripen at room temperature", "store in cool place", "check ripeness"],
         getAttributes: () => this.getFruitsAttributes()
       },
       {
         category: ProduceCategory.FOOD_GRAINS,
         names: ["Rice", "Wheat", "Barley", "Oats"],
         varieties: ["Premium", "Organic", "Standard", "Export"],
-        defects: ["moisture_variation", "foreign_matter", "broken_grains"],
-        recommendations: ["store_in_dry_place", "check_moisture", "proper_packaging"],
+        defects: ["moisture variation", "foreign matter presence", "broken grains"],
+        recommendations: ["store in dry place", "check moisture level", "proper packaging"],
         getAttributes: () => this.getFoodGrainsAttributes()
       }
     ];
@@ -88,16 +83,13 @@ export class MockAIService {
     // Randomly select a produce type
     const produceType = this.getRandomElement(produceTypes);
 
-    // Randomly decide if confidence should be high or low
-    const highConfidence = Math.random() > 0.2; // 80% chance of high confidence
-
     return {
       name: this.getRandomElement(produceType.names),
       produce_category: produceType.category,
       product_variety: this.getRandomElement(produceType.varieties),
-      description: `Fresh ${produceType.category.toLowerCase()} in good condition`,
+      description: `High quality ${produceType.category.toLowerCase()} in good condition`,
       quality_grade: this.getRandomNumber(6, 9),
-      confidence_level: highConfidence ? this.getRandomNumber(80, 95) : this.getRandomNumber(50, 75),
+      confidence_level: this.getRandomNumber(75, 95),
       detected_defects: [this.getRandomElement(produceType.defects)],
       recommendations: [this.getRandomElement(produceType.recommendations)],
       category_specific_attributes: produceType.getAttributes()

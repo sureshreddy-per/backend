@@ -7,14 +7,13 @@ import {
   Index,
   ManyToOne,
   JoinColumn,
-  OneToOne,
 } from "typeorm";
 import { ProduceCategory } from "../../produce/enums/produce-category.enum";
 import { AssessmentSource } from "../enums/assessment-source.enum";
 import { Produce } from "../../produce/entities/produce.entity";
-import { Inspector } from "../../inspectors/entities/inspector.entity";
-import { InspectionRequest } from "./inspection-request.entity";
+import { User } from "../../users/entities/user.entity";
 import { CategorySpecificAssessment } from "../interfaces/category-assessments.interface";
+import { InspectionRequest } from "./inspection-request.entity";
 
 @Entity("quality_assessments")
 @Index(["produce_id", "created_at"])
@@ -80,11 +79,11 @@ export class QualityAssessment {
   @JoinColumn({ name: "produce_id" })
   produce: Produce;
 
-  @ManyToOne(() => Inspector, { nullable: true })
+  @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: "inspector_id" })
-  inspector: Inspector;
+  inspector: User;
 
-  @OneToOne(() => InspectionRequest, (request) => request.quality_assessment, { nullable: true })
+  @ManyToOne(() => InspectionRequest, { nullable: true })
   @JoinColumn({ name: "inspection_request_id" })
   inspection_request: InspectionRequest;
 

@@ -3,6 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { BuyerPreferences } from "../entities/buyer-preferences.entity";
 import { BuyersService } from "../buyers.service";
+import { ProduceCategory } from "../../produce/enums/produce-category.enum";
 
 @Injectable()
 export class BuyerPreferencesService {
@@ -150,7 +151,7 @@ export class BuyerPreferencesService {
 
     preferences.min_price = data.min_price;
     preferences.max_price = data.max_price;
-    preferences.categories = data.categories;
+    preferences.categories = data.categories.map(category => category as ProduceCategory);
 
     return this.preferencesRepository.save(preferences);
   }

@@ -61,8 +61,8 @@ export class QualityAssessmentService {
     assessment.metadata = {
       images: data.images,
       assessment_parameters: {
-        notes: data.notes,
-      },
+        notes: data.notes
+      }
     };
 
     const savedAssessment = await this.qualityAssessmentRepository.save(assessment);
@@ -213,7 +213,6 @@ export class QualityAssessmentService {
     const request = new InspectionRequest();
     request.produce_id = data.produce_id;
     request.requester_id = data.requester_id;
-    request.category = produce.produce_category;
     request.location = data.location;
     request.inspection_fee = fee.total_fee;
     request.status = InspectionRequestStatus.PENDING;
@@ -274,18 +273,24 @@ export class QualityAssessmentService {
       throw new NotFoundException(`Inspection request with ID ${inspection_id} not found`);
     }
 
+    // Get produce to get its category
+    const produce = await this.produceService.findOne(request.produce_id);
+    if (!produce) {
+      throw new NotFoundException(`Produce with ID ${request.produce_id} not found`);
+    }
+
     // Create quality assessment
     const assessment = await this.createAssessment({
       produce_id: request.produce_id,
       quality_grade: data.quality_grade,
-      confidence_level: 1.0, // Manual inspection has 100% confidence
+      confidence_level: 100,
       defects: data.defects,
       recommendations: data.recommendations,
       images: data.images,
       notes: data.notes,
       inspector_id: request.inspector_id,
       inspection_request_id: request.id,
-      category: request.category,
+      category: produce.produce_category,
       category_specific_assessment: data.category_specific_assessment,
     });
 
@@ -298,8 +303,8 @@ export class QualityAssessmentService {
   }
 
   private calculateDistance(location: string): number {
-    // Implementation of distance calculation
-    // This should be moved to a shared utility service
-    return 0; // Placeholder
+    // For now, return a default distance of 10 km
+    // TODO: Implement actual distance calculation using coordinates
+    return 10;
   }
 }
