@@ -26,7 +26,7 @@ export class Produce {
   @Column({ name: "farm_id", nullable: true })
   farm_id: string;
 
-  @Column({ nullable: true })
+  @Column()
   name: string;
 
   @Column({ nullable: true })

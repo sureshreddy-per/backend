@@ -67,8 +67,8 @@ export class ProduceSynonymController {
     description: "Returns the canonical name if found",
     type: String,
   })
-  async findcanonical_name(@Query("word") word: string): Promise<string | null> {
-    return this.synonymService.findcanonical_name(word);
+  async findCanonicalName(@Query("word") word: string): Promise<string | null> {
+    return this.synonymService.findProduceName(word);
   }
 
   @Delete(":canonical_name")

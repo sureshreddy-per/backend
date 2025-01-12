@@ -1,52 +1,37 @@
-import { ApiProperty } from "@nestjs/swagger";
-import {
-  IsString,
-  IsNumber,
-  IsOptional,
-  IsObject,
-  ValidateNested,
-} from "class-validator";
-import { Type } from "class-transformer";
-
-class LocationDto {
-  @ApiProperty({ description: "Latitude coordinate" })
-  @IsNumber()
-  @IsOptional()
-  lat: number;
-
-  @ApiProperty({ description: "Longitude coordinate" })
-  @IsNumber()
-  @IsOptional()
-  lng: number;
-}
+import { IsString, IsUUID, IsNumber, IsOptional } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateFarmDetailsDto {
-  @ApiProperty({ description: "Farm name or identifier" })
+  @ApiPropertyOptional()
+  @IsUUID()
+  @IsOptional()
+  farmer_id?: string;
+
+  @ApiProperty()
+  @IsString()
+  name: string;
+
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
-  name?: string;
+  description?: string;
 
-  @ApiProperty({ description: "Farm size" })
+  @ApiProperty()
   @IsNumber()
-  @IsOptional()
-  size?: number;
+  size_in_acres: number;
 
-  @ApiProperty({ description: "Farm size unit" })
-  @IsString()
-  @IsOptional()
-  sizeUnit?: string;
-
-  @ApiProperty({ description: "Farm address or location description" })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   address?: string;
 
-  @ApiProperty({ description: "Farm location coordinates" })
+  @ApiPropertyOptional()
+  @IsString()
   @IsOptional()
-  @IsObject()
-  @ValidateNested()
-  @Type(() => LocationDto)
-  location?: LocationDto;
-}
+  location?: string;
 
-export class UpdateFarmDetailsDto extends CreateFarmDetailsDto {}
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  image?: string;
+} 
