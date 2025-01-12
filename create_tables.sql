@@ -1,34 +1,30 @@
--- First, drop all tables
+-- First, drop all tables in reverse order of dependencies
+DROP TABLE IF EXISTS inspection_base_fee_config CASCADE;
+DROP TABLE IF EXISTS transaction_history CASCADE;
+DROP TABLE IF EXISTS config_audit_logs CASCADE;
+DROP TABLE IF EXISTS admin_audit_logs CASCADE;
+DROP TABLE IF EXISTS system_configs CASCADE;
+DROP TABLE IF EXISTS produce_synonyms CASCADE;
+DROP TABLE IF EXISTS business_metrics CASCADE;
+DROP TABLE IF EXISTS daily_prices CASCADE;
+DROP TABLE IF EXISTS ratings CASCADE;
+DROP TABLE IF EXISTS bank_accounts CASCADE;
+DROP TABLE IF EXISTS farm_details CASCADE;
+DROP TABLE IF EXISTS support_tickets CASCADE;
+DROP TABLE IF EXISTS reports CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS media CASCADE;
+DROP TABLE IF EXISTS transactions CASCADE;
+DROP TABLE IF EXISTS offers CASCADE;
+DROP TABLE IF EXISTS buyer_preferences CASCADE;
+DROP TABLE IF EXISTS buyers CASCADE;
 DROP TABLE IF EXISTS quality_assessments CASCADE;
 DROP TABLE IF EXISTS inspection_requests CASCADE;
-DROP TABLE IF EXISTS inspection_base_fees CASCADE;
-DROP TABLE IF EXISTS inspection_distance_fees CASCADE;
+DROP TABLE IF EXISTS inspection_distance_fee_config CASCADE;
 DROP TABLE IF EXISTS produce CASCADE;
 DROP TABLE IF EXISTS farms CASCADE;
 DROP TABLE IF EXISTS farmers CASCADE;
-DROP TABLE IF EXISTS inspectors CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS produce_synonyms CASCADE;
-DROP TABLE IF EXISTS admin_audit_logs CASCADE;
-DROP TABLE IF EXISTS system_configs CASCADE;
-DROP TABLE IF EXISTS buyers CASCADE;
-DROP TABLE IF EXISTS offers CASCADE;
-DROP TABLE IF EXISTS transactions CASCADE;
-DROP TABLE IF EXISTS buyer_preferences CASCADE;
-DROP TABLE IF EXISTS media CASCADE;
-DROP TABLE IF EXISTS notifications CASCADE;
-DROP TABLE IF EXISTS reports CASCADE;
-DROP TABLE IF EXISTS config_audit_logs CASCADE;
-DROP TABLE IF EXISTS support_tickets CASCADE;
-DROP TABLE IF EXISTS synonyms CASCADE;
-DROP TABLE IF EXISTS daily_prices CASCADE;
-DROP TABLE IF EXISTS business_metrics CASCADE;
-DROP TABLE IF EXISTS ratings CASCADE;
-DROP TABLE IF EXISTS farm_details CASCADE;
-DROP TABLE IF EXISTS bank_accounts CASCADE;
-DROP TABLE IF EXISTS inspection_distance_fee_config CASCADE;
-DROP TABLE IF EXISTS transaction_history CASCADE;
-DROP TABLE IF EXISTS inspection_base_fee_config CASCADE;
 
 -- Drop all enums
 DROP TYPE IF EXISTS user_role_enum CASCADE;
@@ -523,7 +519,7 @@ CREATE TRIGGER update_quality_assessments_updated_at
 
 CREATE TABLE buyers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   gst TEXT,
   business_name TEXT NOT NULL,
   registration_number TEXT,
@@ -693,9 +689,9 @@ ALTER TABLE farms
   ADD CONSTRAINT fk_farms_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
 ALTER TABLE produce
-  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id),
-  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id),
-  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id);
+  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id) ON DELETE SET NULL;
 
 -- Add check constraints
 ALTER TABLE produce
@@ -989,30 +985,30 @@ ALTER TABLE farms
   ADD CONSTRAINT fk_farms_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
 ALTER TABLE produce
-  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id),
-  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id),
-  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id);
+  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE quality_assessments
   ADD CONSTRAINT fk_quality_assessments_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_quality_assessments_inspector FOREIGN KEY (inspector_id) REFERENCES users(id),
-  ADD CONSTRAINT fk_quality_assessments_request FOREIGN KEY (inspection_request_id) REFERENCES inspection_requests(id);
+  ADD CONSTRAINT fk_quality_assessments_inspector FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL,
+  ADD CONSTRAINT fk_quality_assessments_request FOREIGN KEY (inspection_request_id) REFERENCES inspection_requests(id) ON DELETE CASCADE;
 
 ALTER TABLE inspection_requests
   ADD CONSTRAINT fk_inspection_requests_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_inspection_requests_requester FOREIGN KEY (requester_id) REFERENCES users(id),
-  ADD CONSTRAINT fk_inspection_requests_inspector FOREIGN KEY (inspector_id) REFERENCES users(id);
+  ADD CONSTRAINT fk_inspection_requests_requester FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_inspection_requests_inspector FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE offers
   ADD CONSTRAINT fk_offers_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_offers_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id),
-  ADD CONSTRAINT fk_offers_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id);
+  ADD CONSTRAINT fk_offers_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_offers_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
 ALTER TABLE transactions
-  ADD CONSTRAINT fk_transactions_offer FOREIGN KEY (offer_id) REFERENCES offers(id),
-  ADD CONSTRAINT fk_transactions_produce FOREIGN KEY (produce_id) REFERENCES produce(id),
-  ADD CONSTRAINT fk_transactions_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id),
-  ADD CONSTRAINT fk_transactions_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id);
+  ADD CONSTRAINT fk_transactions_offer FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_transactions_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_transactions_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_transactions_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
 ALTER TABLE buyer_preferences
   ADD CONSTRAINT fk_buyer_preferences_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE;
@@ -1021,15 +1017,15 @@ ALTER TABLE notifications
   ADD CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE support_tickets
-  ADD CONSTRAINT fk_support_tickets_user FOREIGN KEY (user_id) REFERENCES users(id);
+  ADD CONSTRAINT fk_support_tickets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE daily_prices
-  ADD CONSTRAINT fk_daily_prices_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id);
+  ADD CONSTRAINT fk_daily_prices_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE;
 
 ALTER TABLE ratings
-  ADD CONSTRAINT fk_ratings_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id),
-  ADD CONSTRAINT fk_ratings_rating_user FOREIGN KEY (rating_user_id) REFERENCES users(id),
-  ADD CONSTRAINT fk_ratings_rated_user FOREIGN KEY (rated_user_id) REFERENCES users(id);
+  ADD CONSTRAINT fk_ratings_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_ratings_rating_user FOREIGN KEY (rating_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_ratings_rated_user FOREIGN KEY (rated_user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE farm_details
   ADD CONSTRAINT fk_farm_details_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;

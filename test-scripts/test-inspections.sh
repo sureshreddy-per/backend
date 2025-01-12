@@ -1,17 +1,23 @@
 #!/bin/bash
 
+# Configuration
+API_BASE_URL="http://localhost:3000/api"
+FARMER_MOBILE="+1234567891"
+FARMER_NAME="Test Farmer"
+INSPECTOR_MOBILE="+1234567892"
+INSPECTOR_NAME="Test Inspector"
+ADMIN_MOBILE="+1234567893"
+ADMIN_NAME="Test Admin"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Base URL for API
-API_BASE_URL="http://localhost:3000"
-
-# Print functions
+# Utility functions
 print_error() {
-    echo -e "${RED}ERROR: $1${NC}" >&2
+    echo -e "${RED}ERROR: $1${NC}"
 }
 
 print_success() {
@@ -22,294 +28,225 @@ print_warning() {
     echo -e "${YELLOW}WARNING: $1${NC}"
 }
 
-print_test_header() {
-    echo -e "\nTesting: $1"
+print_header() {
+    echo -e "\n${GREEN}=== $1 ===${NC}"
 }
 
-# Make an HTTP request to the API
+# Make HTTP request with proper error handling
 make_request() {
     local method="$1"
     local endpoint="$2"
     local data="$3"
     local token="$4"
     
-    # Add /api prefix if not already present
-    if [[ ! "$endpoint" =~ ^/api ]]; then
-        endpoint="/api${endpoint}"
-    fi
+    endpoint=${endpoint#/api}
+    endpoint=${endpoint#/}
+    local full_url="${API_BASE_URL}/${endpoint}"
     
-    local url="${API_BASE_URL}${endpoint}"
-    local response
-    local status_code
-
-    # Build curl command
-    local curl_cmd="curl -s -X $method"
-    
-    # Add headers
-    curl_cmd+=" -H 'Content-Type: application/json'"
+    local response=""
     if [ -n "$token" ]; then
-        curl_cmd+=" -H 'Authorization: Bearer $token'"
+        response=$(curl -s -X "$method" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $token" \
+            -d "$data" \
+            "${full_url}")
+    else
+        response=$(curl -s -X "$method" \
+            -H "Content-Type: application/json" \
+            -d "$data" \
+            "${full_url}")
     fi
     
-    # Add data if present and method is not GET
-    if [ -n "$data" ] && [ "$method" != "GET" ]; then
-        curl_cmd+=" -d '$data'"
-    fi
-    
-    # Add URL
-    curl_cmd+=" '$url'"
-    
-    # Execute curl command and capture response
-    response=$(eval "$curl_cmd")
-    status_code=$?
-    
-    # Check if curl command failed
-    if [ $status_code -ne 0 ]; then
-        print_error "Failed to make request to $url (status code: $status_code)"
-        return 1
-    fi
-    
-    # Check if response is empty
-    if [ -z "$response" ]; then
-        print_error "Empty response received"
-        return 1
-    fi
-    
-    # Return response
     echo "$response"
-    return 0
 }
 
-# Check response for errors
-check_error() {
-    local message="$1"
-    if [ $? -ne 0 ]; then
-        print_error "$message"
+# Authentication function
+authenticate() {
+    local mobile="$1"
+    local name="$2"
+    local role="$3"
+    
+    print_header "Authenticating $role"
+    
+    # Register user
+    local register_data="{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"${role,,}@test.com\"}"
+    local register_response=$(make_request "POST" "/auth/register" "$register_data")
+    
+    # Request OTP
+    local otp_data="{\"mobile_number\":\"$mobile\"}"
+    local otp_response=$(make_request "POST" "/auth/otp/request" "$otp_data")
+    local otp=$(echo "$otp_response" | jq -r '.message' | grep -o '[0-9]\{6\}')
+    
+    if [ -z "$otp" ]; then
+        print_error "Failed to get OTP"
         exit 1
     fi
+    
+    # Verify OTP
+    local verify_data="{\"mobile_number\":\"$mobile\",\"otp\":\"$otp\"}"
+    local verify_response=$(make_request "POST" "/auth/otp/verify" "$verify_data")
+    local token=$(echo "$verify_response" | jq -r '.token')
+    
+    if [ -z "$token" ] || [ "$token" = "null" ]; then
+        print_error "Failed to get authentication token"
+        exit 1
+    fi
+    
+    echo "$token"
 }
 
-# Get ID from response
-get_id() {
-    echo "$RESPONSE" | jq -r '.id'
+# Main test execution
+main() {
+    print_header "Starting Inspection Tests"
+    
+    # Get authentication tokens for different roles
+    FARMER_TOKEN=$(authenticate "$FARMER_MOBILE" "$FARMER_NAME" "FARMER")
+    INSPECTOR_TOKEN=$(authenticate "$INSPECTOR_MOBILE" "$INSPECTOR_NAME" "INSPECTOR")
+    ADMIN_TOKEN=$(authenticate "$ADMIN_MOBILE" "$ADMIN_NAME" "ADMIN")
+    
+    # Test 1: Create inspector profile
+    print_header "Testing Create Inspector Profile"
+    INSPECTOR_DATA='{
+        "specializations": ["VEGETABLES", "FRUITS"],
+        "experience_years": 5,
+        "certifications": ["ISO_22000", "FSSAI"],
+        "available_days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"],
+        "service_areas": [
+            {
+                "type": "Point",
+                "coordinates": [73.123456, 18.123456]
+            }
+        ],
+        "languages": ["ENGLISH", "HINDI"],
+        "bio": "Experienced agricultural inspector with focus on quality assurance"
+    }'
+    RESPONSE=$(make_request "POST" "/inspectors/profile" "$INSPECTOR_DATA" "$INSPECTOR_TOKEN")
+    INSPECTOR_PROFILE_ID=$(echo "$RESPONSE" | jq -r '.id')
+    if [ -n "$INSPECTOR_PROFILE_ID" ] && [ "$INSPECTOR_PROFILE_ID" != "null" ]; then
+        print_success "Successfully created inspector profile"
+    else
+        print_error "Failed to create inspector profile"
+    fi
+    
+    # Test 2: Create farm and produce for inspection
+    print_header "Testing Create Farm and Produce"
+    FARM_DATA='{
+        "name": "Inspection Test Farm",
+        "location": {
+            "type": "Point",
+            "coordinates": [73.123456, 18.123456]
+        },
+        "address": "Test Farm Address",
+        "size": 10.5,
+        "size_unit": "ACRES"
+    }'
+    RESPONSE=$(make_request "POST" "/farms" "$FARM_DATA" "$FARMER_TOKEN")
+    FARM_ID=$(echo "$RESPONSE" | jq -r '.id')
+    
+    PRODUCE_DATA='{
+        "farm_id": "'$FARM_ID'",
+        "name": "Inspection Test Tomatoes",
+        "variety": "Roma",
+        "quantity": 100,
+        "unit": "KG",
+        "price_per_unit": 50,
+        "harvest_date": "'$(date -v+1d +%Y-%m-%d)'",
+        "description": "Tomatoes for inspection testing",
+        "images": ["https://example.com/tomato.jpg"]
+    }'
+    RESPONSE=$(make_request "POST" "/produce" "$PRODUCE_DATA" "$FARMER_TOKEN")
+    PRODUCE_ID=$(echo "$RESPONSE" | jq -r '.id')
+    
+    # Test 3: Request inspection
+    print_header "Testing Request Inspection"
+    REQUEST_DATA='{
+        "produce_id": "'$PRODUCE_ID'",
+        "preferred_date": "'$(date -v+2d +%Y-%m-%d)'",
+        "preferred_time_slot": "MORNING",
+        "notes": "Need urgent inspection for export certification",
+        "inspection_type": "EXPORT_CERTIFICATION"
+    }'
+    RESPONSE=$(make_request "POST" "/inspections/request" "$REQUEST_DATA" "$FARMER_TOKEN")
+    INSPECTION_ID=$(echo "$RESPONSE" | jq -r '.id')
+    if [ -n "$INSPECTION_ID" ] && [ "$INSPECTION_ID" != "null" ]; then
+        print_success "Successfully created inspection request"
+    else
+        print_error "Failed to create inspection request"
+    fi
+    
+    # Test 4: Get available inspectors
+    print_header "Testing Get Available Inspectors"
+    RESPONSE=$(make_request "GET" "/inspections/available-inspectors?date=$(date -v+2d +%Y-%m-%d)&location=73.123456,18.123456" "" "$FARMER_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully retrieved available inspectors"
+    else
+        print_error "Failed to get available inspectors"
+    fi
+    
+    # Test 5: Accept inspection request
+    print_header "Testing Accept Inspection Request"
+    RESPONSE=$(make_request "PUT" "/inspections/$INSPECTION_ID/accept" "" "$INSPECTOR_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully accepted inspection request"
+    else
+        print_error "Failed to accept inspection request"
+    fi
+    
+    # Test 6: Update inspection status
+    print_header "Testing Update Inspection Status"
+    STATUS_DATA='{
+        "status": "IN_PROGRESS",
+        "notes": "Started inspection process"
+    }'
+    RESPONSE=$(make_request "PUT" "/inspections/$INSPECTION_ID/status" "$STATUS_DATA" "$INSPECTOR_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully updated inspection status"
+    else
+        print_error "Failed to update inspection status"
+    fi
+    
+    # Test 7: Submit inspection report
+    print_header "Testing Submit Inspection Report"
+    REPORT_DATA='{
+        "quality_score": 95,
+        "certification_status": "APPROVED",
+        "inspection_notes": "Excellent quality produce suitable for export",
+        "defects": [],
+        "recommendations": ["Maintain current storage conditions"],
+        "images": ["https://example.com/inspection1.jpg"],
+        "category_specific_assessment": {
+            "size_uniformity": "EXCELLENT",
+            "color_consistency": "VERY_GOOD",
+            "ripeness": "OPTIMAL"
+        }
+    }'
+    RESPONSE=$(make_request "PUT" "/inspections/$INSPECTION_ID/submit-report" "$REPORT_DATA" "$INSPECTOR_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully submitted inspection report"
+    else
+        print_error "Failed to submit inspection report"
+    fi
+    
+    # Test 8: Get inspection history
+    print_header "Testing Get Inspection History"
+    RESPONSE=$(make_request "GET" "/inspections/history?page=1&limit=10" "" "$FARMER_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully retrieved inspection history"
+    else
+        print_error "Failed to get inspection history"
+    fi
+    
+    # Test 9: Get inspection details
+    print_header "Testing Get Inspection Details"
+    RESPONSE=$(make_request "GET" "/inspections/$INSPECTION_ID" "" "$FARMER_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully retrieved inspection details"
+    else
+        print_error "Failed to get inspection details"
+    fi
+    
+    print_header "Inspection Tests Completed"
 }
 
-# Register admin
-print_test_header "Register Admin"
-RESPONSE=$(make_request "POST" "/auth/register" "{
-    \"mobile_number\": \"+1111222255\",
-    \"role\": \"ADMIN\",
-    \"name\": \"Test Admin\"
-}")
-
-# Request OTP for admin
-print_test_header "Request OTP for Admin"
-RESPONSE=$(make_request "POST" "/auth/otp/request" "{
-    \"mobile_number\": \"+1111222255\"
-}")
-
-# Extract OTP from response
-OTP=$(echo "$RESPONSE" | jq -r '.message' | sed -n 's/.*OTP sent successfully: \([0-9]\{6\}\).*/\1/p')
-if [ -z "$OTP" ]; then
-    print_error "Could not extract OTP from response"
-    exit 1
-fi
-
-# Verify OTP for admin
-print_test_header "Verify OTP for Admin"
-RESPONSE=$(make_request "POST" "/auth/otp/verify" "{
-    \"mobile_number\": \"+1111222255\",
-    \"otp\": \"$OTP\"
-}")
-
-ADMIN_TOKEN=$(echo "$RESPONSE" | jq -r '.token')
-if [ -z "$ADMIN_TOKEN" ] || [ "$ADMIN_TOKEN" = "null" ]; then
-    print_error "Could not extract token from response"
-    exit 1
-fi
-
-# Register farmer
-print_test_header "Register Farmer"
-RESPONSE=$(make_request "POST" "/auth/register" "{
-    \"mobile_number\": \"+1111222256\",
-    \"role\": \"FARMER\",
-    \"name\": \"Test Farmer\"
-}")
-
-# Request OTP for farmer
-print_test_header "Request OTP for Farmer"
-RESPONSE=$(make_request "POST" "/auth/otp/request" "{
-    \"mobile_number\": \"+1111222256\"
-}")
-
-# Extract OTP from response
-OTP=$(echo "$RESPONSE" | jq -r '.message' | sed -n 's/.*OTP sent successfully: \([0-9]\{6\}\).*/\1/p')
-if [ -z "$OTP" ]; then
-    print_error "Could not extract OTP from response"
-    exit 1
-fi
-
-# Verify OTP for farmer
-print_test_header "Verify OTP for Farmer"
-RESPONSE=$(make_request "POST" "/auth/otp/verify" "{
-    \"mobile_number\": \"+1111222256\",
-    \"otp\": \"$OTP\"
-}")
-
-FARMER_TOKEN=$(echo "$RESPONSE" | jq -r '.token')
-if [ -z "$FARMER_TOKEN" ] || [ "$FARMER_TOKEN" = "null" ]; then
-    print_error "Could not extract token from response"
-    exit 1
-fi
-
-# Register inspector
-print_test_header "Register Inspector"
-RESPONSE=$(make_request "POST" "/auth/register" "{
-    \"mobile_number\": \"+1111222258\",
-    \"role\": \"INSPECTOR\",
-    \"name\": \"Test Inspector\"
-}")
-
-# Request OTP for inspector
-print_test_header "Request OTP for Inspector"
-RESPONSE=$(make_request "POST" "/auth/otp/request" "{
-    \"mobile_number\": \"+1111222258\"
-}")
-
-# Extract OTP from response
-OTP=$(echo "$RESPONSE" | jq -r '.message' | sed -n 's/.*OTP sent successfully: \([0-9]\{6\}\).*/\1/p')
-if [ -z "$OTP" ]; then
-    print_error "Could not extract OTP from response"
-    exit 1
-fi
-
-# Verify OTP for inspector
-print_test_header "Verify OTP for Inspector"
-RESPONSE=$(make_request "POST" "/auth/otp/verify" "{
-    \"mobile_number\": \"+1111222258\",
-    \"otp\": \"$OTP\"
-}")
-
-INSPECTOR_TOKEN=$(echo "$RESPONSE" | jq -r '.token')
-if [ -z "$INSPECTOR_TOKEN" ] || [ "$INSPECTOR_TOKEN" = "null" ]; then
-    print_error "Could not extract token from response"
-    exit 1
-fi
-
-# Update inspector location
-print_test_header "Update Inspector Location"
-INSPECTOR_ID=$(echo "$RESPONSE" | jq -r '.user.id')
-if [ -z "$INSPECTOR_ID" ] || [ "$INSPECTOR_ID" = "null" ]; then
-    print_error "Could not extract inspector ID from response"
-    exit 1
-fi
-
-RESPONSE=$(make_request "PATCH" "/inspectors/$INSPECTOR_ID" "{
-    \"location\": \"12.9716,77.5946\"
-}" "$INSPECTOR_TOKEN")
-check_error "Failed to update inspector location"
-
-print_success "Updated inspector location"
-
-# Create farmer profile
-print_test_header "Creating farmer profile"
-RESPONSE=$(make_request "POST" "/farmers" "{}" "$FARMER_TOKEN")
-check_error "Failed to create farmer profile"
-FARMER_ID=$(get_id)
-print_success "Created farmer profile with ID: $FARMER_ID"
-
-# Create test produce
-print_test_header "Creating test produce"
-RESPONSE=$(make_request "POST" "/produce" "{
-    \"name\": \"Test Tomatoes\",
-    \"description\": \"Fresh tomatoes for inspection testing\",
-    \"product_variety\": \"Roma\",
-    \"produce_category\": \"VEGETABLES\",
-    \"quantity\": 100,
-    \"unit\": \"kg\",
-    \"price_per_unit\": 50.00,
-    \"location\": \"12.9716,77.5946\",
-    \"location_name\": \"Test Farm\",
-    \"images\": [\"https://example.com/tomatoes1.jpg\"],
-    \"video_url\": \"https://example.com/tomatoes-video.mp4\",
-    \"harvested_at\": \"2024-02-01T00:00:00Z\"
-}" "$FARMER_TOKEN")
-check_error "Failed to create test produce"
-PRODUCE_ID=$(get_id)
-print_success "Created test produce with ID: $PRODUCE_ID"
-
-# Wait for AI assessment
-print_test_header "Waiting for AI assessment"
-sleep 2
-
-# Get latest AI assessment
-print_test_header "Get Latest AI Assessment"
-RESPONSE=$(make_request "GET" "/quality/produce/$PRODUCE_ID/latest" "{}" "$FARMER_TOKEN")
-
-# Test manual inspection flow
-print_test_header "Testing Manual Inspection Flow"
-
-# Request inspection
-print_test_header "Request Inspection"
-RESPONSE=$(make_request "POST" "/quality/inspection/request" "{
-    \"produce_id\": \"$PRODUCE_ID\",
-    \"location\": \"12.9716,77.5946\"
-}" "$FARMER_TOKEN")
-check_error "Failed to create inspection request"
-INSPECTION_ID=$(get_id)
-print_success "Created inspection request with ID: $INSPECTION_ID"
-
-# Get inspections by produce
-print_test_header "Get Inspections by Produce"
-RESPONSE=$(make_request "GET" "/quality/inspection/by-produce/$PRODUCE_ID" "{}" "$FARMER_TOKEN")
-
-# Get inspections by requester
-print_test_header "Get Inspections by Requester"
-RESPONSE=$(make_request "GET" "/quality/inspection/by-requester" "{}" "$FARMER_TOKEN")
-
-# Get inspections by inspector
-print_test_header "Get Inspections by Inspector"
-RESPONSE=$(make_request "GET" "/quality/inspection/by-inspector" "{}" "$INSPECTOR_TOKEN")
-
-# Assign inspector
-print_test_header "Assign Inspector"
-RESPONSE=$(make_request "PUT" "/quality/inspection/$INSPECTION_ID/assign" "{}" "$INSPECTOR_TOKEN")
-
-# Submit inspection result
-print_test_header "Submit Inspection Result"
-RESPONSE=$(make_request "PUT" "/quality/inspection/$INSPECTION_ID/submit-result" "{
-    \"quality_grade\": 8,
-    \"defects\": [\"minor_blemishes\"],
-    \"recommendations\": [\"store_in_cool_place\"],
-    \"images\": [\"https://example.com/inspection1.jpg\"],
-    \"notes\": \"Good quality produce with minor issues\",
-    \"category_specific_assessment\": {
-        \"size\": \"medium\",
-        \"color\": \"vibrant\",
-        \"ripeness\": \"good\",
-        \"sweetness\": \"medium\",
-        \"brix_value\": 15,
-        \"skin_condition\": \"smooth\"
-    }
-}" "$INSPECTOR_TOKEN")
-
-# Testing Inspection Fee Configuration
-print_test_header "Get Base Fee Config"
-RESPONSE=$(make_request "GET" "/config/inspection-fees/base" "{}" "$ADMIN_TOKEN")
-
-print_test_header "Update Base Fee Config"
-RESPONSE=$(make_request "PUT" "/config/inspection-fees/base" "{
-    \"produce_category\": \"VEGETABLES\",
-    \"base_fee\": 50
-}" "$ADMIN_TOKEN")
-
-print_test_header "Get Distance Fee Config"
-RESPONSE=$(make_request "GET" "/config/inspection-fees/distance" "{}" "$ADMIN_TOKEN")
-
-print_test_header "Update Distance Fee Config"
-RESPONSE=$(make_request "PUT" "/config/inspection-fees/distance" "{
-    \"fee_per_km\": 5,
-    \"max_fee\": 500
-}" "$ADMIN_TOKEN")
-
-print_success "All inspection tests completed successfully!" 
+# Run the tests
+main 

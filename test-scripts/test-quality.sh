@@ -1,17 +1,23 @@
 #!/bin/bash
 
+# Configuration
+API_BASE_URL="http://localhost:3000/api"
+FARMER_MOBILE="+1234567891"
+FARMER_NAME="Test Farmer"
+INSPECTOR_MOBILE="+1234567892"
+INSPECTOR_NAME="Test Inspector"
+ADMIN_MOBILE="+1234567893"
+ADMIN_NAME="Test Admin"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Base URL for API
-API_BASE_URL="http://localhost:3000"
-
-# Print functions
+# Utility functions
 print_error() {
-    echo -e "${RED}ERROR: $1${NC}" >&2
+    echo -e "${RED}ERROR: $1${NC}"
 }
 
 print_success() {
@@ -22,186 +28,208 @@ print_warning() {
     echo -e "${YELLOW}WARNING: $1${NC}"
 }
 
-print_test_header() {
-    echo -e "\nTesting: $1"
+print_header() {
+    echo -e "\n${GREEN}=== $1 ===${NC}"
 }
 
-# Make an HTTP request to the API
+# Make HTTP request with proper error handling
 make_request() {
     local method="$1"
     local endpoint="$2"
-    local token="$3"
-    local data="$4"
+    local data="$3"
+    local token="$4"
     
-    # Add /api prefix if not already present
-    if [[ ! "$endpoint" =~ ^/api ]]; then
-        endpoint="/api${endpoint}"
-    fi
+    endpoint=${endpoint#/api}
+    endpoint=${endpoint#/}
+    local full_url="${API_BASE_URL}/${endpoint}"
     
-    local url="${API_BASE_URL}${endpoint}"
-    local response
-    local status_code
-
-    # Build curl command
-    local curl_cmd="curl -s -X $method"
-    
-    # Add headers
-    curl_cmd+=" -H 'Content-Type: application/json'"
+    local response=""
     if [ -n "$token" ]; then
-        curl_cmd+=" -H 'Authorization: Bearer $token'"
+        response=$(curl -s -X "$method" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $token" \
+            -d "$data" \
+            "${full_url}")
+    else
+        response=$(curl -s -X "$method" \
+            -H "Content-Type: application/json" \
+            -d "$data" \
+            "${full_url}")
     fi
     
-    # Add data if present and method is not GET
-    if [ -n "$data" ] && [ "$method" != "GET" ]; then
-        curl_cmd+=" -d '$data'"
-    fi
-    
-    # Add URL
-    curl_cmd+=" '$url'"
-    
-    # Execute curl command and capture response
-    response=$(eval "$curl_cmd")
-    status_code=$?
-    
-    # Check if curl command failed
-    if [ $status_code -ne 0 ]; then
-        print_error "Failed to make request to $url (status code: $status_code)"
-        return 1
-    fi
-    
-    # Check if response is empty
-    if [ -z "$response" ]; then
-        print_error "Empty response received"
-        return 1
-    fi
-    
-    # Return response
     echo "$response"
-    return 0
 }
 
-# Get auth token for testing
-get_auth_token() {
+# Authentication function
+authenticate() {
     local mobile="$1"
-    local role="$2"
-    local otp_response
-    local verify_response
-    local otp
-    local name="Test ${role}"
+    local name="$2"
+    local role="$3"
     
-    # Try to register user first
-    local register_data="{\"mobile_number\":\"$mobile\",\"role\":\"$role\",\"name\":\"$name\"}"
-    register_response=$(make_request "POST" "/auth/register" "" "$register_data")
+    print_header "Authenticating $role"
+    
+    # Register user
+    local register_data="{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"${role,,}@test.com\"}"
+    local register_response=$(make_request "POST" "/auth/register" "$register_data")
     
     # Request OTP
     local otp_data="{\"mobile_number\":\"$mobile\"}"
-    otp_response=$(make_request "POST" "/auth/otp/request" "" "$otp_data")
+    local otp_response=$(make_request "POST" "/auth/otp/request" "$otp_data")
+    local otp=$(echo "$otp_response" | jq -r '.message' | grep -o '[0-9]\{6\}')
     
-    if [ $? -ne 0 ]; then
-        print_error "Failed to request OTP"
-        return 1
-    fi
-    
-    # Extract OTP from response message
-    otp=$(echo "$otp_response" | jq -r '.message' | grep -o '[0-9]\{6\}')
     if [ -z "$otp" ]; then
-        print_error "Could not extract OTP from response"
-        return 1
+        print_error "Failed to get OTP"
+        exit 1
     fi
     
     # Verify OTP
     local verify_data="{\"mobile_number\":\"$mobile\",\"otp\":\"$otp\"}"
-    verify_response=$(make_request "POST" "/auth/otp/verify" "" "$verify_data")
+    local verify_response=$(make_request "POST" "/auth/otp/verify" "$verify_data")
+    local token=$(echo "$verify_response" | jq -r '.token')
     
-    if [ $? -ne 0 ]; then
-        print_error "Failed to verify OTP"
-        return 1
+    if [ -z "$token" ] || [ "$token" = "null" ]; then
+        print_error "Failed to get authentication token"
+        exit 1
     fi
     
-    # Return the token
-    echo "$verify_response" | jq -r '.token'
-    return 0
+    echo "$token"
 }
 
-print_test_header "Quality Assessment Endpoints"
+# Main test execution
+main() {
+    print_header "Starting Quality Assessment Tests"
+    
+    # Get authentication tokens for different roles
+    FARMER_TOKEN=$(authenticate "$FARMER_MOBILE" "$FARMER_NAME" "FARMER")
+    INSPECTOR_TOKEN=$(authenticate "$INSPECTOR_MOBILE" "$INSPECTOR_NAME" "INSPECTOR")
+    ADMIN_TOKEN=$(authenticate "$ADMIN_MOBILE" "$ADMIN_NAME" "ADMIN")
+    
+    # Test 1: Create farm and produce
+    print_header "Testing Create Farm and Produce"
+    FARM_DATA='{
+        "name": "Quality Test Farm",
+        "location": {
+            "type": "Point",
+            "coordinates": [73.123456, 18.123456]
+        },
+        "address": "Test Farm Address",
+        "size": 10.5,
+        "size_unit": "ACRES"
+    }'
+    RESPONSE=$(make_request "POST" "/farms" "$FARM_DATA" "$FARMER_TOKEN")
+    FARM_ID=$(echo "$RESPONSE" | jq -r '.id')
+    
+    PRODUCE_DATA='{
+        "farm_id": "'$FARM_ID'",
+        "name": "Quality Test Tomatoes",
+        "variety": "Roma",
+        "quantity": 100,
+        "unit": "KG",
+        "price_per_unit": 50,
+        "harvest_date": "'$(date -v+1d +%Y-%m-%d)'",
+        "description": "Tomatoes for quality testing",
+        "images": ["https://example.com/tomato.jpg"]
+    }'
+    RESPONSE=$(make_request "POST" "/produce" "$PRODUCE_DATA" "$FARMER_TOKEN")
+    PRODUCE_ID=$(echo "$RESPONSE" | jq -r '.id')
+    
+    # Test 2: Create quality assessment
+    print_header "Testing Create Quality Assessment"
+    ASSESSMENT_DATA='{
+        "produce_id": "'$PRODUCE_ID'",
+        "overall_grade": "A",
+        "quality_score": 90,
+        "freshness_level": "VERY_FRESH",
+        "appearance_score": 95,
+        "size_uniformity": "HIGH",
+        "color_assessment": "EXCELLENT",
+        "defects": ["MINOR_BLEMISHES"],
+        "inspector_notes": "High quality produce with minimal defects",
+        "assessment_date": "'$(date +%Y-%m-%d)'",
+        "images": ["https://example.com/quality-check.jpg"]
+    }'
+    RESPONSE=$(make_request "POST" "/quality/assessments" "$ASSESSMENT_DATA" "$INSPECTOR_TOKEN")
+    ASSESSMENT_ID=$(echo "$RESPONSE" | jq -r '.id')
+    if [ -n "$ASSESSMENT_ID" ] && [ "$ASSESSMENT_ID" != "null" ]; then
+        print_success "Successfully created quality assessment"
+    else
+        print_error "Failed to create quality assessment"
+    fi
+    
+    # Test 3: Get quality assessment
+    print_header "Testing Get Quality Assessment"
+    RESPONSE=$(make_request "GET" "/quality/assessments/$ASSESSMENT_ID" "" "$INSPECTOR_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully retrieved quality assessment"
+    else
+        print_error "Failed to get quality assessment"
+    fi
+    
+    # Test 4: Update quality assessment
+    print_header "Testing Update Quality Assessment"
+    UPDATE_DATA='{
+        "quality_score": 95,
+        "inspector_notes": "Updated: Exceptional quality produce"
+    }'
+    RESPONSE=$(make_request "PATCH" "/quality/assessments/$ASSESSMENT_ID" "$UPDATE_DATA" "$INSPECTOR_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully updated quality assessment"
+    else
+        print_error "Failed to update quality assessment"
+    fi
+    
+    # Test 5: Get produce quality history
+    print_header "Testing Get Produce Quality History"
+    RESPONSE=$(make_request "GET" "/quality/produce/$PRODUCE_ID/history" "" "$FARMER_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully retrieved produce quality history"
+    else
+        print_error "Failed to get produce quality history"
+    fi
+    
+    # Test 6: Request inspection
+    print_header "Testing Request Inspection"
+    INSPECTION_DATA='{
+        "produce_id": "'$PRODUCE_ID'",
+        "preferred_date": "'$(date -v+2d +%Y-%m-%d)'",
+        "notes": "Please inspect for export quality certification"
+    }'
+    RESPONSE=$(make_request "POST" "/quality/inspections/request" "$INSPECTION_DATA" "$FARMER_TOKEN")
+    INSPECTION_ID=$(echo "$RESPONSE" | jq -r '.id')
+    if [ -n "$INSPECTION_ID" ] && [ "$INSPECTION_ID" != "null" ]; then
+        print_success "Successfully created inspection request"
+    else
+        print_error "Failed to create inspection request"
+    fi
+    
+    # Test 7: Assign inspector
+    print_header "Testing Assign Inspector"
+    ASSIGN_DATA='{
+        "inspector_id": "'$(echo "$INSPECTOR_TOKEN" | jq -r '.user.id')'"
+    }'
+    RESPONSE=$(make_request "PUT" "/quality/inspections/$INSPECTION_ID/assign" "$ASSIGN_DATA" "$ADMIN_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully assigned inspector"
+    else
+        print_error "Failed to assign inspector"
+    fi
+    
+    # Test 8: Complete inspection
+    print_header "Testing Complete Inspection"
+    COMPLETE_DATA='{
+        "quality_score": 98,
+        "inspection_notes": "Completed inspection: Premium export quality",
+        "certification_status": "APPROVED"
+    }'
+    RESPONSE=$(make_request "PUT" "/quality/inspections/$INSPECTION_ID/complete" "$COMPLETE_DATA" "$INSPECTOR_TOKEN")
+    if [ $? -eq 0 ]; then
+        print_success "Successfully completed inspection"
+    else
+        print_error "Failed to complete inspection"
+    fi
+    
+    print_header "Quality Assessment Tests Completed"
+}
 
-# Get tokens for different roles
-print_test_header "Getting Admin Token"
-ADMIN_TOKEN=$(get_auth_token "+5555555555" "ADMIN")
-print_success "Got admin token"
-
-print_test_header "Getting Inspector Token"
-INSPECTOR_TOKEN=$(get_auth_token "+6666666666" "INSPECTOR")
-print_success "Got inspector token"
-
-print_test_header "Getting Farmer Token"
-FARMER_TOKEN=$(get_auth_token "+7777777777" "FARMER")
-print_success "Got farmer token"
-
-# Create test produce first
-print_test_header "Creating Test Produce"
-PRODUCE_RESPONSE=$(make_request "POST" "/produce" "$FARMER_TOKEN" '{
-    "name": "Quality Test Produce",
-    "description": "Test produce for quality assessment",
-    "product_variety": "Test Variety",
-    "produce_category": "VEGETABLES",
-    "quantity": 100,
-    "unit": "KG",
-    "price_per_unit": 50,
-    "location": "12.9716,77.5946",
-    "location_name": "Test Farm",
-    "images": ["https://example.com/test-image1.jpg"],
-    "harvested_at": "2024-02-01T00:00:00Z"
-}')
-
-PRODUCE_ID=$(echo "$PRODUCE_RESPONSE" | jq -r '.id')
-print_success "Created test produce with ID: $PRODUCE_ID"
-
-# Test 1: Create AI assessment (Admin)
-print_test_header "Create AI Assessment"
-AI_ASSESSMENT_RESPONSE=$(make_request "POST" "/quality/ai-assessment" "$ADMIN_TOKEN" "{
-    \"produce_id\": \"$PRODUCE_ID\",
-    \"quality_grade\": 85,
-    \"defects\": [\"minor_blemishes\"],
-    \"recommendations\": [\"store_in_cool_place\"],
-    \"confidence_level\": 0.95,
-    \"category_specific_assessment\": {
-        \"size\": \"medium\",
-        \"color\": \"vibrant\",
-        \"ripeness\": \"good\"
-    }
-}")
-print_success "Created AI assessment"
-
-# Test 2: Create inspection assessment (Inspector)
-print_test_header "Create Inspection Assessment"
-INSPECTION_RESPONSE=$(make_request "POST" "/quality/inspection" "$INSPECTOR_TOKEN" "{
-    \"produce_id\": \"$PRODUCE_ID\",
-    \"quality_grade\": 82,
-    \"defects\": [\"minor_blemishes\"],
-    \"recommendations\": [\"store_in_cool_place\"],
-    \"notes\": \"Good quality produce with minor blemishes\",
-    \"category_specific_assessment\": {
-        \"size\": \"medium\",
-        \"color\": \"vibrant\",
-        \"ripeness\": \"good\"
-    }
-}")
-print_success "Created inspection assessment"
-
-# Test 3: Get assessments by produce
-print_test_header "Get Assessments by Produce"
-RESPONSE=$(make_request "GET" "/quality/produce/$PRODUCE_ID" "$FARMER_TOKEN")
-print_success "Retrieved assessments by produce"
-
-# Test 4: Get latest assessment
-print_test_header "Get Latest Assessment"
-RESPONSE=$(make_request "GET" "/quality/produce/$PRODUCE_ID/latest" "$FARMER_TOKEN")
-print_success "Retrieved latest assessment"
-
-# Test 5: Get latest manual assessment
-print_test_header "Get Latest Manual Assessment"
-RESPONSE=$(make_request "GET" "/quality/produce/$PRODUCE_ID/latest-manual" "$FARMER_TOKEN")
-print_success "Retrieved latest manual assessment"
-
-print_success "Quality assessment tests completed!" 
+# Run the tests
+main 
