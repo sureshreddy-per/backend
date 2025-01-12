@@ -539,18 +539,16 @@ CREATE INDEX idx_buyers_is_active ON buyers(is_active);
 CREATE TABLE buyer_preferences (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   buyer_id UUID NOT NULL REFERENCES buyers(id) ON DELETE CASCADE,
-  categories produce_category_enum[] NULL,
+  produce_names TEXT[] DEFAULT '{}',
   notification_enabled BOOLEAN DEFAULT true,
-  notification_methods TEXT[] NULL,
-  price_alert_condition TEXT,
-  target_price DECIMAL(10,2),
-  expiry_date TIMESTAMP,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  notification_methods TEXT[] DEFAULT '{"PUSH"}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unique_buyer_preferences UNIQUE (buyer_id)
 );
 
 CREATE INDEX idx_buyer_preferences_buyer_id ON buyer_preferences(buyer_id);
-CREATE INDEX idx_buyer_preferences_expiry_date ON buyer_preferences(expiry_date);
+CREATE INDEX idx_buyer_preferences_produce_names ON buyer_preferences USING GIN (produce_names);
 
 CREATE OR REPLACE FUNCTION update_buyers_updated_at()
 RETURNS TRIGGER AS $$
@@ -811,28 +809,17 @@ DROP TABLE IF EXISTS daily_prices CASCADE;
 
 CREATE TABLE daily_prices (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    buyer_id UUID NOT NULL REFERENCES buyers(id),
-    produce_category produce_category_enum NOT NULL,
-    min_price DECIMAL(10,2) NOT NULL,
-    max_price DECIMAL(10,2) NOT NULL,
-    minimum_quantity INTEGER NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    valid_from TIMESTAMP WITH TIME ZONE NOT NULL,
-    valid_until TIMESTAMP WITH TIME ZONE NOT NULL,
-    valid_days INTEGER DEFAULT 1,
-    update_count INTEGER DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT check_min_price CHECK (min_price >= 0),
-    CONSTRAINT check_max_price CHECK (max_price >= min_price),
-    CONSTRAINT check_minimum_quantity CHECK (minimum_quantity > 0),
-    CONSTRAINT check_valid_days CHECK (valid_days > 0)
+    buyer_id UUID NOT NULL REFERENCES buyers(id) ON DELETE CASCADE,
+    produce_name TEXT NOT NULL,
+    min_price DECIMAL(10,2) NOT NULL CHECK (min_price >= 0),
+    max_price DECIMAL(10,2) NOT NULL CHECK (max_price >= min_price),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_buyer_produce_price UNIQUE (buyer_id, produce_name)
 );
 
 CREATE INDEX idx_daily_prices_buyer_id ON daily_prices(buyer_id);
-CREATE INDEX idx_daily_prices_produce_category ON daily_prices(produce_category);
-CREATE INDEX idx_daily_prices_is_active ON daily_prices(is_active);
-CREATE INDEX idx_daily_prices_validity ON daily_prices(valid_from, valid_until);
+CREATE INDEX idx_daily_prices_produce_name ON daily_prices(produce_name);
 
 CREATE OR REPLACE FUNCTION update_daily_prices_updated_at()
 RETURNS TRIGGER AS $$

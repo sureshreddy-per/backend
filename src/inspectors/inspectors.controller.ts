@@ -20,7 +20,7 @@ import { GetUser } from "../auth/decorators/get-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { RolesGuard } from "../auth/guards/roles.guard";
 import { Roles } from "../auth/decorators/roles.decorator";
-import { Role } from "../auth/enums/role.enum";
+import { UserRole } from "../enums/user-role.enum";
 
 @Controller("inspectors")
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -28,7 +28,7 @@ export class InspectorsController {
   constructor(private readonly inspectorsService: InspectorsService) {}
 
   @Post()
-  @Roles(Role.INSPECTOR)
+  @Roles(UserRole.INSPECTOR)
   create(@GetUser() user: User, @Body() createInspectorDto: CreateInspectorDto) {
     return this.inspectorsService.create({
       name: user.name,
@@ -39,13 +39,13 @@ export class InspectorsController {
   }
 
   @Get()
-  @Roles(Role.ADMIN)
+  @Roles(UserRole.ADMIN)
   findAll() {
     return this.inspectorsService.findAll();
   }
 
   @Get("profile")
-  @Roles(Role.INSPECTOR)
+  @Roles(UserRole.INSPECTOR)
   async getProfile(@GetUser() user: User) {
     try {
       return await this.inspectorsService.findByUserId(user.id);
@@ -67,10 +67,11 @@ export class InspectorsController {
   }
 
   @Get(":id")
+  @Roles(UserRole.ADMIN, UserRole.INSPECTOR)
   async findOne(@GetUser() user: User, @Param("id") id: string) {
     const inspector = await this.inspectorsService.findOne(id);
 
-    if (user.role !== Role.ADMIN && inspector.id !== user.id) {
+    if (user.role !== UserRole.ADMIN && inspector.id !== user.id) {
       throw new UnauthorizedException(
         "You can only view your own inspector profile",
       );
@@ -87,7 +88,7 @@ export class InspectorsController {
   ) {
     const userInspector = await this.inspectorsService.findByUserId(user.id);
 
-    if (user.role !== Role.ADMIN && userInspector.id !== id) {
+    if (user.role !== UserRole.ADMIN && userInspector.id !== id) {
       throw new UnauthorizedException(
         "You can only update your own inspector profile",
       );
@@ -97,7 +98,7 @@ export class InspectorsController {
   }
 
   @Delete(":id")
-  @Roles(Role.ADMIN)
+  @Roles(UserRole.ADMIN)
   remove(@Param("id") id: string) {
     return this.inspectorsService.remove(id);
   }

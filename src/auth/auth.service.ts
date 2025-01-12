@@ -1,22 +1,26 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  InternalServerErrorException,
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
-import { UsersService } from "../users/services/users.service";
-import { User, UserStatus } from "../users/entities/user.entity";
-import { UserRole } from "../enums/user-role.enum";
 import { ConfigService } from "@nestjs/config";
-import { RedisService } from "../redis/redis.service";
-import { FarmersService } from "../farmers/farmers.service";
+import { UsersService } from "../users/services/users.service";
 import { BuyersService } from "../buyers/buyers.service";
 import { InspectorsService } from "../inspectors/inspectors.service";
+import { FarmersService } from "../farmers/farmers.service";
+import { RedisService } from "../redis/redis.service";
+import { User, UserStatus } from "../users/entities/user.entity";
+import { UserRole } from "../enums/user-role.enum";
 import * as crypto from "crypto";
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -274,6 +278,27 @@ export class AuthService {
       await this.usersService.findByMobileNumber(mobile_number);
     if (existingUser) {
       await this.usersService.remove(existingUser.id);
+    }
+  }
+
+  async createBuyerAccount(user: User, userData: any): Promise<User> {
+    try {
+      // Create buyer profile
+      await this.buyersService.createBuyer(user.id, {
+        business_name: userData.business_name || userData.name,
+        lat_lng: userData.lat_lng,
+        location_name: userData.location_name,
+        address: userData.address
+      });
+
+      // Update user role
+      user.role = UserRole.BUYER;
+      await this.usersService.update(user.id, user);
+
+      return user;
+    } catch (error) {
+      this.logger.error(`Failed to create buyer account: ${error.message}`);
+      throw new InternalServerErrorException('Failed to create buyer account');
     }
   }
 }

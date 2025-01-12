@@ -146,7 +146,7 @@ export class AutoOfferService {
 
   async generateOffersForProduce(produce: Produce): Promise<void> {
     this.logger.debug(`Starting offer generation for produce ${produce.id}`);
-    this.logger.debug(`Produce details: category=${produce.produce_category}, location=${produce.location}`);
+    this.logger.debug(`Produce details: name=${produce.name}, location=${produce.location}`);
 
     const latestAssessment = await this.qualityAssessmentRepository.findOne({
       where: { produce_id: produce.id },
@@ -162,19 +162,19 @@ export class AutoOfferService {
     const produceLoc = this.parseLatLng(produce.location);
     this.logger.debug(`Parsed produce location: lat=${produceLoc.lat}, lng=${produceLoc.lng}`);
 
-    // Find active buyers within matching category
+    // Find active buyers with matching produce name in their preferences
     const buyers = await this.buyerRepository.find({
       where: {
         is_active: true,
         preferences: {
-          categories: ArrayContains([produce.produce_category])
+          produce_names: ArrayContains([produce.name])
         }
       },
       relations: ['user', 'preferences'],
     });
 
     if (buyers.length === 0) {
-      this.logger.warn(`No active buyers found for produce category ${produce.produce_category}`);
+      this.logger.warn(`No active buyers found for produce ${produce.name}`);
       return;
     }
 

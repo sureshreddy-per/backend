@@ -23,7 +23,8 @@ RESPONSE=$(make_request "POST" "/buyers/preferences/price-alerts" '{
     "target_price": 50.00,
     "condition": "BELOW",
     "notification_methods": ["EMAIL", "SMS"],
-    "expiry_date": "2024-12-31"
+    "expiry_date": "2024-12-31",
+    "produce_name": "tomato"
 }' "$BUYER_TOKEN")
 echo "Response: $RESPONSE"
 
@@ -51,7 +52,7 @@ print_test_header "Set Preferred Price Range"
 RESPONSE=$(make_request "POST" "/buyers/preferences/price-range" '{
     "min_price": 20.00,
     "max_price": 35.00,
-    "categories": ["VEGETABLES", "FRUITS"]
+    "produce_names": ["tomato", "potato", "onion"]
 }' "$BUYER_TOKEN")
 echo "Response: $RESPONSE"
 echo $RESPONSE
