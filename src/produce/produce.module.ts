@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { HttpModule, HttpService } from '@nestjs/axios';
 import { ProduceController } from './produce.controller';
 import { ProduceService } from './services/produce.service';
 import { ProduceSynonymService } from './services/synonym.service';
@@ -16,6 +17,7 @@ import { FarmersModule } from '../farmers/farmers.module';
   imports: [
     TypeOrmModule.forFeature([Produce, Synonym]),
     ConfigModule,
+    HttpModule,
     FarmersModule,
   ],
   controllers: [ProduceController, ProduceSynonymController],
@@ -25,15 +27,15 @@ import { FarmersModule } from '../farmers/farmers.module';
     LanguageService,
     {
       provide: AiSynonymService,
-      useFactory: (configService: ConfigService, languageService: LanguageService) => {
+      useFactory: (configService: ConfigService, httpService: HttpService, languageService: LanguageService) => {
         const useMockService = configService.get('USE_MOCK_AI_SERVICE') === 'true';
         return useMockService ? 
           new MockAiSynonymService(languageService) : 
-          new AiSynonymService(configService, languageService);
+          new AiSynonymService(configService, httpService);
       },
-      inject: [ConfigService, LanguageService],
+      inject: [ConfigService, HttpService, LanguageService],
     },
   ],
-  exports: [ProduceService, ProduceSynonymService],
+  exports: [ProduceService, ProduceSynonymService, TypeOrmModule],
 })
 export class ProduceModule {}

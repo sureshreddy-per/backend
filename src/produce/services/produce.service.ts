@@ -131,64 +131,66 @@ export class ProduceService {
             if (matchingName) {
               this.logger.log(`Found existing produce name "${matchingName}" matching AI-generated term "${term}"`);
               produce.name = matchingName;
-              return;
+              break;
             }
           }
           
-          // No matches found in existing or AI-generated terms, create new entry
-          this.logger.log(`No matches found. Creating new synonym entries for "${event.detected_name}"`);
-          
-          // Add English synonyms
-          await this.synonymService.addSynonyms(
-            event.detected_name,
-            aiResult.synonyms,
-            'en',
-            true,
-            event.confidence_level
-          );
-          
-          // Add translations for each supported language
-          for (const [language, translations] of Object.entries(aiResult.translations)) {
-            if (translations && translations.length > 0) {
-              await this.synonymService.addSynonyms(
-                event.detected_name,
-                translations as string[],
-                language,
-                true,
-                event.confidence_level
-              );
+          // If no matches found in existing or AI-generated terms, create new entry
+          if (!produce.name || produce.name === 'Unidentified Produce') {
+            this.logger.log(`No matches found. Creating new synonym entries for "${event.detected_name}"`);
+            
+            // Add English synonyms
+            await this.synonymService.addSynonyms(
+              event.detected_name,
+              aiResult.synonyms,
+              'en',
+              true,
+              event.confidence_level
+            );
+            
+            // Add translations for each supported language
+            for (const [language, translations] of Object.entries(aiResult.translations)) {
+              if (translations && translations.length > 0) {
+                await this.synonymService.addSynonyms(
+                  event.detected_name,
+                  translations as string[],
+                  language,
+                  true,
+                  event.confidence_level
+                );
+              }
             }
+            
+            produce.name = event.detected_name;
           }
-          
-          produce.name = event.detected_name;
         }
       }
 
-      // Update produce status based on AI confidence
-      if (event.confidence_level < 80) {
+      // Update produce status based on AI confidence and quality grade
+      if (event.confidence_level < 80 || event.quality_grade < 5) {
         produce.status = ProduceStatus.PENDING_INSPECTION;
-        this.logger.log(`Produce ${produce.id} marked for manual inspection due to low AI confidence`);
+        this.logger.log(`Produce ${produce.id} marked for manual inspection due to ${
+          event.confidence_level < 80 ? 'low AI confidence' : 'low quality grade'
+        }`);
       } else {
         produce.status = ProduceStatus.AVAILABLE;
+        this.logger.log(`Produce ${produce.id} marked as available with quality grade ${event.quality_grade}`);
       }
       
       await this.produceRepository.save(produce);
-      this.logger.log(`Updated produce ${produce.id} status after quality assessment`);
+      this.logger.log(`Successfully updated produce ${produce.id} after quality assessment`);
     } catch (error) {
       this.logger.error(`Failed to handle quality assessment for produce ${event.produce_id}: ${error.message}`);
+      // Update produce status to indicate assessment failure
+      try {
+        const produce = await this.findOne(event.produce_id);
+        produce.status = ProduceStatus.ASSESSMENT_FAILED;
+        await this.produceRepository.save(produce);
+      } catch (innerError) {
+        this.logger.error(`Failed to update produce status after assessment failure: ${innerError.message}`);
+      }
       throw error;
     }
-  }
-
-  @OnEvent('quality.assessment.failed')
-  async handleQualityAssessmentFailed(event: { produce_id: string; error: string }) {
-    const produce = await this.findOne(event.produce_id);
-    
-    // Update produce status to indicate assessment failure
-    produce.status = ProduceStatus.ASSESSMENT_FAILED;
-    await this.produceRepository.save(produce);
-    
-    this.logger.error(`Quality assessment failed for produce ${produce.id}: ${event.error}`);
   }
 
   async create(createProduceDto: CreateProduceDto & { farmer_id: string }): Promise<Produce> {

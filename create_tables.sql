@@ -23,7 +23,6 @@ DROP TABLE IF EXISTS support_tickets CASCADE;
 DROP TABLE IF EXISTS synonyms CASCADE;
 DROP TABLE IF EXISTS daily_prices CASCADE;
 DROP TABLE IF EXISTS business_metrics CASCADE;
-DROP TABLE IF EXISTS auto_offer_rules CASCADE;
 DROP TABLE IF EXISTS ratings CASCADE;
 DROP TABLE IF EXISTS farm_details CASCADE;
 DROP TABLE IF EXISTS bank_accounts CASCADE;
@@ -405,16 +404,16 @@ CREATE TABLE produce (
     inspection_fee DECIMAL(10,2),
     is_inspection_requested BOOLEAN DEFAULT false,
     inspection_requested_by UUID REFERENCES users(id),
-    inspection_requested_at TIMESTAMP,
+    inspection_requested_at TIMESTAMP WITH TIME ZONE,
     images TEXT[] NOT NULL,
     status produce_status_enum DEFAULT 'PENDING_AI_ASSESSMENT',
-    harvested_at TIMESTAMP,
-    expiry_date TIMESTAMP,
+    harvested_at TIMESTAMP WITH TIME ZONE,
+    expiry_date TIMESTAMP WITH TIME ZONE,
     quality_grade INTEGER DEFAULT 0,
     video_url TEXT,
     assigned_inspector UUID REFERENCES users(id),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_quantity CHECK (quantity > 0),
     CONSTRAINT check_price_per_unit CHECK (price_per_unit >= 0),
     CONSTRAINT check_inspection_fee CHECK (inspection_fee >= 0),
@@ -483,6 +482,7 @@ CREATE TRIGGER update_inspection_requests_updated_at
 CREATE TABLE quality_assessments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     produce_id UUID NOT NULL REFERENCES produce(id),
+    produce_name TEXT NOT NULL,
     quality_grade FLOAT NOT NULL,
     confidence_level FLOAT NOT NULL,
     defects TEXT[] DEFAULT '{}',
@@ -495,7 +495,8 @@ CREATE TABLE quality_assessments (
     inspection_request_id UUID REFERENCES inspection_requests(id),
     metadata JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_confidence_level CHECK (confidence_level >= 0 AND confidence_level <= 100)
 );
 
 CREATE INDEX idx_quality_assessments_produce_id ON quality_assessments(produce_id);
@@ -504,6 +505,8 @@ CREATE INDEX idx_quality_assessments_inspection_request_id ON quality_assessment
 CREATE INDEX idx_quality_assessments_source ON quality_assessments(source);
 CREATE INDEX idx_quality_assessments_category ON quality_assessments(category);
 CREATE INDEX idx_quality_assessments_created_at ON quality_assessments(created_at);
+CREATE INDEX idx_quality_assessments_produce_name ON quality_assessments(produce_name);
+CREATE INDEX idx_quality_assessments_confidence ON quality_assessments(confidence_level);
 
 CREATE OR REPLACE FUNCTION update_quality_assessments_updated_at()
 RETURNS TRIGGER AS $$
@@ -616,6 +619,9 @@ CREATE INDEX idx_offers_status ON offers(status);
 CREATE INDEX idx_offers_valid_until ON offers(valid_until);
 CREATE INDEX idx_offers_is_auto_generated ON offers(is_auto_generated);
 CREATE INDEX idx_offers_quality_grade ON offers(quality_grade);
+CREATE INDEX idx_offers_price_override ON offers(is_price_overridden);
+CREATE INDEX idx_offers_distance ON offers(distance_km);
+CREATE INDEX idx_offers_buyer_price_range ON offers(buyer_min_price, buyer_max_price);
 
 CREATE OR REPLACE FUNCTION update_offers_updated_at()
 RETURNS TRIGGER AS $$
@@ -809,30 +815,21 @@ DROP TABLE IF EXISTS daily_prices CASCADE;
 
 CREATE TABLE daily_prices (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    buyer_id UUID NOT NULL REFERENCES buyers(id) ON DELETE CASCADE,
     produce_name TEXT NOT NULL,
-    min_price DECIMAL(10,2) NOT NULL CHECK (min_price >= 0),
-    max_price DECIMAL(10,2) NOT NULL CHECK (max_price >= min_price),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_buyer_produce_price UNIQUE (buyer_id, produce_name)
+    min_price DECIMAL(10,2) NOT NULL,
+    max_price DECIMAL(10,2) NOT NULL,
+    average_price DECIMAL(10,2) NOT NULL,
+    market_name TEXT,
+    location TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_min_price CHECK (min_price >= 0),
+    CONSTRAINT check_max_price CHECK (max_price >= min_price),
+    CONSTRAINT check_average_price CHECK (average_price >= min_price AND average_price <= max_price)
 );
 
-CREATE INDEX idx_daily_prices_buyer_id ON daily_prices(buyer_id);
 CREATE INDEX idx_daily_prices_produce_name ON daily_prices(produce_name);
-
-CREATE OR REPLACE FUNCTION update_daily_prices_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_daily_prices_updated_at
-    BEFORE UPDATE ON daily_prices
-    FOR EACH ROW
-    EXECUTE FUNCTION update_daily_prices_updated_at();
+CREATE INDEX idx_daily_prices_created_at ON daily_prices(created_at DESC);
 
 CREATE TABLE business_metrics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -861,37 +858,6 @@ CREATE TRIGGER update_business_metrics_updated_at
     BEFORE UPDATE ON business_metrics
     FOR EACH ROW
     EXECUTE FUNCTION update_business_metrics_updated_at();
-
-CREATE TABLE auto_offer_rules (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    buyer_id UUID NOT NULL REFERENCES buyers(id),
-    is_active BOOLEAN DEFAULT true,
-    produce_category produce_category_enum NOT NULL,
-    min_quantity DECIMAL,
-    max_quantity DECIMAL,
-    min_price DECIMAL,
-    max_price DECIMAL,
-    preferred_grade TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_auto_offer_rules_buyer_id ON auto_offer_rules(buyer_id);
-CREATE INDEX idx_auto_offer_rules_is_active ON auto_offer_rules(is_active);
-CREATE INDEX idx_auto_offer_rules_produce_category ON auto_offer_rules(produce_category);
-
-CREATE OR REPLACE FUNCTION update_auto_offer_rules_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_auto_offer_rules_updated_at
-    BEFORE UPDATE ON auto_offer_rules
-    FOR EACH ROW
-    EXECUTE FUNCTION update_auto_offer_rules_updated_at();
 
 DROP TABLE IF EXISTS ratings CASCADE;
 
@@ -1060,9 +1026,6 @@ ALTER TABLE support_tickets
 ALTER TABLE daily_prices
   ADD CONSTRAINT fk_daily_prices_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id);
 
-ALTER TABLE auto_offer_rules
-  ADD CONSTRAINT fk_auto_offer_rules_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE;
-
 ALTER TABLE ratings
   ADD CONSTRAINT fk_ratings_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id),
   ADD CONSTRAINT fk_ratings_rating_user FOREIGN KEY (rating_user_id) REFERENCES users(id),
@@ -1173,9 +1136,6 @@ CREATE INDEX idx_business_metrics_user ON business_metrics(user_id);
 CREATE INDEX idx_business_metrics_type_date ON business_metrics(type, created_at);
 CREATE INDEX idx_business_metrics_entity ON business_metrics(entity_type, entity_id);
 
-CREATE INDEX idx_auto_offer_rules_buyer ON auto_offer_rules(buyer_id);
-CREATE INDEX idx_auto_offer_rules_category ON auto_offer_rules(produce_category);
-
 CREATE INDEX idx_ratings_transaction ON ratings(transaction_id);
 CREATE INDEX idx_ratings_users ON ratings(rating_user_id, rated_user_id);
 
@@ -1270,31 +1230,6 @@ CREATE TRIGGER update_daily_prices_updated_at
 
 CREATE TRIGGER update_business_metrics_updated_at
     BEFORE UPDATE ON business_metrics
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_auto_offer_rules_updated_at
-    BEFORE UPDATE ON auto_offer_rules
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_ratings_updated_at
-    BEFORE UPDATE ON ratings
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_farm_details_updated_at
-    BEFORE UPDATE ON farm_details
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_bank_accounts_updated_at
-    BEFORE UPDATE ON bank_accounts
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_inspection_distance_fee_config_updated_at
-    BEFORE UPDATE ON inspection_distance_fee_config
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
@@ -1500,3 +1435,5 @@ CREATE TRIGGER update_admin_audit_logs_updated_at
     BEFORE UPDATE ON admin_audit_logs
     FOR EACH ROW
     EXECUTE FUNCTION update_admin_audit_logs_updated_at();
+
+-- End of file

@@ -1,37 +1,34 @@
-import {
-  IsNotEmpty,
-  IsNumber,
-  IsEnum,
-  IsOptional,
-  Min,
-  IsUUID,
-} from "class-validator";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
+import { IsString, IsNumber, IsOptional, Min, IsNotEmpty } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateDailyPriceDto {
-  @IsUUID()
+  @ApiProperty({ description: 'Name of the produce' })
+  @IsString()
   @IsNotEmpty()
-  buyer_id: string;
+  produce_name: string;
 
-  @IsEnum(ProduceCategory)
-  @IsNotEmpty()
-  produce_category: ProduceCategory;
-
+  @ApiProperty({ description: 'Minimum price for the produce' })
   @IsNumber()
   @Min(0)
   min_price: number;
 
+  @ApiProperty({ description: 'Maximum price for the produce' })
   @IsNumber()
   @Min(0)
   max_price: number;
 
+  @ApiProperty({ description: 'Average price for the produce' })
   @IsNumber()
   @Min(0)
-  @IsOptional()
-  minimum_quantity?: number;
+  average_price: number;
 
-  @IsNumber()
-  @Min(1)
+  @ApiPropertyOptional({ description: 'Name of the market where price was recorded' })
+  @IsString()
   @IsOptional()
-  valid_days?: number;
+  market_name?: string;
+
+  @ApiPropertyOptional({ description: 'Location where price was recorded' })
+  @IsString()
+  @IsOptional()
+  location?: string;
 }

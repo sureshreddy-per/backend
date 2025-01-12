@@ -9,6 +9,7 @@ import { SystemConfigController } from './controllers/system-config.controller';
 import { ConfigAuditController } from './controllers/config-audit.controller';
 import { DatabaseInitializer } from './database-initializer';
 import { LanguageService } from './language.service';
+import { InspectionFeeService } from './services/inspection-fee.service';
 
 @Global()
 @Module({
@@ -24,11 +25,13 @@ import { LanguageService } from './language.service';
     ConfigAuditService,
     DatabaseInitializer,
     LanguageService,
+    InspectionFeeService,
   ],
   exports: [
     SystemConfigService,
     ConfigAuditService,
     LanguageService,
+    InspectionFeeService,
   ],
 })
 export class ConfigModule {}

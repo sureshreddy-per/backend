@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  OneToMany,
+  OneToOne,
 } from "typeorm";
 import { User } from "../../users/entities/user.entity";
 import { BuyerPreferences } from "./buyer-preferences.entity";
@@ -44,8 +44,8 @@ export class Buyer {
   @Column({ default: true })
   is_active: boolean;
 
-  @OneToMany(() => BuyerPreferences, preferences => preferences.buyer)
-  preferences: BuyerPreferences[];
+  @OneToOne(() => BuyerPreferences, preferences => preferences.buyer)
+  preferences: BuyerPreferences;
 
   @CreateDateColumn({ name: "created_at" })
   created_at: Date;
