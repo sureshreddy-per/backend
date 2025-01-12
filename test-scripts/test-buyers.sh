@@ -355,7 +355,7 @@ fi
 
 # Test 4: Get active daily prices
 print_test_header "Get Active Daily Prices"
-ACTIVE_PRICES_RESPONSE=$(make_request "GET" "/daily-prices/active" "" "$token")
+ACTIVE_PRICES_RESPONSE=$(make_request "GET" "/daily-prices/active?buyer_id=$BUYER_ID" "" "$token")
 
 if [ $? -eq 0 ]; then
     print_success "Retrieved active daily prices"
@@ -368,7 +368,7 @@ fi
 # Test 5: Update daily price
 if [ -n "$DAILY_PRICE_ID" ] && [ "$DAILY_PRICE_ID" != "null" ]; then
     print_test_header "Update Daily Price"
-    UPDATE_PRICE_RESPONSE=$(make_request "PATCH" "/daily-prices/$DAILY_PRICE_ID" "{
+    UPDATE_PRICE_RESPONSE=$(make_request "PUT" "/daily-prices/$DAILY_PRICE_ID" "{
         \"min_price\": 25.00,
         \"max_price\": 55.00,
         \"valid_days\": 5
