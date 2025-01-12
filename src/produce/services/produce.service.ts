@@ -6,6 +6,8 @@ import { CreateProduceDto } from '../dto/create-produce.dto';
 import { ProduceStatus } from '../enums/produce-status.enum';
 import { OnEvent } from '@nestjs/event-emitter';
 import { QualityAssessmentCompletedEvent } from '../../quality/events/quality-assessment-completed.event';
+import { ProduceSynonymService } from './synonym.service';
+import { AiSynonymService } from './ai-synonym.service';
 
 @Injectable()
 export class ProduceService {
@@ -14,24 +16,168 @@ export class ProduceService {
   constructor(
     @InjectRepository(Produce)
     private readonly produceRepository: Repository<Produce>,
+    private readonly synonymService: ProduceSynonymService,
+    private readonly aiSynonymService: AiSynonymService,
   ) {}
+
+  private async findExistingProduceNameFromSynonyms(name: string): Promise<string | null> {
+    try {
+      // First check if the name itself matches any existing produce name
+      const directMatch = await this.synonymService.findProduceName(name);
+      if (directMatch !== name) {
+        return directMatch;
+      }
+
+      // Get all existing synonyms that partially match the name
+      const possibleMatches = await this.synonymService.searchSynonyms(name);
+      
+      // If we found any possible matches, check each one
+      for (const matchedName of possibleMatches) {
+        const allSynonyms = await this.synonymService.getSynonymsInAllLanguages(matchedName);
+        
+        // Check if the name closely matches any existing synonym
+        for (const [language, synonyms] of Object.entries(allSynonyms)) {
+          if (synonyms.some(synonym => 
+            this.isSimilarName(name.toLowerCase(), synonym.toLowerCase())
+          )) {
+            return matchedName;
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.error(`Error checking existing synonyms: ${error.message}`);
+      return null;
+    }
+  }
+
+  private isSimilarName(name1: string, name2: string): boolean {
+    // Remove special characters and extra spaces
+    const cleanName1 = name1.replace(/[^a-z0-9]/g, '');
+    const cleanName2 = name2.replace(/[^a-z0-9]/g, '');
+    
+    // Check for exact match after cleaning
+    if (cleanName1 === cleanName2) return true;
+    
+    // Check if one is contained within the other
+    if (cleanName1.includes(cleanName2) || cleanName2.includes(cleanName1)) return true;
+    
+    // Calculate similarity (you can adjust the threshold as needed)
+    const similarity = this.calculateSimilarity(cleanName1, cleanName2);
+    return similarity >= 0.8; // 80% similarity threshold
+  }
+
+  private calculateSimilarity(str1: string, str2: string): number {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const editDistance = this.levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+  }
+
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix = Array(str2.length + 1).fill(null).map(() => 
+      Array(str1.length + 1).fill(null)
+    );
+
+    for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+    for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+
+    for (let j = 1; j <= str2.length; j++) {
+      for (let i = 1; i <= str1.length; i++) {
+        const substitutionCost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+        matrix[j][i] = Math.min(
+          matrix[j][i - 1] + 1,
+          matrix[j - 1][i] + 1,
+          matrix[j - 1][i - 1] + substitutionCost
+        );
+      }
+    }
+    return matrix[str2.length][str1.length];
+  }
 
   @OnEvent('quality.assessment.completed')
   async handleQualityAssessmentCompleted(event: QualityAssessmentCompletedEvent) {
-    const produce = await this.findOne(event.produce_id);
-    
-    // Update produce with AI assessment results
-    produce.quality_grade = event.quality_grade;
-    produce.status = ProduceStatus.AVAILABLE;
-    
-    // If confidence level is too low, mark for manual inspection
-    if (event.confidence_level < 80) {
-      produce.status = ProduceStatus.PENDING_INSPECTION;
-      this.logger.log(`Produce ${produce.id} marked for manual inspection due to low AI confidence`);
+    try {
+      const produce = await this.findOne(event.produce_id);
+      
+      // Update produce with AI assessment results
+      produce.quality_grade = event.quality_grade;
+
+      // Update produce name if AI detected one
+      if (event.detected_name) {
+        // STEP 1: First check existing names and synonyms
+        const existingName = await this.findExistingProduceNameFromSynonyms(event.detected_name);
+        
+        if (existingName) {
+          this.logger.log(`Found existing produce name "${existingName}" for detected name "${event.detected_name}"`);
+          produce.name = existingName;
+        } else {
+          // STEP 2: Generate AI synonyms and translations
+          this.logger.log(`No existing match found for "${event.detected_name}". Generating AI synonyms...`);
+          const aiResult = await this.aiSynonymService.generateSynonyms(event.detected_name);
+          
+          // STEP 3: Check if any of the AI-generated synonyms match existing entries
+          const allGeneratedTerms = [
+            ...aiResult.synonyms,
+            ...Object.values(aiResult.translations).flat()
+          ];
+          
+          for (const term of allGeneratedTerms) {
+            const matchingName = await this.findExistingProduceNameFromSynonyms(term);
+            if (matchingName) {
+              this.logger.log(`Found existing produce name "${matchingName}" matching AI-generated term "${term}"`);
+              produce.name = matchingName;
+              return;
+            }
+          }
+          
+          // No matches found in existing or AI-generated terms, create new entry
+          this.logger.log(`No matches found. Creating new synonym entries for "${event.detected_name}"`);
+          
+          // Add English synonyms
+          await this.synonymService.addSynonyms(
+            event.detected_name,
+            aiResult.synonyms,
+            'en',
+            true,
+            event.confidence_level
+          );
+          
+          // Add translations for each supported language
+          for (const [language, translations] of Object.entries(aiResult.translations)) {
+            if (translations && translations.length > 0) {
+              await this.synonymService.addSynonyms(
+                event.detected_name,
+                translations as string[],
+                language,
+                true,
+                event.confidence_level
+              );
+            }
+          }
+          
+          produce.name = event.detected_name;
+        }
+      }
+
+      // Update produce status based on AI confidence
+      if (event.confidence_level < 80) {
+        produce.status = ProduceStatus.PENDING_INSPECTION;
+        this.logger.log(`Produce ${produce.id} marked for manual inspection due to low AI confidence`);
+      } else {
+        produce.status = ProduceStatus.AVAILABLE;
+      }
+      
+      await this.produceRepository.save(produce);
+      this.logger.log(`Updated produce ${produce.id} status after quality assessment`);
+    } catch (error) {
+      this.logger.error(`Failed to handle quality assessment for produce ${event.produce_id}: ${error.message}`);
+      throw error;
     }
-    
-    await this.produceRepository.save(produce);
-    this.logger.log(`Updated produce ${produce.id} status after quality assessment`);
   }
 
   @OnEvent('quality.assessment.failed')
@@ -50,12 +196,21 @@ export class ProduceService {
       throw new BadRequestException('farmer_id is required');
     }
 
-    const produce = this.produceRepository.create({
-      ...createProduceDto,
-      status: ProduceStatus.PENDING_AI_ASSESSMENT,
-    });
+    if (!createProduceDto.images || createProduceDto.images.length === 0) {
+      throw new BadRequestException('At least one image is required');
+    }
 
     try {
+      // Set initial name as "Unidentified Produce" if not provided
+      if (!createProduceDto.name) {
+        createProduceDto.name = 'Unidentified Produce';
+      }
+
+      const produce = this.produceRepository.create({
+        ...createProduceDto,
+        status: ProduceStatus.PENDING_AI_ASSESSMENT,
+      });
+
       return await this.produceRepository.save(produce);
     } catch (error) {
       this.logger.error(`Failed to create produce: ${error.message}`, error.stack);
@@ -178,6 +333,7 @@ export class ProduceService {
 
   async update(id: string, updateData: any): Promise<Produce> {
     const produce = await this.findOne(id);
+    
     Object.assign(produce, updateData);
     return this.produceRepository.save(produce);
   }

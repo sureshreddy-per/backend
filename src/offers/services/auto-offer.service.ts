@@ -145,6 +145,9 @@ export class AutoOfferService {
   }
 
   async generateOffersForProduce(produce: Produce): Promise<void> {
+    this.logger.debug(`Starting offer generation for produce ${produce.id}`);
+    this.logger.debug(`Produce details: category=${produce.produce_category}, location=${produce.location}`);
+
     const latestAssessment = await this.qualityAssessmentRepository.findOne({
       where: { produce_id: produce.id },
       order: { created_at: "DESC" },
@@ -154,8 +157,10 @@ export class AutoOfferService {
       this.logger.warn(`No quality assessment found for produce ${produce.id}`);
       return;
     }
+    this.logger.debug(`Found quality assessment: grade=${latestAssessment.quality_grade}, confidence=${latestAssessment.confidence_level}`);
 
     const produceLoc = this.parseLatLng(produce.location);
+    this.logger.debug(`Parsed produce location: lat=${produceLoc.lat}, lng=${produceLoc.lng}`);
 
     // Find active buyers within matching category
     const buyers = await this.buyerRepository.find({
@@ -174,6 +179,7 @@ export class AutoOfferService {
     }
 
     this.logger.log(`Found ${buyers.length} potential buyers for produce ${produce.id}`);
+    this.logger.debug(`Buyer details: ${JSON.stringify(buyers.map(b => ({ id: b.id, location: b.lat_lng, active: b.is_active })))}`);
 
     // Filter buyers by distance and validate location
     const validBuyers = buyers.filter((buyer) => {
@@ -194,6 +200,8 @@ export class AutoOfferService {
         buyerLoc.lat,
         buyerLoc.lng,
       );
+
+      this.logger.debug(`Calculated distance for buyer ${buyer.id}: ${distance}km`);
 
       if (distance > 100) {
         this.logger.debug(`Buyer ${buyer.id} skipped: Distance ${distance}km exceeds 100km limit`);
@@ -230,12 +238,14 @@ export class AutoOfferService {
           this.logger.debug(`No active daily price found for buyer ${buyer.id}`);
           continue;
         }
+        this.logger.debug(`Found daily price for buyer ${buyer.id}: min=${dailyPrice.min_price}, max=${dailyPrice.max_price}`);
 
         // Calculate inspection fee
         const inspectionFee = await this.inspectionFeeService.calculateInspectionFee({
           category: produce.produce_category,
           distance_km: distance,
         });
+        this.logger.debug(`Calculated inspection fee for buyer ${buyer.id}: ${inspectionFee.total_fee}`);
 
         // Calculate offer price using both quality grade and category attributes
         const offerPrice = this.calculateOfferPrice(
@@ -245,6 +255,7 @@ export class AutoOfferService {
           latestAssessment.category_specific_assessment,
           produce.produce_category,
         );
+        this.logger.debug(`Calculated offer price for buyer ${buyer.id}: ${offerPrice}`);
 
         const offer = this.offerRepository.create({
           produce_id: produce.id,

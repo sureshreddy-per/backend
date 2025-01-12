@@ -2,16 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Synonym } from '../entities/synonym.entity';
+import { LanguageService } from '../../config/language.service';
 
 @Injectable()
 export class ProduceSynonymService {
   private readonly logger = new Logger(ProduceSynonymService.name);
   private synonymCache: Map<string, string[]> = new Map();
-  private canonicalCache: Map<string, string> = new Map();
+  private produceNameCache: Map<string, string> = new Map();
 
   constructor(
     @InjectRepository(Synonym)
     private readonly synonymRepository: Repository<Synonym>,
+    private readonly languageService: LanguageService,
   ) {
     this.initializeSynonymCache();
   }
@@ -23,18 +25,18 @@ export class ProduceSynonymService {
       });
 
       synonyms.forEach((synonym) => {
-        // Cache canonical name to synonyms mapping
-        const existingSynonyms = this.synonymCache.get(synonym.canonical_name.toLowerCase()) || [];
+        // Cache produce name to synonyms mapping
+        const existingSynonyms = this.synonymCache.get(synonym.produce_name.toLowerCase()) || [];
         existingSynonyms.push(synonym.synonym.toLowerCase());
-        this.synonymCache.set(synonym.canonical_name.toLowerCase(), existingSynonyms);
+        this.synonymCache.set(synonym.produce_name.toLowerCase(), existingSynonyms);
 
-        // Cache synonym to canonical name mapping
-        this.canonicalCache.set(synonym.synonym.toLowerCase(), synonym.canonical_name);
+        // Cache synonym to produce name mapping
+        this.produceNameCache.set(synonym.synonym.toLowerCase(), synonym.produce_name);
 
         // If the language is specified, create language-specific mappings
         if (synonym.language) {
           const languageKey = `${synonym.synonym.toLowerCase()}:${synonym.language}`;
-          this.canonicalCache.set(languageKey, synonym.canonical_name);
+          this.produceNameCache.set(languageKey, synonym.produce_name);
         }
       });
 
@@ -44,55 +46,83 @@ export class ProduceSynonymService {
     }
   }
 
-  async findcanonical_name(word: string, language?: string): Promise<string> {
+  async findProduceName(word: string): Promise<string> {
     const lowercaseWord = word.toLowerCase();
+    const defaultLanguage = this.languageService.getDefaultLanguage();
+    const supportedLanguages = this.languageService.getActiveLanguageCodes();
 
-    // Check language-specific cache first if language is provided
-    if (language) {
+    // First try with default language
+    const defaultLanguageKey = `${lowercaseWord}:${defaultLanguage}`;
+    if (this.produceNameCache.has(defaultLanguageKey)) {
+      return this.produceNameCache.get(defaultLanguageKey);
+    }
+
+    // Then try other supported languages
+    for (const language of supportedLanguages) {
+      if (language === defaultLanguage) continue;
       const languageKey = `${lowercaseWord}:${language}`;
-      if (this.canonicalCache.has(languageKey)) {
-        return this.canonicalCache.get(languageKey);
+      if (this.produceNameCache.has(languageKey)) {
+        return this.produceNameCache.get(languageKey);
       }
     }
 
     // Check general cache
-    if (this.canonicalCache.has(lowercaseWord)) {
-      return this.canonicalCache.get(lowercaseWord);
+    if (this.produceNameCache.has(lowercaseWord)) {
+      return this.produceNameCache.get(lowercaseWord);
     }
 
     // If not in cache, check database
     const query = this.synonymRepository
       .createQueryBuilder('synonym')
-      .where('LOWER(synonym.canonical_name) = LOWER(:word)', { word: lowercaseWord })
+      .where('LOWER(synonym.produce_name) = LOWER(:word)', { word: lowercaseWord })
       .orWhere('LOWER(synonym.synonym) = LOWER(:word)', { word: lowercaseWord })
-      .andWhere('synonym.isActive = :isActive', { isActive: true });
+      .andWhere('synonym.is_active = :isActive', { isActive: true });
 
-    if (language) {
-      query.andWhere('synonym.language = :language', { language });
+    // First try with default language
+    query.andWhere('synonym.language = :language', { language: defaultLanguage });
+    let synonym = await query.getOne();
+
+    // If not found, try other languages
+    if (!synonym) {
+      for (const language of supportedLanguages) {
+        if (language === defaultLanguage) continue;
+        query.orWhere('synonym.language = :language', { language });
+      }
+      synonym = await query.getOne();
     }
-
-    const synonym = await query.getOne();
 
     if (synonym) {
       // Update cache
-      this.canonicalCache.set(lowercaseWord, synonym.canonical_name);
-      if (language) {
-        this.canonicalCache.set(`${lowercaseWord}:${language}`, synonym.canonical_name);
+      this.produceNameCache.set(lowercaseWord, synonym.produce_name);
+      if (synonym.language) {
+        this.produceNameCache.set(`${lowercaseWord}:${synonym.language}`, synonym.produce_name);
       }
-      return synonym.canonical_name;
+      return synonym.produce_name;
     }
 
     return word;
   }
 
-  async addSynonyms(canonical_name: string, synonyms: string[], language?: string): Promise<void> {
+  async addSynonyms(produce_name: string, synonyms: string[], language?: string, is_ai_generated: boolean = false, confidence_score?: number): Promise<void> {
     try {
-      const lowercaseCanonical = canonical_name.toLowerCase();
+      const lowercaseProduce = produce_name.toLowerCase();
+      
+      // If language is not provided, use default language
+      const targetLanguage = language || this.languageService.getDefaultLanguage();
+      
+      // Verify language is supported
+      if (!this.languageService.isLanguageSupported(targetLanguage)) {
+        throw new Error(`Language ${targetLanguage} is not supported`);
+      }
+
       const entities = synonyms.map(synonym => ({
-        canonical_name: lowercaseCanonical,
+        produce_name: lowercaseProduce,
         synonym: synonym.toLowerCase(),
-        language,
-        isActive: true,
+        language: targetLanguage,
+        is_active: true,
+        is_ai_generated,
+        confidence_score,
+        last_validated_at: is_ai_generated ? null : new Date(),
       }));
 
       // Save to database
@@ -100,42 +130,46 @@ export class ProduceSynonymService {
 
       // Update cache
       savedSynonyms.forEach(synonym => {
-        // Update canonical name to synonyms mapping
-        const existingSynonyms = this.synonymCache.get(lowercaseCanonical) || [];
+        // Update produce name to synonyms mapping
+        const existingSynonyms = this.synonymCache.get(lowercaseProduce) || [];
         existingSynonyms.push(synonym.synonym.toLowerCase());
-        this.synonymCache.set(lowercaseCanonical, existingSynonyms);
+        this.synonymCache.set(lowercaseProduce, existingSynonyms);
 
-        // Update synonym to canonical name mapping
-        this.canonicalCache.set(synonym.synonym.toLowerCase(), lowercaseCanonical);
+        // Update synonym to produce name mapping
+        this.produceNameCache.set(synonym.synonym.toLowerCase(), lowercaseProduce);
 
-        // If language is specified, update language-specific mapping
-        if (language) {
-          const languageKey = `${synonym.synonym.toLowerCase()}:${language}`;
-          this.canonicalCache.set(languageKey, lowercaseCanonical);
-        }
+        // Update language-specific mapping
+        const languageKey = `${synonym.synonym.toLowerCase()}:${targetLanguage}`;
+        this.produceNameCache.set(languageKey, lowercaseProduce);
       });
     } catch (error) {
-      this.logger.error(`Error adding synonyms for ${canonical_name}: ${error.message}`);
+      this.logger.error(`Error adding synonyms for ${produce_name}: ${error.message}`);
       throw error;
     }
   }
 
-  async findAllSynonyms(canonical_name: string, language?: string): Promise<string[]> {
-    const lowercaseCanonical = canonical_name.toLowerCase();
+  async findAllSynonyms(produce_name: string, language?: string): Promise<string[]> {
+    const lowercaseProduce = produce_name.toLowerCase();
+    const targetLanguage = language || this.languageService.getDefaultLanguage();
+
+    // Verify language is supported
+    if (language && !this.languageService.isLanguageSupported(targetLanguage)) {
+      throw new Error(`Language ${targetLanguage} is not supported`);
+    }
 
     // Check cache first
-    if (!language && this.synonymCache.has(lowercaseCanonical)) {
-      return this.synonymCache.get(lowercaseCanonical);
+    if (!language && this.synonymCache.has(lowercaseProduce)) {
+      return this.synonymCache.get(lowercaseProduce);
     }
 
     // Query database
     const query = this.synonymRepository
       .createQueryBuilder('synonym')
-      .where('LOWER(synonym.canonical_name) = LOWER(:canonical_name)', { canonical_name: lowercaseCanonical })
-      .andWhere('synonym.isActive = :isActive', { isActive: true });
+      .where('LOWER(synonym.produce_name) = LOWER(:produce_name)', { produce_name: lowercaseProduce })
+      .andWhere('synonym.is_active = :isActive', { isActive: true });
 
     if (language) {
-      query.andWhere('synonym.language = :language', { language });
+      query.andWhere('synonym.language = :language', { language: targetLanguage });
     }
 
     const synonyms = await query.getMany();
@@ -143,44 +177,57 @@ export class ProduceSynonymService {
 
     // Update cache if no language filter
     if (!language) {
-      this.synonymCache.set(lowercaseCanonical, synonymList);
+      this.synonymCache.set(lowercaseProduce, synonymList);
     }
 
     return synonymList;
   }
 
-  async deactivateSynonym(canonical_name: string, synonym: string): Promise<void> {
-    const lowercaseCanonical = canonical_name.toLowerCase();
+  async deactivateSynonym(produce_name: string, synonym: string): Promise<void> {
+    const lowercaseProduce = produce_name.toLowerCase();
     const lowercaseSynonym = synonym.toLowerCase();
 
     await this.synonymRepository.update(
       {
-        canonical_name: lowercaseCanonical,
+        produce_name: lowercaseProduce,
         synonym: lowercaseSynonym,
       },
       { is_active: false }
     );
 
     // Update cache
-    this.canonicalCache.delete(lowercaseSynonym);
-    const synonyms = this.synonymCache.get(lowercaseCanonical) || [];
+    this.produceNameCache.delete(lowercaseSynonym);
+    
+    // Remove from language-specific caches
+    for (const language of this.languageService.getActiveLanguageCodes()) {
+      const languageKey = `${lowercaseSynonym}:${language}`;
+      this.produceNameCache.delete(languageKey);
+    }
+
+    const synonyms = this.synonymCache.get(lowercaseProduce) || [];
     this.synonymCache.set(
-      lowercaseCanonical,
+      lowercaseProduce,
       synonyms.filter(s => s !== lowercaseSynonym)
     );
   }
 
   async searchSynonyms(query: string, language?: string): Promise<string[]> {
     const lowercaseQuery = query.toLowerCase();
+    const targetLanguage = language || this.languageService.getDefaultLanguage();
     const results = new Set<string>();
 
+    // Verify language is supported
+    if (language && !this.languageService.isLanguageSupported(targetLanguage)) {
+      throw new Error(`Language ${targetLanguage} is not supported`);
+    }
+
     // Check cache first
-    this.synonymCache.forEach((synonyms, canonical_name) => {
+    this.synonymCache.forEach((synonyms, produce_name) => {
       if (
-        canonical_name.includes(lowercaseQuery) ||
+        produce_name.includes(lowercaseQuery) ||
         synonyms.some(synonym => synonym.includes(lowercaseQuery))
       ) {
-        results.add(canonical_name);
+        results.add(produce_name);
       }
     });
 
@@ -188,22 +235,36 @@ export class ProduceSynonymService {
     if (results.size === 0 || language) {
       const queryBuilder = this.synonymRepository
         .createQueryBuilder('synonym')
-        .where('synonym.isActive = :isActive', { isActive: true })
+        .where('synonym.is_active = :isActive', { isActive: true })
         .andWhere(
-          '(LOWER(synonym.canonical_name) LIKE :query OR LOWER(synonym.synonym) LIKE :query)',
+          '(LOWER(synonym.produce_name) LIKE :query OR LOWER(synonym.synonym) LIKE :query)',
           { query: `%${lowercaseQuery}%` }
         );
 
       if (language) {
-        queryBuilder.andWhere('synonym.language = :language', { language });
+        queryBuilder.andWhere('synonym.language = :language', { language: targetLanguage });
       }
 
       const dbSynonyms = await queryBuilder.getMany();
       dbSynonyms.forEach(synonym => {
-        results.add(synonym.canonical_name);
+        results.add(synonym.produce_name);
       });
     }
 
     return Array.from(results);
+  }
+
+  // Helper method to get synonyms in all languages for a produce name
+  async getSynonymsInAllLanguages(produce_name: string): Promise<{ [language: string]: string[] }> {
+    const result: { [language: string]: string[] } = {};
+    const supportedLanguages = this.languageService.getActiveLanguageCodes();
+
+    await Promise.all(
+      supportedLanguages.map(async (language) => {
+        result[language] = await this.findAllSynonyms(produce_name, language);
+      })
+    );
+
+    return result;
   }
 }

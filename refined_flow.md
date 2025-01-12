@@ -30,25 +30,69 @@ A digital platform that allows **farmers** to list produce with AI-based quality
 
 
 ## produce creation and assessment flow:
+
 1. Initial Produce Creation:
-User provides: location, quantity, 1-3 images, and optionally: location name, video URL, harvest date
-System validates all inputs (coordinates, URLs, dates, quantities)
-Creates produce with PENDING_AI_ASSESSMENT status
+   - User provides: location, quantity, 1-3 images (at least one image required)
+   - Optional inputs: location name, video URL, harvest date, initial name
+   - System validates all inputs (coordinates, URLs, dates, quantities)
+   - If name not provided, sets default as "Unidentified Produce"
+   - Creates produce with PENDING_AI_ASSESSMENT status
+
 2. AI Assessment Process:
-System uses the first image for AI analysis
-Emits produce.created event with produce ID and image URL
-AI analyzes the image to determine produce category and quality grade
-3. Quality Assessment:
-Once AI analysis completes, system receives quality.assessment.completed event
-Validates quality grade (0-10) and category
-Calculates inspection fee based on:
-Nearest inspector's location (within 100km)
-If no inspector found within 100km, applies maximum fee cap
-Base fee + distance-based fee + category multiplier
-Final Status Update:
-If all steps succeed: Updates produce with quality grade, category, inspection fee, and sets status to AVAILABLE
-If any step fails: Sets status to ASSESSMENT_FAILED
-When successful, emits produce.ready event for offer generation
+   - System uses the first image for AI analysis
+   - Emits produce.created event with produce ID and image URL
+   - AI analyzes the image to:
+     * Detect produce name
+     * Determine produce category
+     * Assess quality grade (0-10)
+     * Calculate confidence level
+     * Identify specific attributes
+
+3. Name Processing and Verification:
+   - STEP 1: Initial Database Check
+     * Checks detected name against existing produce names
+     * Searches for similar names in existing synonyms (80% similarity)
+     * If match found, uses existing produce name
+   
+   - STEP 2: AI Synonym Generation (if no match in Step 1)
+     * Generates synonyms in English
+     * Creates translations in all supported Indian languages
+     * Includes regional variations and market names
+   
+   - STEP 3: Generated Terms Verification
+     * Checks all AI-generated terms against existing database
+     * Includes both synonyms and translations
+     * If match found with any generated term, uses existing produce name
+     * Only creates new entries if no matches found in any step
+
+4. Quality Assessment:
+   - Validates quality grade (0-10) and category
+   - Updates produce with quality assessment results
+   - Status Update Logic:
+     * If confidence level ≥ 80%: Sets status to AVAILABLE
+     * If confidence level < 80%: Sets status to PENDING_INSPECTION
+   - When successful, emits produce.ready event for offer generation
+
+5. Inspection Fee Calculation:
+   - Calculates fee based on:
+     * Nearest inspector's location (within 100km)
+     * Base fee + distance-based fee
+     * Category-specific multipliers
+   - If no inspector found within 100km, applies maximum fee cap
+
+Key Features:
+- Mandatory image requirement for AI assessment
+- Three-step name verification to prevent duplicates
+- Intelligent synonym matching with 80% similarity threshold
+- Prioritized Indian language support
+- Comprehensive logging for debugging
+- Graceful error handling at each step
+
+Error Handling:
+- If AI assessment fails: Sets status to ASSESSMENT_FAILED
+- If image validation fails: Rejects produce creation
+- If name processing fails: Maintains original name
+- Logs all errors for monitoring and debugging
 
 ## 3. Key Features & Scope
 
@@ -121,9 +165,19 @@ For each category, **AI** (or **manual** inspection) must capture the following 
 
 ### 4.3. Multi-Language & Synonym Management
 
-- **FR-7**: Maintain a **master produce name** plus local synonyms (e.g., “Okra” → “Bhindi” → “Vendakkai”).
+- **FR-7**: Maintain a **master produce name** (canonical_name) plus local synonyms (e.g., "Okra" → "Bhindi" → "Vendakkai").
 - **FR-8**: Searching by any known synonym returns the same produce record.
-- **FR-9**: Localization: display produce names, variety fields, color, etc. in the user’s preferred language (if translations exist).
+- **FR-9**: Localization: display produce names, variety fields, color, etc. in the user's preferred language (if translations exist).
+- **FR-9.1**: System automatically enriches synonyms monthly using AI:
+    - Runs on the first day of each month at midnight
+    - Processes each canonical name to find new synonyms and translations
+    - Preserves existing synonyms while adding new ones
+    - Supports all active languages configured in the system
+- **FR-9.2**: System maintains comprehensive synonym statistics:
+    - Total number of canonical names
+    - Total number of synonyms across all languages
+    - Breakdown of synonyms by language
+    - Active/inactive status tracking
 
 ### 4.4. Buyer Daily Price Range
 
@@ -211,7 +265,7 @@ For each category, **AI** (or **manual** inspection) must capture the following 
     - Buyers can easily set daily price ranges and see updated offers instantly.
 6. **Localization**
     - Multi-language support for produce names, synonyms, and UI strings.
-    - Category-specific parameter names (e.g., “Moisture Content”) can also be translated if desired.
+    - Category-specific parameter names (e.g., "Moisture Content") can also be translated if desired.
 
 ---
 
@@ -224,14 +278,14 @@ For each category, **AI** (or **manual** inspection) must capture the following 
 3. **Buyer Daily Price → Auto Offers**
     - Offers auto-created for buyers within 100 km; price is computed from min/max and AI grade.
 4. **Offer Recalculation**
-    - Updating buyer’s price range modifies all `ACTIVE` offers in real-time.
+    - Updating buyer's price range modifies all `ACTIVE` offers in real-time.
 5. **Manual Inspection**
     - Overwrites AI fields if requested, updates produce quality data.
 6. **Transaction Completion**
     - After buyer marks COMPLETED, both parties can leave ratings.
 7. **Multi-Language & Synonyms**
     - Searching by synonyms returns correct produce.
-    - Produce details reflect user’s preferred language (if available).
+    - Produce details reflect user's preferred language (if available).
 
 ---
 
@@ -244,12 +298,16 @@ For each category, **AI** (or **manual** inspection) must capture the following 
 3. **Advanced ML Pricing**
     - Factoring market data, supply-demand curves.
 4. **Complex Multi-Language Expansion**
-    - Automated translations for all produce attributes.
+    - ~~Automated translations for all produce attributes.~~ (Now implemented via AI-powered synonym generation)
 5. **Multiple Price Ranges**
     - Buyers setting different min/max for sub-varieties or time-based pricing changes.
+6. **Enhanced Synonym Generation**
+    - Real-time synonym updates based on user feedback
+    - Integration with agricultural databases for specialized terms
+    - Regional dialect support and vernacular variations
 
 ---
 
 ### Conclusion
 
-This **Final PRD** encapsulates all requirements for a robust, AI-driven agricultural marketplace that **strictly** enforces category-specific quality parameters, automates offer creation and recalculation, supports multi-language functionality, and tracks transactions from listing to completion. The system aims to **simplify** produce trading for farmers and **streamline** the buying process by providing immediate, transparent offers aligned with each buyer’s daily price thresholds.
+This **Final PRD** encapsulates all requirements for a robust, AI-driven agricultural marketplace that **strictly** enforces category-specific quality parameters, automates offer creation and recalculation, supports multi-language functionality, and tracks transactions from listing to completion. The system aims to **simplify** produce trading for farmers and **streamline** the buying process by providing immediate, transparent offers aligned with each buyer's daily price thresholds.
