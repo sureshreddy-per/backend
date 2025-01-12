@@ -1,5 +1,6 @@
 import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { CacheModule } from "@nestjs/cache-manager";
 import { Offer } from "./entities/offer.entity";
 import { OffersService } from "./services/offers.service";
 import { OffersController } from "./controllers/offers.controller";
@@ -17,6 +18,7 @@ import { QualityAssessment } from "../quality/entities/quality-assessment.entity
 import { Produce } from "../produce/entities/produce.entity";
 import { AutoOfferGeneratorTask } from "./tasks/auto-offer-generator.task";
 import { OfferNotificationListener } from "./listeners/offer-notification.listener";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 
 @Module({
   imports: [
@@ -24,8 +26,10 @@ import { OfferNotificationListener } from "./listeners/offer-notification.listen
     forwardRef(() => BuyersModule),
     ProduceModule,
     NotificationsModule,
-    QualityModule,
+    forwardRef(() => QualityModule),
     ConfigModule,
+    CacheModule.register(),
+    EventEmitterModule.forRoot()
   ],
   providers: [
     OffersService,

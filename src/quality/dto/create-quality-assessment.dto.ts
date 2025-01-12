@@ -1,82 +1,41 @@
-import {
-  IsNotEmpty,
-  IsString,
-  IsUUID,
-  IsOptional,
-  IsArray,
-  IsNumber,
-  Min,
-  Max,
-  IsEnum,
-  ValidateNested,
-  IsObject,
-  Matches,
-} from "class-validator";
-import { Type } from "class-transformer";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
-import { CategorySpecificAssessment } from "../interfaces/category-assessments.interface";
+import { IsString, IsNumber, IsOptional, IsArray, IsUUID, Min, Max, IsObject } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateQualityAssessmentDto {
+  @ApiProperty({ description: 'ID of the produce being assessed' })
   @IsUUID()
-  @IsNotEmpty()
   produce_id: string;
 
-  @IsUUID()
-  @IsNotEmpty()
-  inspector_id: string;
-
+  @ApiProperty({ description: 'Quality grade (0-10)', minimum: 0, maximum: 10 })
   @IsNumber()
-  @IsNotEmpty()
-  @Min(-1)
+  @Min(0)
   @Max(10)
   quality_grade: number;
 
+  @ApiProperty({ description: 'Confidence level of the assessment (0-100)', minimum: 0, maximum: 100 })
   @IsNumber()
-  @IsNotEmpty()
   @Min(0)
   @Max(100)
   confidence_level: number;
 
+  @ApiPropertyOptional({ description: 'List of defects found in the produce' })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   defects?: string[];
 
+  @ApiPropertyOptional({ description: 'List of recommendations for the produce' })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   recommendations?: string[];
 
-  @IsString()
-  @IsOptional()
-  description?: string;
-
-  @IsEnum(ProduceCategory)
-  @IsNotEmpty()
-  category: ProduceCategory;
-
+  @ApiProperty({ description: 'Category-specific assessment details' })
   @IsObject()
-  @IsNotEmpty()
-  @ValidateNested()
-  @Type(() => Object)
-  category_specific_assessment: CategorySpecificAssessment;
+  category_specific_assessment: Record<string, any>;
 
-  @IsString()
-  @IsNotEmpty()
-  @Matches(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/, {
-    message: 'Location must be in format "latitude,longitude" (e.g. "12.34,56.78")',
-  })
-  location: string;
-
+  @ApiPropertyOptional({ description: 'Additional metadata about the assessment' })
   @IsObject()
   @IsOptional()
-  @ValidateNested()
-  @Type(() => Object)
-  metadata?: {
-    inspector_id?: string;
-    inspection_id?: string;
-    ai_model_version?: string;
-    assessment_parameters?: Record<string, any>;
-    images?: string[];
-  };
+  metadata?: Record<string, any>;
 }

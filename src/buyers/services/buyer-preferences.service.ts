@@ -1,57 +1,33 @@
-import { Injectable, NotFoundException, InternalServerErrorException } from "@nestjs/common";
-import { InjectEntityManager } from "@nestjs/typeorm";
-import { EntityManager, Not, IsNull, In } from "typeorm";
-import { BuyerPreferences } from "../entities/buyer-preferences.entity";
-import { BuyersService } from "../buyers.service";
-import { ProduceSynonymService } from "../../produce/services/synonym.service";
-import { Offer } from "../../offers/entities/offer.entity";
-import { OfferStatus } from "../../offers/enums/offer-status.enum";
-import { NotificationService } from "../../notifications/services/notification.service";
-import { NotificationType } from "../../notifications/enums/notification-type.enum";
-import { AutoOfferService } from "../../offers/services/auto-offer.service";
-import { ProduceService } from "../../produce/services/produce.service";
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { BuyerPreferences } from '../entities/buyer-preferences.entity';
+import { OffersService } from '../../offers/services/offers.service';
+import { NotificationService } from '../../notifications/services/notification.service';
+import { NotificationType } from '../../notifications/enums/notification-type.enum';
+import { OfferStatus } from '../../offers/enums/offer-status.enum';
+
+export interface UpdateBuyerPreferencesDto {
+  produce_names?: string[];
+  notification_enabled?: boolean;
+  notification_methods?: string[];
+}
 
 @Injectable()
 export class BuyerPreferencesService {
   constructor(
-    @InjectEntityManager()
-    private readonly entityManager: EntityManager,
-    private readonly buyersService: BuyersService,
-    private readonly synonymService: ProduceSynonymService,
+    @InjectRepository(BuyerPreferences)
+    private readonly buyerPreferencesRepository: Repository<BuyerPreferences>,
+    private readonly offersService: OffersService,
     private readonly notificationService: NotificationService,
-    private readonly autoOfferService: AutoOfferService,
-    private readonly produceService: ProduceService,
   ) {}
 
-  private async validateAndGetCanonicalName(produceName: string): Promise<string> {
-    const canonicalName = await this.synonymService.findProduceName(produceName);
-    if (!canonicalName) {
-      throw new NotFoundException(`Invalid produce name: ${produceName}`);
-    }
-    return canonicalName;
-  }
+  private async handlePendingOffers(buyerId: string, oldPreferences: string[], newPreferences: string[]): Promise<void> {
+    const pendingOffers = await this.offersService.findByBuyer(buyerId);
 
-  private async handlePendingOffers(buyerId: string, newProduceNames: string[]): Promise<void> {
-    // Get all pending and active offers for this buyer
-    const existingOffers = await this.entityManager.find(Offer, {
-      where: {
-        buyer_id: buyerId,
-        status: In([OfferStatus.PENDING, OfferStatus.ACTIVE])
-      },
-      relations: ['produce']
-    });
-
-    // Cancel offers for removed produce
-    for (const offer of existingOffers) {
-      if (!newProduceNames.includes(offer.produce.name)) {
-        offer.status = OfferStatus.CANCELLED;
-        offer.metadata = {
-          ...offer.metadata,
-          cancellation_reason: 'Cancelled due to buyer preference update',
-          cancelled_at: new Date()
-        };
-
-        await this.entityManager.save(Offer, offer);
+    for (const offer of pendingOffers.items) {
+      if (!newPreferences.includes(offer.produce.name)) {
+        await this.offersService.cancel(offer.id, 'Produce removed from buyer preferences');
 
         await this.notificationService.create({
           user_id: offer.farmer_id,
@@ -60,104 +36,52 @@ export class BuyerPreferencesService {
             offer_id: offer.id,
             produce_id: offer.produce_id,
             status: OfferStatus.CANCELLED,
-            reason: 'Buyer updated their produce preferences',
-            old_status: offer.status,
+            reason: 'Produce removed from buyer preferences',
+            old_status: OfferStatus.PENDING,
             new_status: OfferStatus.CANCELLED,
             timestamp: new Date()
           }
         });
       }
     }
-
-    // Generate new offers for added produce names
-    const availableProduce = await this.produceService.findAll({
-      where: {
-        name: In(newProduceNames),
-        status: 'AVAILABLE'
-      }
-    });
-
-    // Generate offers for each newly added produce
-    for (const produce of availableProduce) {
-      const existingOffer = existingOffers.find(o => o.produce_id === produce.id);
-      if (!existingOffer) {
-        await this.autoOfferService.generateOffersForProduce(produce);
-      }
-    }
   }
 
-  async setPreferences(
-    userId: string,
-    data: {
-      produce_names?: string[];
-      notification_enabled?: boolean;
-      notification_methods?: string[];
-    },
-  ): Promise<BuyerPreferences> {
-    const buyer = await this.buyersService.findByUserId(userId);
-    if (!buyer) {
-      throw new NotFoundException(`Buyer not found for user ${userId}`);
-    }
-
-    let preferences = await this.entityManager.findOne(BuyerPreferences, {
-      where: { buyer_id: buyer.id }
+  async findByBuyerId(buyerId: string): Promise<BuyerPreferences> {
+    const preferences = await this.buyerPreferencesRepository.findOne({
+      where: { buyer_id: buyerId }
     });
 
     if (!preferences) {
-      preferences = this.entityManager.create(BuyerPreferences, {
-        buyer_id: buyer.id,
-        notification_enabled: true,
+      throw new NotFoundException(`Preferences not found for buyer ${buyerId}`);
+    }
+
+    return preferences;
+  }
+
+  async setPreferences(buyerId: string, data: UpdateBuyerPreferencesDto): Promise<BuyerPreferences> {
+    let preferences = await this.buyerPreferencesRepository.findOne({ where: { buyer_id: buyerId } });
+    const oldPreferences = preferences?.produce_names || [];
+
+    if (!preferences) {
+      preferences = this.buyerPreferencesRepository.create({
+        buyer_id: buyerId,
+        produce_names: [],
       });
     }
 
     if (data.produce_names) {
-      // Validate and convert all produce names to canonical names
-      const canonicalNames = await Promise.all(
-        data.produce_names.map(name => this.validateAndGetCanonicalName(name))
-      );
-      preferences.produce_names = canonicalNames;
-
-      // Handle pending offers and generate new ones based on new preferences
-      await this.handlePendingOffers(buyer.id, canonicalNames);
+      preferences.produce_names = data.produce_names;
+      await this.handlePendingOffers(buyerId, oldPreferences, data.produce_names);
     }
-    
+
     if (data.notification_enabled !== undefined) {
       preferences.notification_enabled = data.notification_enabled;
     }
+
     if (data.notification_methods) {
       preferences.notification_methods = data.notification_methods;
     }
 
-    return this.entityManager.save(BuyerPreferences, preferences);
-  }
-
-  async getPreferences(userId: string): Promise<BuyerPreferences> {
-    try {
-      const buyer = await this.buyersService.findByUserId(userId);
-      if (!buyer) {
-        throw new NotFoundException(`Buyer not found for user ${userId}`);
-      }
-
-      const preferences = await this.entityManager.findOne(BuyerPreferences, {
-        where: { buyer_id: buyer.id }
-      });
-
-      if (!preferences) {
-        // Return default preferences if none exist
-        return this.entityManager.create(BuyerPreferences, {
-          buyer_id: buyer.id,
-          produce_names: [],
-          notification_enabled: true,
-          notification_methods: []
-        });
-      }
-
-      return preferences;
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('Failed to get buyer preferences');
-    }
+    return this.buyerPreferencesRepository.save(preferences);
   }
 } 

@@ -11,9 +11,8 @@ import { Produce } from "../../produce/entities/produce.entity";
 import { QualityAssessment } from "../../quality/entities/quality-assessment.entity";
 import { NotificationService } from "../../notifications/services/notification.service";
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
 import { OfferStatus } from "../enums/offer-status.enum";
-import { InspectionFeeService } from "../../quality/services/inspection-fee.service";
+import { InspectionFeeService, CalculateInspectionFeeParams } from "../../config/services/inspection-fee.service";
 import { DailyPriceService } from "./daily-price.service";
 import { CategorySpecificAssessment } from "../../quality/interfaces/category-assessments.interface";
 
@@ -87,15 +86,14 @@ export class AutoOfferService {
     maxPrice: number,
     qualityGrade: number,
     attributes?: any,
-    category?: ProduceCategory,
   ): number {
     // Base price calculation based on quality grade
     const qualityPercentage = qualityGrade / 10;
     let basePrice = minPrice + (maxPrice - minPrice) * qualityPercentage;
 
     // Apply attribute-based adjustments if available
-    if (attributes && category) {
-      const attributeMultiplier = this.calculateAttributeMultiplier(attributes, category);
+    if (attributes) {
+      const attributeMultiplier = this.calculateAttributeMultiplier(attributes);
       basePrice *= attributeMultiplier;
     }
 
@@ -103,37 +101,23 @@ export class AutoOfferService {
     return Math.min(Math.max(basePrice, minPrice), maxPrice);
   }
 
-  private calculateAttributeMultiplier(
-    attributes: any,
-    category: ProduceCategory,
-  ): number {
+  private calculateAttributeMultiplier(attributes: any): number {
     if (!attributes) return 1;
 
     let multiplier = 1;
 
-    switch (category) {
-      case ProduceCategory.FOOD_GRAINS:
-        if (attributes.moisture_content) {
-          multiplier *= 1 - (attributes.moisture_content / 100) * 0.1;
-        }
-        if (attributes.foreign_matter) {
-          multiplier *= 1 - (attributes.foreign_matter / 100) * 0.2;
-        }
-        if (attributes.broken_grains) {
-          multiplier *= 1 - (attributes.broken_grains / 100) * 0.15;
-        }
-        break;
-
-      case ProduceCategory.OILSEEDS:
-        if (attributes.oil_content) {
-          multiplier *= 1 + (attributes.oil_content / 100) * 0.2;
-        }
-        if (attributes.moisture_content) {
-          multiplier *= 1 - (attributes.moisture_content / 100) * 0.1;
-        }
-        break;
-
-      // Add more categories as needed
+    // Apply generic attribute adjustments
+    if (attributes.moisture_content) {
+      multiplier *= 1 - (attributes.moisture_content / 100) * 0.1;
+    }
+    if (attributes.foreign_matter) {
+      multiplier *= 1 - (attributes.foreign_matter / 100) * 0.2;
+    }
+    if (attributes.broken_grains) {
+      multiplier *= 1 - (attributes.broken_grains / 100) * 0.15;
+    }
+    if (attributes.oil_content) {
+      multiplier *= 1 + (attributes.oil_content / 100) * 0.2;
     }
 
     return multiplier;
@@ -166,23 +150,25 @@ export class AutoOfferService {
     const buyers = await this.buyerRepository.find({
       where: {
         is_active: true,
-        preferences: {
-          produce_names: ArrayContains([produce.name])
-        }
       },
       relations: ['user', 'preferences'],
     });
 
-    if (buyers.length === 0) {
+    // Filter buyers based on preferences
+    const buyersWithMatchingPreferences = buyers.filter(buyer => 
+      buyer.preferences?.produce_names?.includes(produce.name)
+    );
+
+    if (buyersWithMatchingPreferences.length === 0) {
       this.logger.warn(`No active buyers found for produce ${produce.name}`);
       return;
     }
 
-    this.logger.log(`Found ${buyers.length} potential buyers for produce ${produce.id}`);
-    this.logger.debug(`Buyer details: ${JSON.stringify(buyers.map(b => ({ id: b.id, location: b.lat_lng, active: b.is_active })))}`);
+    this.logger.log(`Found ${buyersWithMatchingPreferences.length} potential buyers for produce ${produce.id}`);
+    this.logger.debug(`Buyer details: ${JSON.stringify(buyersWithMatchingPreferences.map(b => ({ id: b.id, location: b.lat_lng, active: b.is_active })))}`);
 
     // Filter buyers by distance and validate location
-    const validBuyers = buyers.filter((buyer) => {
+    const validBuyers = buyersWithMatchingPreferences.filter((buyer) => {
       if (!buyer.lat_lng) {
         this.logger.warn(`Buyer ${buyer.id} skipped: No location information`);
         return false;
@@ -228,32 +214,27 @@ export class AutoOfferService {
           buyerLoc.lng,
         );
 
-        // Get buyer's daily price
-        const dailyPrice = await this.dailyPriceService.findActive(
-          buyer.id,
-          produce.produce_category,
-        );
+        // Get latest daily price for the produce name
+        const dailyPrice = await this.dailyPriceService.findLatestByProduceName(produce.name);
 
         if (!dailyPrice) {
-          this.logger.debug(`No active daily price found for buyer ${buyer.id}`);
+          this.logger.debug(`No active daily price found for produce ${produce.name}`);
           continue;
         }
-        this.logger.debug(`Found daily price for buyer ${buyer.id}: min=${dailyPrice.min_price}, max=${dailyPrice.max_price}`);
+        this.logger.debug(`Found daily price for produce ${produce.name}: min=${dailyPrice.min_price}, max=${dailyPrice.max_price}`);
 
         // Calculate inspection fee
         const inspectionFee = await this.inspectionFeeService.calculateInspectionFee({
-          category: produce.produce_category,
-          distance_km: distance,
+          distance_km: distance
         });
         this.logger.debug(`Calculated inspection fee for buyer ${buyer.id}: ${inspectionFee.total_fee}`);
 
-        // Calculate offer price using both quality grade and category attributes
+        // Calculate offer price using quality grade and attributes
         const offerPrice = this.calculateOfferPrice(
           dailyPrice.min_price,
           dailyPrice.max_price,
           latestAssessment.quality_grade,
           latestAssessment.category_specific_assessment,
-          produce.produce_category,
         );
         this.logger.debug(`Calculated offer price for buyer ${buyer.id}: ${offerPrice}`);
 
@@ -279,7 +260,6 @@ export class AutoOfferService {
               defects: latestAssessment.defects || [],
               recommendations: latestAssessment.recommendations || [],
               category_specific_assessment: latestAssessment.category_specific_assessment || {},
-              category_specific_attributes: latestAssessment.category_specific_assessment || {}
             },
             daily_price_id: dailyPrice.id,
             price_history: [{
@@ -484,6 +464,21 @@ export class AutoOfferService {
   async recalculateOffersForBuyer(buyer: Buyer): Promise<void> {
     this.logger.log(`Recalculating offers for buyer ${buyer.id}`);
     
+    // Load buyer with preferences
+    const buyerWithPrefs = await this.buyerRepository.findOne({
+      where: { id: buyer.id },
+      relations: ['preferences']
+    });
+
+    if (!buyerWithPrefs) {
+      throw new NotFoundException(`Buyer ${buyer.id} not found`);
+    }
+
+    if (!buyerWithPrefs.preferences) {
+      this.logger.warn(`No preferences found for buyer ${buyer.id}`);
+      return;
+    }
+    
     const pendingOffers = await this.offerRepository.find({
       where: {
         buyer_id: buyer.id,
@@ -494,13 +489,41 @@ export class AutoOfferService {
 
     for (const offer of pendingOffers) {
       try {
-        const dailyPrice = await this.dailyPriceService.findActive(
-          buyer.id,
-          offer.produce.produce_category
+        // Check if produce name is still in buyer preferences
+        if (!buyerWithPrefs.preferences.produce_names?.includes(offer.produce.name)) {
+          this.logger.debug(`Cancelling offer ${offer.id} as produce ${offer.produce.name} is no longer in buyer preferences`);
+          
+          offer.status = OfferStatus.CANCELLED;
+          if (!offer.metadata) {
+            offer.metadata = {};
+          }
+          offer.metadata.cancellation_reason = 'Produce removed from buyer preferences';
+          offer.metadata.cancelled_at = new Date();
+          
+          await this.offerRepository.save(offer);
+          
+          // Notify farmer about cancellation
+          await this.notificationService.create({
+            user_id: offer.produce.farmer_id,
+            type: NotificationType.OFFER_STATUS_UPDATE,
+            data: {
+              offer_id: offer.id,
+              produce_id: offer.produce_id,
+              old_status: OfferStatus.PENDING,
+              new_status: OfferStatus.CANCELLED,
+              reason: 'Buyer removed produce from preferences'
+            }
+          });
+          
+          continue;
+        }
+
+        const dailyPrice = await this.dailyPriceService.findLatestByProduceName(
+          offer.produce.name
         );
 
         if (!dailyPrice) {
-          this.logger.warn(`No active daily price found for buyer ${buyer.id}`);
+          this.logger.warn(`No active daily price found for produce ${offer.produce.name}`);
           continue;
         }
 
@@ -509,8 +532,7 @@ export class AutoOfferService {
           dailyPrice.min_price,
           dailyPrice.max_price,
           offer.quality_grade,
-          (offer.metadata?.quality_assessment as QualityAssessmentMetadata)?.category_specific_assessment,
-          offer.produce.produce_category
+          (offer.metadata?.quality_assessment as QualityAssessmentMetadata)?.category_specific_assessment
         );
 
         // Update offer if price has changed
@@ -520,9 +542,12 @@ export class AutoOfferService {
           offer.buyer_max_price = dailyPrice.max_price;
           
           // Add to price history
-          if (!offer.metadata.price_history) {
+          if (!offer.metadata) {
+            offer.metadata = { price_history: [] };
+          } else if (!offer.metadata.price_history) {
             offer.metadata.price_history = [];
           }
+          
           offer.metadata.price_history.push({
             price: newPrice,
             timestamp: new Date(),
@@ -533,7 +558,7 @@ export class AutoOfferService {
           
           // Notify buyer of price update
           await this.notificationService.create({
-            user_id: buyer.user_id,
+            user_id: buyerWithPrefs.user_id,
             type: NotificationType.OFFER_PRICE_UPDATE,
             data: {
               offer_id: offer.id,

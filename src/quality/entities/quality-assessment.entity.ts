@@ -1,95 +1,46 @@
-import {
-  Entity,
-  PrimaryGeneratedColumn,
-  Column,
-  CreateDateColumn,
-  UpdateDateColumn,
-  Index,
-  ManyToOne,
-  JoinColumn,
-} from "typeorm";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
-import { AssessmentSource } from "../enums/assessment-source.enum";
-import { Produce } from "../../produce/entities/produce.entity";
-import { User } from "../../users/entities/user.entity";
-import { CategorySpecificAssessment } from "../interfaces/category-assessments.interface";
-import { InspectionRequest } from "./inspection-request.entity";
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
+import { Produce } from '../../produce/entities/produce.entity';
 
-@Entity("quality_assessments")
-@Index(["produce_id", "created_at"])
-@Index(["produce_id", "source", "created_at"])
+@Entity('quality_assessments')
 export class QualityAssessment {
-  @PrimaryGeneratedColumn("uuid")
+  @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Index()
-  @Column()
+  @Column({ type: 'uuid' })
   produce_id: string;
 
-  @Column("float")
-  quality_grade: number;
+  @Column({ type: 'text' })
+  produce_name: string;
 
-  @Column("float")
-  confidence_level: number;
-
-  @Column("text", { array: true, default: [] })
-  defects: string[];
-
-  @Column("text", { array: true, default: [] })
-  recommendations: string[];
-
-  @Column({ nullable: true })
-  description: string;
-
-  @Column({
-    type: "enum",
-    enum: ProduceCategory,
-  })
+  @Column({ type: 'enum', enum: ProduceCategory })
   category: ProduceCategory;
 
-  @Column("jsonb")
-  category_specific_assessment: CategorySpecificAssessment;
+  @Column({ type: 'float' })
+  quality_grade: number;
 
-  @Column({
-    type: "enum",
-    enum: AssessmentSource,
-  })
-  source: AssessmentSource;
+  @Column({ type: 'float' })
+  confidence_level: number;
 
-  @Column({ nullable: true })
-  inspector_id: string;
+  @Column({ type: 'text', array: true, default: '{}' })
+  defects: string[];
 
-  @Column({ nullable: true })
-  inspection_request_id: string;
+  @Column({ type: 'text', array: true, default: '{}' })
+  recommendations: string[];
 
-  @Column("jsonb", { nullable: true })
-  metadata: {
-    ai_model_version?: string;
-    assessment_parameters?: Record<string, any>;
-    images?: string[];
-    location?: string;
-    notes?: string;
-    inspector_details?: {
-      id: string;
-      notes?: string;
-    };
-  };
+  @Column({ type: 'jsonb', nullable: true })
+  category_specific_assessment: Record<string, any>;
 
-  @ManyToOne(() => Produce)
-  @JoinColumn({ name: "produce_id" })
-  produce: Produce;
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: Record<string, any>;
 
-  @ManyToOne(() => User, { nullable: true })
-  @JoinColumn({ name: "inspector_id" })
-  inspector: User;
-
-  @ManyToOne(() => InspectionRequest, { nullable: true })
-  @JoinColumn({ name: "inspection_request_id" })
-  inspection_request: InspectionRequest;
-
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamptz' })
   updated_at: Date;
+
+  @ManyToOne(() => Produce, produce => produce.quality_assessments)
+  @JoinColumn({ name: 'produce_id' })
+  produce: Produce;
 }

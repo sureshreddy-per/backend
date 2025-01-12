@@ -315,6 +315,334 @@ For each category, **AI** (or **manual** inspection) must capture the following 
 
 ---
 
+## 8. Database Schema & Tables
+
+### Core Tables
+
+1. **`produce`**
+   - `id` (UUID, PK)
+   - `farmer_id` (UUID, FK)
+   - `farm_id` (UUID, FK, nullable)
+   - `name` (TEXT)
+   - `description` (TEXT)
+   - `product_variety` (TEXT)
+   - `produce_category` (ENUM)
+   - `quantity` (DECIMAL)
+   - `unit` (TEXT)
+   - `price_per_unit` (DECIMAL)
+   - `location` (TEXT)
+   - `location_name` (TEXT)
+   - `inspection_fee` (DECIMAL)
+   - `is_inspection_requested` (BOOLEAN)
+   - `inspection_requested_by` (UUID)
+   - `inspection_requested_at` (TIMESTAMP)
+   - `images` (TEXT[])
+   - `status` (ENUM)
+   - `harvested_at` (TIMESTAMP)
+   - `expiry_date` (TIMESTAMP)
+   - `quality_grade` (INTEGER)
+   - `video_url` (TEXT)
+   - `assigned_inspector` (UUID)
+
+2. **`quality_assessments`**
+   - `id` (UUID, PK)
+   - `produce_id` (UUID, FK)
+   - `produce_name` (TEXT)
+   - `category` (ENUM)
+   - `quality_grade` (FLOAT)
+   - `confidence_level` (FLOAT)
+   - `defects` (TEXT[])
+   - `recommendations` (TEXT[])
+   - `category_specific_assessment` (JSONB)
+   - `metadata` (JSONB)
+
+3. **`offers`**
+   - `id` (UUID, PK)
+   - `produce_id` (UUID, FK)
+   - `buyer_id` (UUID, FK)
+   - `farmer_id` (UUID, FK)
+   - `price_per_unit` (DECIMAL)
+   - `quantity` (DECIMAL)
+   - `status` (ENUM)
+   - `valid_until` (TIMESTAMP)
+   - `is_auto_generated` (BOOLEAN)
+   - `buyer_min_price` (DECIMAL)
+   - `buyer_max_price` (DECIMAL)
+   - `quality_grade` (INTEGER)
+   - `distance_km` (DECIMAL)
+   - `inspection_fee` (DECIMAL)
+   - `rejection_reason` (TEXT)
+   - `cancellation_reason` (TEXT)
+   - `is_price_overridden` (BOOLEAN)
+   - `price_override_reason` (TEXT)
+   - `price_override_at` (TIMESTAMP)
+   - `metadata` (JSONB)
+
+4. **`transactions`**
+   - `id` (UUID, PK)
+   - `offer_id` (UUID, FK)
+   - `farmer_id` (UUID, FK)
+   - `buyer_id` (UUID, FK)
+   - `produce_id` (UUID, FK)
+   - `status` (ENUM)
+   - `final_price` (DECIMAL)
+   - `quantity` (DECIMAL)
+   - `created_at` (TIMESTAMP)
+   - `updated_at` (TIMESTAMP)
+
+5. **`ratings`**
+   - `id` (UUID, PK)
+   - `from_user_id` (UUID, FK)
+   - `to_user_id` (UUID, FK)
+   - `rating_value` (INTEGER)
+   - `comments` (TEXT)
+   - `created_at` (TIMESTAMP)
+   - `updated_at` (TIMESTAMP)
+
+6. **`notifications`**
+   - `id` (UUID, PK)
+   - `user_id` (UUID, FK)
+   - `type` (ENUM)
+   - `title` (TEXT)
+   - `message` (TEXT)
+   - `metadata` (JSONB)
+   - `is_read` (BOOLEAN)
+   - `created_at` (TIMESTAMP)
+
+### Category-Specific Quality Parameters
+
+1. **Food Grains**
+    - **Variety**: Type of grain
+    - **Moisture Content (%)**: Acceptable range varies by grain type
+    - **Foreign Matter (%)**: Impurities and non-grain material
+    - **Protein Content (%)**: Nutritional value indicator
+    - **Wastage (%)**: Damaged or unusable grains
+    - **Broken Grains (%)**: Percentage of broken kernels
+
+2. **Oilseeds**
+    - **Oil Content (%)**: Primary quality indicator
+    - **Seed Size**: small/medium/large classification
+    - **Moisture Content (%)**: Critical for storage stability
+    - **Foreign Matter (%)**: Impurities level
+
+3. **Fruits**
+    - **Sweetness (Brix)**: Sugar content measurement
+    - **Size**: small/medium/large classification
+    - **Color**: Specific to fruit type (e.g., yellow/red)
+    - **Ripeness**: ripe/unripe assessment
+    - **Brix Content**: Numerical sweetness measure
+
+4. **Vegetables**
+    - **Freshness Level**: fresh/slightly wilted assessment
+    - **Size**: small/medium/large classification
+    - **Color**: Specific to vegetable type
+    - **Moisture Content (%)**: Freshness indicator
+    - **Foreign Matter (%)**: Cleanliness measure
+
+5. **Spices**
+    - **Volatile Oil Content (%)**: Flavor strength indicator
+    - **Aroma Quality**: strong/mild assessment
+    - **Purity (%)**: Absence of adulterants
+    - **Oil Content (%)**: Essential oils presence
+    - **Moisture Content (%)**: Storage stability indicator
+
+6. **Fibers**
+    - **Staple Length (mm)**: Fiber length measurement
+    - **Fiber Strength (g/tex)**: Durability indicator
+    - **Trash Content (%)**: Impurities level
+
+7. **Sugarcane**
+    - **Variety**: Type of sugarcane
+    - **Brix Content (%)**: Sugar content indicator
+    - **Fiber Content (%)**: Structural composition
+    - **Stalk Length (cm)**: Physical measurement
+
+8. **Flowers**
+    - **Freshness Level**: fresh/slightly wilted assessment
+    - **Fragrance Quality**: strong/mild assessment
+    - **Stem Length (cm)**: Physical measurement
+    - **Color**: Variety-specific assessment
+
+9. **Medicinal & Aromatic Plants**
+    - **Essential Oil Yield (%)**: Active compound content
+    - **Purity of Extracts (%)**: Quality measure
+    - **Moisture Content (%)**: Storage stability indicator
+
+### Error Handling & Validation
+
+1. **Produce Creation**
+   - Validate quantity > 0
+   - Validate price_per_unit >= 0
+   - Validate inspection_fee >= 0
+   - Validate quality_grade between -1 and 10
+   - Validate required images array is not empty
+   - Validate location format
+
+2. **Offer Management**
+   - Validate price_per_unit >= 0
+   - Validate quantity > 0
+   - Validate buyer_min_price <= buyer_max_price
+   - Validate distance_km within configured radius
+   - Validate offer expiry dates
+
+3. **Quality Assessment**
+   - Validate confidence_level between 0 and 100
+   - Validate quality_grade between 0 and 10
+   - Validate category-specific parameters within acceptable ranges
+   - Handle missing or invalid assessment data gracefully
+
+4. **System-wide Error Handling**
+   - Log all errors with appropriate context
+   - Implement retry mechanisms for transient failures
+   - Provide clear error messages for client applications
+   - Maintain audit logs for critical operations
+
+### Notification Types & Events
+
+1. **Produce Related**
+   - New produce listing created
+   - AI assessment completed
+   - Manual inspection requested
+   - Manual inspection completed
+   - Produce status updates
+
+2. **Offer Related**
+   - New offer generated
+   - Offer confirmed by buyer
+   - Offer accepted by farmer
+   - Offer rejected
+   - Offer cancelled
+   - Offer expired
+   - Price recalculation updates
+
+3. **Transaction Related**
+   - Transaction initiated
+   - Delivery window started
+   - Transaction completed
+   - Rating received
+
+4. **User Preferences**
+   - Buyer preference updates
+   - Daily price range updates
+   - New produce matching preferences
+
+### Transaction Status Flow
+
+1. **Status Types**
+   - `INITIATED`: When offer is accepted
+   - `IN_DELIVERY`: During 24-hour delivery window
+   - `COMPLETED`: After buyer confirms delivery
+   - `CANCELLED`: If either party cancels
+   - `EXPIRED`: If delivery window passes
+
+2. **Status Transitions**
+   - INITIATED → IN_DELIVERY: When delivery window starts
+   - IN_DELIVERY → COMPLETED: When buyer confirms
+   - IN_DELIVERY → EXPIRED: After 24 hours without confirmation
+   - Any Status → CANCELLED: On explicit cancellation
+
+3. **Status Validations**
+   - Only allow forward transitions
+   - Validate all required fields for each status
+   - Ensure proper user permissions for transitions
+   - Maintain status change history in metadata
+
+---
+
+### User Roles & Permissions
+
+1. **FARMER**
+   - Create and manage produce listings
+   - Upload images and videos
+   - View and respond to offers
+   - Request manual inspections
+   - Rate buyers after transactions
+   - View own transaction history
+
+2. **BUYER**
+   - Set and update preferences
+   - Set daily price ranges
+   - View and respond to auto-generated offers
+   - Request manual inspections
+   - Rate farmers after transactions
+   - View purchase history
+
+3. **INSPECTOR**
+   - View assigned inspection requests
+   - Perform manual quality assessments
+   - Override AI-generated assessments
+   - Upload inspection photos
+   - Set inspection status
+
+4. **ADMIN**
+   - Manage user roles and permissions
+   - Configure system parameters
+   - Handle dispute resolution
+   - View system metrics and reports
+   - Manage produce synonyms
+   - Configure inspection fees
+
+### Buyer Preferences Structure
+
+1. **Produce Preferences**
+   - List of preferred produce names
+   - Category-specific preferences
+   - Quality grade requirements
+   - Quantity ranges
+   - Location preferences
+
+2. **Price Settings**
+   - Daily min/max prices per produce
+   - Price update frequency limits
+   - Auto-offer price calculation rules
+   - Price override permissions
+
+3. **Notification Settings**
+   - Notification types (EMAIL, SMS, PUSH)
+   - Frequency of notifications
+   - Event-specific preferences
+   - Quiet hours configuration
+
+4. **Location Settings**
+   - Primary location
+   - Maximum distance radius
+   - Multiple location support
+   - Geofencing options
+
+5. **Quality Requirements**
+   - Minimum quality grade
+   - Category-specific requirements
+   - Inspection preferences
+   - Certification requirements
+
+### System Configurations
+
+1. **Fee Structure**
+   - Base inspection fee
+   - Distance-based fee calculation
+   - Category-specific multipliers
+   - Maximum fee caps
+
+2. **Time Windows**
+   - Delivery window duration
+   - Offer validity period
+   - Price update frequency limits
+   - Rating submission window
+
+3. **Distance Settings**
+   - Maximum radius for offers
+   - Distance calculation method
+   - Location validation rules
+   - Geofencing parameters
+
+4. **Quality Assessment**
+   - AI confidence thresholds
+   - Manual inspection triggers
+   - Override rules
+   - Category-specific parameters
+
+---
+
 ### Conclusion
 
 This **Final PRD** encapsulates all requirements for a robust, AI-driven agricultural marketplace that **strictly** enforces category-specific quality parameters, automates offer creation and recalculation, supports multi-language functionality, and tracks transactions from listing to completion. The system aims to **simplify** produce trading for farmers and **streamline** the buying process by providing immediate, transparent offers aligned with each buyer's daily price thresholds.

@@ -9,10 +9,11 @@ import { InspectionFeeService } from "./services/inspection-fee.service";
 import { FeeController } from "./controllers/fee.controller";
 import { OffersModule } from "../offers/offers.module";
 import { OpenAIService } from "./services/openai.service";
-import { MockAIService } from "./services/mock-ai.service";
 import { AIInspectionService } from "./services/ai-inspection.service";
-import { HttpModule, HttpService } from "@nestjs/axios";
-import { ConfigModule, ConfigService } from "@nestjs/config";
+import { HttpModule } from "@nestjs/axios";
+import { ConfigModule } from "@nestjs/config";
+import { CacheModule } from "@nestjs/cache-manager";
+import { EventEmitterModule } from "@nestjs/event-emitter";
 
 @Module({
   imports: [
@@ -21,26 +22,22 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
     forwardRef(() => OffersModule),
     HttpModule,
     ConfigModule,
+    CacheModule.register(),
+    EventEmitterModule.forRoot()
   ],
   controllers: [QualityController, FeeController],
   providers: [
     QualityAssessmentService,
     InspectionFeeService,
     AIInspectionService,
-    {
-      provide: OpenAIService,
-      useFactory: (configService: ConfigService, httpService: HttpService) => {
-        const env = configService.get<string>('NODE_ENV');
-        return env === 'development' ? new MockAIService() : new OpenAIService(configService, httpService);
-      },
-      inject: [ConfigService, HttpService],
-    },
+    OpenAIService,
   ],
   exports: [
     QualityAssessmentService,
     InspectionFeeService,
     OpenAIService,
     AIInspectionService,
+    TypeOrmModule,
   ],
 })
 export class QualityModule {}
