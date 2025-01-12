@@ -163,71 +163,73 @@ For each category, **AI** (or **manual** inspection) must capture the following 
 
 **FR-CAT-2**: The UI must display them clearly for both **AI** and **manual** inspections.
 
-### 4.3. Multi-Language & Synonym Management
+### 4.3. Buyer Preferences & Daily Price Range
 
-- **FR-7**: Maintain a **master produce name** (canonical_name) plus local synonyms (e.g., "Okra" → "Bhindi" → "Vendakkai").
-- **FR-8**: Searching by any known synonym returns the same produce record.
-- **FR-9**: Localization: display produce names, variety fields, color, etc. in the user's preferred language (if translations exist).
-- **FR-9.1**: System automatically enriches synonyms monthly using AI:
-    - Runs on the first day of each month at midnight
-    - Processes each canonical name to find new synonyms and translations
-    - Preserves existing synonyms while adding new ones
-    - Supports all active languages configured in the system
-- **FR-9.2**: System maintains comprehensive synonym statistics:
-    - Total number of canonical names
-    - Total number of synonyms across all languages
-    - Breakdown of synonyms by language
-    - Active/inactive status tracking
+- **FR-10**: Each buyer sets preferences for:
+    - List of specific produce names they are interested in
+    - Notification preferences (enabled/disabled)
+    - Notification methods (EMAIL, SMS)
+- **FR-11**: When buyer updates preferences:
+    1. System cancels all pending/active offers for produce no longer in preferences
+    2. Notifies farmers about cancelled offers
+    3. Generates new offers for produce that matches updated preferences
+- **FR-12**: Each buyer sets **min** and **max** daily prices for each produce name they are interested in
+- **FR-13**: Admin can limit how often buyers can update these prices per day
 
-### 4.4. Buyer Daily Price Range
+### 4.4. Automatic Offer Creation
 
-- **FR-10**: Each buyer sets **min** and **max** daily prices for each produce category (or specific produce).
-- **FR-11**: Admin can limit how often buyers can update these prices per day.
-
-### 4.5. Automatic Offer Creation
-
-- **FR-12**: Once a farmer’s produce is listed, the system finds **all buyers within 100 km**.
-- **FR-13**: For each buyer, automatically compute an **offer price** using:
+- **FR-14**: Once a farmer's produce is listed, the system:
+    1. Validates the produce name against the synonym service
+    2. Finds **all buyers within 100 km** who have listed this produce in their preferences
+    3. Only generates offers for buyers whose preferences include the produce name
+- **FR-15**: For each eligible buyer, automatically compute an **offer price** using:
 \[
 \text{OfferPrice} = \text{MinPrice} +
 \left(\frac{\text{QualityGrade}}{10}\right)
 \times (\text{MaxPrice} - \text{MinPrice})
 \]
-- **FR-14**: Create an **offer** with `status = ACTIVE` for each buyer. Buyer does **not** manually create it.
+- **FR-16**: Create an **offer** with `status = ACTIVE` for each eligible buyer. Buyer does **not** manually create it.
 
-### 4.6. Offer Lifecycle & Negotiation
+### 4.5. Offer Lifecycle & Negotiation
 
-- **FR-15**: Buyer sees offers in `ACTIVE`. They can:
+- **FR-17**: Buyer sees offers in `ACTIVE`. They can:
     1. **Confirm** (→ `PENDING`),
     2. **Reject** (→ `REJECTED`), or
     3. **Modify** (optional negotiation, → `PENDING`).
-- **FR-16**: Farmer views `PENDING` offers; can **Accept** (→ `ACCEPTED`) or **Reject** (→ `CANCELLED`).
-- **FR-17**: On `ACCEPTED`, a **24-hour delivery window** opens (configurable).
+- **FR-18**: Farmer views `PENDING` offers; can **Accept** (→ `ACCEPTED`) or **Reject** (→ `CANCELLED`).
+- **FR-19**: On `ACCEPTED`, a **24-hour delivery window** opens (configurable).
 
-### 4.7. Real-Time Offer Recalculation
+### 4.6. Real-Time Offer & Preference Updates
 
-- **FR-18**: If buyer updates daily min/max prices, **all `ACTIVE` offers** for matching categories must **recalculate** using the same formula.
-- **FR-19**: Offers in other statuses (PENDING, ACCEPTED, etc.) remain as is.
-- **FR-20**: Update the offer records and notify farmer (optional).
+- **FR-18**: If buyer updates their preferences:
+    1. System identifies all pending/active offers
+    2. Cancels offers for produce no longer in preferences
+    3. Sends notifications to affected farmers
+    4. Generates new offers for newly added produce names
+- **FR-19**: If buyer updates daily min/max prices:
+    1. **All `ACTIVE` offers** for matching produce names must **recalculate** using the same formula
+    2. Offers in other statuses (PENDING, ACCEPTED, etc.) remain unchanged
+    3. Update the offer records and notify farmer
+- **FR-20**: All preference and price updates are validated against the synonym service to ensure canonical produce names are used
 
-### 4.8. Inspection (AI & Manual)
+### 4.7. Inspection (AI & Manual)
 
 - **FR-21**: **AI inspection** automatically runs on produce creation, populating category-specific fields.
 - **FR-22**: **Manual inspection** can be requested by buyer or farmer once per item; inspector visits, uploads results, overrides AI fields if needed.
 - **FR-23**: Inspection fee = **100 INR + 10 INR/km** (capped at 1000 INR).
 
-### 4.9. Delivery & Transaction Completion
+### 4.8. Delivery & Transaction Completion
 
 - **FR-24**: Farmer delivers goods within the set window (e.g., 24 hours). If not delivered, offer → `EXPIRED`.
 - **FR-25**: Buyer inspects goods, marks `COMPLETED`; system creates a **transaction** record.
 - **FR-26**: Payment and logistics occur **outside** the platform.
 
-### 4.10. Rating & Feedback
+### 4.9. Rating & Feedback
 
 - **FR-27**: After `COMPLETED`, both farmer and buyer rate each other (1–5), optionally leave textual feedback.
 - **FR-28**: Ratings stored for user profiles/reputation.
 
-### 4.11. Notifications
+### 4.10. Notifications
 
 - **FR-29**: Push notifications for new/modified offers, inspection updates, acceptance, and completion.
 - **FR-30**: Optional in-app notification center to store and mark read/unread.
@@ -236,13 +238,17 @@ For each category, **AI** (or **manual** inspection) must capture the following 
 
 ## 5. Transaction Lifecycle Overview
 
-1. **Create Produce** → AI-based classification & category-specific parameters
-2. **Auto-Generate Offers** (ACTIVE) for all buyers in range
-3. **Buyer** → Confirm/Reject/Modify (PENDING or REJECTED)
-4. **Farmer** → Accept (ACCEPTED) or Reject (CANCELLED)
-5. **Delivery Window** → If not delivered, EXPIRED; else buyer **marks COMPLETED**
-6. **Transaction** recorded
-7. **Ratings & Feedback** → End of process
+1. **Create Produce** → AI-based classification & produce-specific parameters
+2. **Validate Produce Name** → Check against synonym service
+3. **Auto-Generate Offers** (ACTIVE) for buyers who:
+   - Are within range (100km)
+   - Have matching produce name in preferences
+   - Have set valid price ranges
+4. **Buyer** → Confirm/Reject/Modify (PENDING or REJECTED)
+5. **Farmer** → Accept (ACCEPTED) or Reject (CANCELLED)
+6. **Delivery Window** → If not delivered, EXPIRED; else buyer **marks COMPLETED**
+7. **Transaction** recorded
+8. **Ratings & Feedback** → End of process
 
 ---
 
@@ -272,20 +278,21 @@ For each category, **AI** (or **manual** inspection) must capture the following 
 ## 7. Acceptance Criteria
 
 1. **Produce Creation & AI**
-    - At least one photo required, AI classifies produce category, populates **all** mandatory parameters for that category.
-2. **Category-Specific Fields**
-    - Food Grains must have (Variety, Moisture %, Foreign Matter %, Protein %, Wastage %), etc.
+    - At least one photo required
+    - AI classifies produce name (validated against synonyms)
+    - Populates **all** mandatory parameters for that produce type
+2. **Buyer Preferences**
+    - Preferences must use canonical produce names from synonym service
+    - Updating preferences properly handles existing offers
+    - New offers only generated for produce matching preferences
 3. **Buyer Daily Price → Auto Offers**
-    - Offers auto-created for buyers within 100 km; price is computed from min/max and AI grade.
+    - Offers auto-created only for buyers:
+      * Within 100 km
+      * With matching produce name in preferences
+      * With valid price ranges
 4. **Offer Recalculation**
-    - Updating buyer's price range modifies all `ACTIVE` offers in real-time.
-5. **Manual Inspection**
-    - Overwrites AI fields if requested, updates produce quality data.
-6. **Transaction Completion**
-    - After buyer marks COMPLETED, both parties can leave ratings.
-7. **Multi-Language & Synonyms**
-    - Searching by synonyms returns correct produce.
-    - Produce details reflect user's preferred language (if available).
+    - Updating preferences cancels irrelevant offers
+    - Updating price range modifies all `ACTIVE` offers in real-time
 
 ---
 

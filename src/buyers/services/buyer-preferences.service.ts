@@ -1,9 +1,15 @@
 import { Injectable, NotFoundException, InternalServerErrorException } from "@nestjs/common";
 import { InjectEntityManager } from "@nestjs/typeorm";
-import { EntityManager, Not, IsNull } from "typeorm";
+import { EntityManager, Not, IsNull, In } from "typeorm";
 import { BuyerPreferences } from "../entities/buyer-preferences.entity";
 import { BuyersService } from "../buyers.service";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
+import { ProduceSynonymService } from "../../produce/services/synonym.service";
+import { Offer } from "../../offers/entities/offer.entity";
+import { OfferStatus } from "../../offers/enums/offer-status.enum";
+import { NotificationService } from "../../notifications/services/notification.service";
+import { NotificationType } from "../../notifications/enums/notification-type.enum";
+import { AutoOfferService } from "../../offers/services/auto-offer.service";
+import { ProduceService } from "../../produce/services/produce.service";
 
 @Injectable()
 export class BuyerPreferencesService {
@@ -11,12 +17,79 @@ export class BuyerPreferencesService {
     @InjectEntityManager()
     private readonly entityManager: EntityManager,
     private readonly buyersService: BuyersService,
+    private readonly synonymService: ProduceSynonymService,
+    private readonly notificationService: NotificationService,
+    private readonly autoOfferService: AutoOfferService,
+    private readonly produceService: ProduceService,
   ) {}
+
+  private async validateAndGetCanonicalName(produceName: string): Promise<string> {
+    const canonicalName = await this.synonymService.findProduceName(produceName);
+    if (!canonicalName) {
+      throw new NotFoundException(`Invalid produce name: ${produceName}`);
+    }
+    return canonicalName;
+  }
+
+  private async handlePendingOffers(buyerId: string, newProduceNames: string[]): Promise<void> {
+    // Get all pending and active offers for this buyer
+    const existingOffers = await this.entityManager.find(Offer, {
+      where: {
+        buyer_id: buyerId,
+        status: In([OfferStatus.PENDING, OfferStatus.ACTIVE])
+      },
+      relations: ['produce']
+    });
+
+    // Cancel offers for removed produce
+    for (const offer of existingOffers) {
+      if (!newProduceNames.includes(offer.produce.name)) {
+        offer.status = OfferStatus.CANCELLED;
+        offer.metadata = {
+          ...offer.metadata,
+          cancellation_reason: 'Cancelled due to buyer preference update',
+          cancelled_at: new Date()
+        };
+
+        await this.entityManager.save(Offer, offer);
+
+        await this.notificationService.create({
+          user_id: offer.farmer_id,
+          type: NotificationType.OFFER_STATUS_UPDATE,
+          data: {
+            offer_id: offer.id,
+            produce_id: offer.produce_id,
+            status: OfferStatus.CANCELLED,
+            reason: 'Buyer updated their produce preferences',
+            old_status: offer.status,
+            new_status: OfferStatus.CANCELLED,
+            timestamp: new Date()
+          }
+        });
+      }
+    }
+
+    // Generate new offers for added produce names
+    const availableProduce = await this.produceService.findAll({
+      where: {
+        name: In(newProduceNames),
+        status: 'AVAILABLE'
+      }
+    });
+
+    // Generate offers for each newly added produce
+    for (const produce of availableProduce) {
+      const existingOffer = existingOffers.find(o => o.produce_id === produce.id);
+      if (!existingOffer) {
+        await this.autoOfferService.generateOffersForProduce(produce);
+      }
+    }
+  }
 
   async setPreferences(
     userId: string,
     data: {
-      categories?: string[];
+      produce_names?: string[];
       notification_enabled?: boolean;
       notification_methods?: string[];
     },
@@ -37,9 +110,17 @@ export class BuyerPreferencesService {
       });
     }
 
-    if (data.categories) {
-      preferences.categories = data.categories.map(category => category as ProduceCategory);
+    if (data.produce_names) {
+      // Validate and convert all produce names to canonical names
+      const canonicalNames = await Promise.all(
+        data.produce_names.map(name => this.validateAndGetCanonicalName(name))
+      );
+      preferences.produce_names = canonicalNames;
+
+      // Handle pending offers and generate new ones based on new preferences
+      await this.handlePendingOffers(buyer.id, canonicalNames);
     }
+    
     if (data.notification_enabled !== undefined) {
       preferences.notification_enabled = data.notification_enabled;
     }
@@ -65,11 +146,9 @@ export class BuyerPreferencesService {
         // Return default preferences if none exist
         return this.entityManager.create(BuyerPreferences, {
           buyer_id: buyer.id,
-          categories: [],
+          produce_names: [],
           notification_enabled: true,
-          notification_methods: [],
-          price_alert_condition: null,
-          expiry_date: null,
+          notification_methods: []
         });
       }
 
@@ -80,132 +159,5 @@ export class BuyerPreferencesService {
       }
       throw new InternalServerErrorException('Failed to get buyer preferences');
     }
-  }
-
-  async deletePriceAlert(userId: string, alertId: string): Promise<{ message: string }> {
-    const buyer = await this.buyersService.findByUserId(userId);
-    if (!buyer) {
-      throw new NotFoundException(`Buyer not found for user ${userId}`);
-    }
-
-    const result = await this.entityManager.delete(BuyerPreferences, {
-      id: alertId,
-      buyer_id: buyer.id,
-    });
-
-    if (result.affected === 0) {
-      throw new NotFoundException(`Price alert ${alertId} not found`);
-    }
-
-    return { message: "Price alert deleted successfully" };
-  }
-
-  async setPriceAlert(
-    userId: string,
-    data: {
-      target_price: number;
-      condition: string;
-      notification_methods: string[];
-      expiry_date: Date;
-    },
-  ): Promise<BuyerPreferences> {
-    const buyer = await this.buyersService.findByUserId(userId);
-    if (!buyer) {
-      throw new NotFoundException(`Buyer not found for user ${userId}`);
-    }
-
-    let preferences = await this.entityManager.findOne(BuyerPreferences, {
-      where: { buyer_id: buyer.id }
-    });
-
-    if (!preferences) {
-      preferences = this.entityManager.create(BuyerPreferences, {
-        buyer_id: buyer.id,
-        notification_enabled: true,
-        target_price: data.target_price,
-        price_alert_condition: data.condition,
-        notification_methods: data.notification_methods,
-        expiry_date: data.expiry_date,
-      });
-    } else {
-      preferences.target_price = data.target_price;
-      preferences.price_alert_condition = data.condition;
-      preferences.notification_methods = data.notification_methods;
-      preferences.expiry_date = data.expiry_date;
-    }
-
-    try {
-      return await this.entityManager.save(BuyerPreferences, preferences);
-    } catch (error) {
-      console.error('Error saving price alert:', error);
-      throw new InternalServerErrorException('Failed to save price alert');
-    }
-  }
-
-  async getPriceAlerts(userId: string): Promise<BuyerPreferences[]> {
-    const buyer = await this.buyersService.findByUserId(userId);
-    if (!buyer) {
-      throw new NotFoundException(`Buyer not found for user ${userId}`);
-    }
-
-    return this.entityManager.find(BuyerPreferences, {
-      where: { 
-        buyer_id: buyer.id,
-        price_alert_condition: Not(IsNull())
-      },
-    });
-  }
-
-  async updatePriceAlert(
-    userId: string,
-    alertId: string,
-    data: Partial<BuyerPreferences>,
-  ): Promise<BuyerPreferences> {
-    const buyer = await this.buyersService.findByUserId(userId);
-    if (!buyer) {
-      throw new NotFoundException(`Buyer not found for user ${userId}`);
-    }
-
-    const alert = await this.entityManager.findOne(BuyerPreferences, {
-      where: { id: alertId, buyer_id: buyer.id },
-    });
-
-    if (!alert) {
-      throw new NotFoundException(`Price alert ${alertId} not found`);
-    }
-
-    Object.assign(alert, data);
-    return this.entityManager.save(BuyerPreferences, alert);
-  }
-
-  async setPreferredPriceRange(
-    userId: string,
-    data: {
-      min_price: number;
-      max_price: number;
-      categories?: string[];
-    },
-  ): Promise<BuyerPreferences> {
-    const buyer = await this.buyersService.findByUserId(userId);
-    if (!buyer) {
-      throw new NotFoundException(`Buyer not found for user ${userId}`);
-    }
-
-    let preferences = await this.entityManager.findOne(BuyerPreferences, {
-      where: { buyer_id: buyer.id }
-    });
-
-    if (!preferences) {
-      preferences = this.entityManager.create(BuyerPreferences, {
-        buyer_id: buyer.id,
-        notification_enabled: true,
-      });
-    }
-
-    if (data.categories) {
-      preferences.categories = data.categories.map(category => category as ProduceCategory);
-    }
-
-    return this.entityManager.save(BuyerPreferences, preferences);
   }
 } 
