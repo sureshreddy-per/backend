@@ -45,16 +45,19 @@ export class AuthService {
   }
 
   async checkMobile(mobile_number: string): Promise<{ isRegistered: boolean }> {
+    let user = null;
     try {
-      const user = await this.usersService.findByMobileNumber(mobile_number);
-      // Consider a user as not registered if they are deleted
-      return { isRegistered: !!user && user.status !== UserStatus.DELETED };
+      user = await this.usersService.findByMobileNumber(mobile_number);
     } catch (error) {
-      if (error instanceof NotFoundException) {
-        return { isRegistered: false };
+      if (!(error instanceof NotFoundException)) {
+        throw error;
       }
-      throw error;
+      // User not found, return false
+      return { isRegistered: false };
     }
+
+    // Consider a user as not registered if they are deleted or don't exist
+    return { isRegistered: !!user && user.status !== UserStatus.DELETED };
   }
 
   async register(userData: {
@@ -63,25 +66,23 @@ export class AuthService {
     email?: string;
     role: UserRole;
   }): Promise<{ requestId: string; message: string }> {
+    let existingUser = null;
     try {
-      const existingUser = await this.usersService.findByMobileNumber(
-        userData.mobile_number,
-      );
-
-      // Check if user exists and is not deleted
-      if (existingUser && existingUser.status !== UserStatus.DELETED) {
-        throw new BadRequestException("User already exists");
-      }
-
-      // If user exists but is deleted, remove the old record first
-      if (existingUser && existingUser.status === UserStatus.DELETED) {
-        await this.usersService.remove(existingUser.id);
-      }
+      existingUser = await this.usersService.findByMobileNumber(userData.mobile_number);
     } catch (error) {
       if (!(error instanceof NotFoundException)) {
         throw error;
       }
       // If user is not found, continue with registration
+    }
+
+    // Check if user exists and is not deleted
+    if (existingUser) {
+      if (existingUser.status !== UserStatus.DELETED) {
+        throw new BadRequestException("User already exists");
+      }
+      // If user exists but is deleted, remove the old record first
+      await this.usersService.remove(existingUser.id);
     }
 
     // Create user with pending verification status

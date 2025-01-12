@@ -27,13 +27,13 @@ export class Farm {
   @Column({ nullable: true })
   description: string;
 
-  @Column("decimal")
+  @Column({ type: "decimal", precision: 10, scale: 2 })
   size_in_acres: number;
 
   @Column({ nullable: true })
   address: string;
 
-  @Column({ nullable: true })
+  @Column({ type: "point", nullable: true })
   location: string;
 
   @Column({ nullable: true })

@@ -46,8 +46,12 @@ export class UsersService {
     return this.userRepository.findOne({ where: { email } });
   }
 
-  async findByMobileNumber(mobile_number: string): Promise<User | null> {
-    return this.userRepository.findOne({ where: { mobile_number } });
+  async findByMobileNumber(mobile_number: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { mobile_number } });
+    if (!user) {
+      throw new NotFoundException(`User with mobile number ${mobile_number} not found`);
+    }
+    return user;
   }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
