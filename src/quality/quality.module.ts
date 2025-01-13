@@ -1,43 +1,42 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { QualityController } from "./quality.controller";
-import { QualityAssessment } from "./entities/quality-assessment.entity";
 import { QualityAssessmentService } from "./services/quality-assessment.service";
+import { QualityAssessment } from "./entities/quality-assessment.entity";
 import { InspectionRequest } from "./entities/inspection-request.entity";
-import { ProduceModule } from "../produce/produce.module";
-import { InspectionFeeService } from "./services/inspection-fee.service";
-import { FeeController } from "./controllers/fee.controller";
-import { OffersModule } from "../offers/offers.module";
-import { OpenAIService } from "./services/openai.service";
+import { InspectionRequestService } from "./services/inspection-request.service";
+import { InspectionFeeService } from "../config/services/inspection-fee.service";
 import { AIInspectionService } from "./services/ai-inspection.service";
-import { HttpModule } from "@nestjs/axios";
-import { ConfigModule } from "@nestjs/config";
+import { OpenAIService } from "./services/openai.service";
+import { ProduceModule } from "../produce/produce.module";
 import { CacheModule } from "@nestjs/cache-manager";
-import { EventEmitterModule } from "@nestjs/event-emitter";
+import { HttpModule, HttpService } from "@nestjs/axios";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { MockOpenAIService } from "./services/mock-openai.service";
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([QualityAssessment, InspectionRequest]),
     ProduceModule,
-    forwardRef(() => OffersModule),
+    CacheModule.register(),
     HttpModule,
     ConfigModule,
-    CacheModule.register(),
-    EventEmitterModule.forRoot()
   ],
-  controllers: [QualityController, FeeController],
+  controllers: [QualityController],
   providers: [
     QualityAssessmentService,
+    InspectionRequestService,
     InspectionFeeService,
     AIInspectionService,
-    OpenAIService,
+    {
+      provide: OpenAIService,
+      useFactory: (configService: ConfigService, httpService: HttpService) => {
+        const env = configService.get<string>('NODE_ENV');
+        return env === 'development' ? new MockOpenAIService() : new OpenAIService(configService, httpService);
+      },
+      inject: [ConfigService, HttpService],
+    },
   ],
-  exports: [
-    QualityAssessmentService,
-    InspectionFeeService,
-    OpenAIService,
-    AIInspectionService,
-    TypeOrmModule,
-  ],
+  exports: [QualityAssessmentService, InspectionRequestService],
 })
 export class QualityModule {}

@@ -888,35 +888,7 @@ CREATE TRIGGER update_ratings_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_ratings_updated_at();
 
-DROP TABLE IF EXISTS farm_details CASCADE;
-
-CREATE TABLE farm_details (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    size DECIMAL(10,2),
-    size_unit TEXT,
-    name TEXT,
-    address TEXT,
-    location JSONB,
-    farmer_id UUID NOT NULL REFERENCES farmers(id),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_farm_details_farmer_id ON farm_details(farmer_id);
-CREATE INDEX idx_farm_details_name ON farm_details(name);
-
-CREATE OR REPLACE FUNCTION update_farm_details_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_farm_details_updated_at
-    BEFORE UPDATE ON farm_details
-    FOR EACH ROW
-    EXECUTE FUNCTION update_farm_details_updated_at();
+DROP TABLE IF EXISTS bank_accounts CASCADE;
 
 CREATE TABLE bank_accounts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1027,9 +999,6 @@ ALTER TABLE ratings
   ADD CONSTRAINT fk_ratings_rating_user FOREIGN KEY (rating_user_id) REFERENCES users(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_ratings_rated_user FOREIGN KEY (rated_user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE farm_details
-  ADD CONSTRAINT fk_farm_details_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
-
 ALTER TABLE bank_accounts
   ADD CONSTRAINT fk_bank_accounts_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
@@ -1134,8 +1103,6 @@ CREATE INDEX idx_business_metrics_entity ON business_metrics(entity_type, entity
 
 CREATE INDEX idx_ratings_transaction ON ratings(transaction_id);
 CREATE INDEX idx_ratings_users ON ratings(rating_user_id, rated_user_id);
-
-CREATE INDEX idx_farm_details_farmer ON farm_details(farmer_id);
 
 CREATE INDEX idx_bank_accounts_farmer ON bank_accounts(farmer_id);
 
@@ -1431,5 +1398,40 @@ CREATE TRIGGER update_admin_audit_logs_updated_at
     BEFORE UPDATE ON admin_audit_logs
     FOR EACH ROW
     EXECUTE FUNCTION update_admin_audit_logs_updated_at();
+
+-- Create inspectors table
+CREATE TABLE inspectors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  location VARCHAR(255) NOT NULL,
+  mobile_number VARCHAR(20) NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create Report table
+CREATE TABLE IF NOT EXISTS report (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  report_type report_type_enum NOT NULL,
+  format report_format_enum NOT NULL,
+  status report_status_enum NOT NULL DEFAULT 'DRAFT',
+  parameters JSONB,
+  file_url VARCHAR(255),
+  file_size INTEGER,
+  summary TEXT,
+  error_message TEXT,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  scheduled_time TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add indexes for Report table
+CREATE INDEX IF NOT EXISTS idx_report_user_id ON report(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_status ON report(status);
+CREATE INDEX IF NOT EXISTS idx_report_scheduled_time ON report(scheduled_time);
 
 -- End of file

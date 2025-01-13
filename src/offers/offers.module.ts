@@ -18,7 +18,6 @@ import { QualityAssessment } from "../quality/entities/quality-assessment.entity
 import { Produce } from "../produce/entities/produce.entity";
 import { AutoOfferGeneratorTask } from "./tasks/auto-offer-generator.task";
 import { OfferNotificationListener } from "./listeners/offer-notification.listener";
-import { EventEmitterModule } from "@nestjs/event-emitter";
 
 @Module({
   imports: [
@@ -29,7 +28,6 @@ import { EventEmitterModule } from "@nestjs/event-emitter";
     forwardRef(() => QualityModule),
     ConfigModule,
     CacheModule.register(),
-    EventEmitterModule.forRoot()
   ],
   providers: [
     OffersService,

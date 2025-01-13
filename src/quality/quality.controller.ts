@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, UseGuards, BadRequestException } from "@nestjs/common";
+import { Controller, Post, Body, Get, Param, UseGuards, BadRequestException, Put } from "@nestjs/common";
 import { QualityAssessmentService } from "./services/quality-assessment.service";
 import { QualityAssessment } from "./entities/quality-assessment.entity";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -9,6 +9,13 @@ import { isValidQualityGrade } from "../produce/enums/quality-grade.enum";
 import { CreateQualityAssessmentDto } from "./dto/create-quality-assessment.dto";
 import { validateLocation } from "../common/utils/location.utils";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
+import { RequestQualityInspectionDto } from "./dto/request-quality-inspection.dto";
+import { InspectionRequest } from "./entities/inspection-request.entity";
+import { GetUser } from "../auth/decorators/get-user.decorator";
+import { User } from "../users/entities/user.entity";
+import { InspectionRequestService } from "./services/inspection-request.service";
+import { ProduceService } from "../produce/services/produce.service";
+import { validateRequiredFields } from "../utils/validation.util";
 
 @ApiTags('Quality Assessment')
 @Controller("quality")
@@ -16,6 +23,8 @@ import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 export class QualityController {
   constructor(
     private readonly qualityAssessmentService: QualityAssessmentService,
+    private readonly inspectionRequestService: InspectionRequestService,
+    private readonly produceService: ProduceService,
   ) {}
 
   @Post("ai-assessment")
@@ -88,5 +97,81 @@ export class QualityController {
   @ApiResponse({ status: 200, description: 'Latest assessment found', type: QualityAssessment })
   async findLatestByProduceId(@Param("produceId") produceId: string): Promise<QualityAssessment> {
     return this.qualityAssessmentService.findLatestByProduceId(produceId);
+  }
+
+  @Post("inspection/request")
+  @Roles(UserRole.FARMER)
+  @ApiOperation({ summary: 'Request a manual quality inspection' })
+  @ApiResponse({ status: 201, description: 'Inspection request created successfully', type: InspectionRequest })
+  async requestInspection(
+    @GetUser() user: User,
+    @Body() data: RequestQualityInspectionDto,
+  ): Promise<InspectionRequest> {
+    validateLocation(data.location);
+    return this.inspectionRequestService.create({
+      produce_id: data.produce_id,
+      requester_id: user.id,
+      location: data.location,
+    });
+  }
+
+  @Put("inspection/:id/assign")
+  @Roles(UserRole.INSPECTOR)
+  @ApiOperation({ summary: 'Assign inspector to inspection request' })
+  @ApiResponse({ status: 200, description: 'Inspector assigned successfully', type: InspectionRequest })
+  async assignInspector(
+    @GetUser() user: User,
+    @Param("id") id: string,
+  ): Promise<InspectionRequest> {
+    return this.inspectionRequestService.assignInspector(id, user.id);
+  }
+
+  @Put("inspection/:id/submit-result")
+  @Roles(UserRole.INSPECTOR)
+  @ApiOperation({ summary: 'Submit inspection result' })
+  @ApiResponse({ status: 200, description: 'Inspection result submitted successfully', type: QualityAssessment })
+  async submitInspectionResult(
+    @GetUser() user: User,
+    @Param("id") id: string,
+    @Body() data: CreateQualityAssessmentDto,
+  ): Promise<QualityAssessment> {
+    const request = await this.inspectionRequestService.findOne(id);
+    if (request.inspector_id !== user.id) {
+      throw new BadRequestException("Only assigned inspector can submit results");
+    }
+
+    if (!isValidQualityGrade(data.quality_grade)) {
+      throw new BadRequestException(`Invalid quality grade: ${data.quality_grade}. Must be between 0 and 10.`);
+    }
+
+    // Get produce details to validate category-specific fields
+    const produce = await this.produceService.findOne(request.produce_id);
+    const validationResult = validateRequiredFields(produce.produce_category, data.category_specific_assessment);
+    if (!validationResult.isValid) {
+      throw new BadRequestException(`Missing required fields for category ${produce.produce_category}: ${validationResult.missingFields.join(', ')}`);
+    }
+
+    // Create quality assessment with required fields
+    const assessment = await this.qualityAssessmentService.create({
+      produce_id: request.produce_id,
+      quality_grade: data.quality_grade,
+      confidence_level: 100, // Manual inspection has 100% confidence
+      defects: data.defects,
+      recommendations: data.recommendations,
+      category_specific_assessment: data.category_specific_assessment,
+      metadata: {
+        source: 'MANUAL_INSPECTION',
+        inspector_id: user.id,
+        inspection_date: new Date().toISOString(),
+        inspection_request_id: id,
+        notes: data.metadata?.notes,
+        images: data.metadata?.images,
+      }
+    });
+
+    // Mark inspection request as completed
+    await this.inspectionRequestService.complete(id);
+
+    return assessment;
   }
 }

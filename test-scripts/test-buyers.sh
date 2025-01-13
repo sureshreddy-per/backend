@@ -26,6 +26,10 @@ print_error() {
     exit 1
 }
 
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
 check_error() {
     local response=$1
     local error_message=$2
@@ -46,19 +50,21 @@ make_request() {
     local data=$4
     
     print_debug "Making $method request to $endpoint"
+    local response=""
     if [ -n "$data" ]; then
         print_debug "Request data: $data"
-        curl -s -X $method \
+        response=$(curl -s -X $method \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $token" \
             -d "$data" \
-            "http://localhost:3000/api$endpoint"
+            "http://localhost:3000/api$endpoint")
     else
-        curl -s -X $method \
+        response=$(curl -s -X $method \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $token" \
-            "http://localhost:3000/api$endpoint"
+            "http://localhost:3000/api$endpoint")
     fi
+    echo "$response"
 }
 
 print_step "Starting Buyer Tests"
@@ -104,11 +110,12 @@ if [ -z "$BUYER_TOKEN" ]; then
 fi
 print_debug "Buyer token obtained"
 
-# Get buyer details
-print_step "Getting buyer details"
-DETAILS_RESPONSE=$(make_request "GET" "/buyers/me" "$BUYER_TOKEN")
-print_debug "Buyer details response: $DETAILS_RESPONSE"
-check_error "$DETAILS_RESPONSE" "Failed to get buyer details"
+# Get initial buyer details
+print_step "Getting initial buyer details"
+INITIAL_DETAILS_RESPONSE=$(make_request "GET" "/buyers/me" "$BUYER_TOKEN")
+print_debug "Initial buyer details response: $INITIAL_DETAILS_RESPONSE"
+check_error "$INITIAL_DETAILS_RESPONSE" "Failed to get initial buyer details"
+print_success "Got initial buyer details"
 
 # Update buyer profile
 print_step "Updating buyer profile"
@@ -116,6 +123,13 @@ UPDATE_RESPONSE=$(make_request "PUT" "/buyers/me" "$BUYER_TOKEN" \
     "{\"business_name\":\"$TEST_BUSINESS\",\"address\":\"$TEST_ADDRESS\",\"lat_lng\":\"$TEST_LAT_LNG\"}")
 print_debug "Update profile response: $UPDATE_RESPONSE"
 check_error "$UPDATE_RESPONSE" "Failed to update buyer profile"
+
+# Get updated buyer details
+print_step "Getting updated buyer details"
+DETAILS_RESPONSE=$(make_request "GET" "/buyers/me" "$BUYER_TOKEN")
+print_debug "Updated buyer details response: $DETAILS_RESPONSE"
+check_error "$DETAILS_RESPONSE" "Failed to get updated buyer details"
+print_success "Got updated buyer details"
 
 # Update buyer preferences
 print_step "Updating buyer preferences"
