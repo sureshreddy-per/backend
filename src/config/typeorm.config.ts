@@ -29,6 +29,7 @@ import { Report } from "../reports/entities/report.entity";
 import { RequestMetric } from "../metrics/entities/request-metric.entity";
 import { ConfigAuditLog } from "./entities/config-audit-log.entity";
 import { BuyerPreferences } from "../buyers/entities/buyer-preferences.entity";
+import { NotificationPreferences } from "../notifications/entities/notification-preferences.entity";
 
 config();
 
@@ -53,6 +54,7 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
     Rating,
     Synonym,
     Notification,
+    NotificationPreferences,
     DailyPrice,
     InspectionBaseFeeConfig,
     InspectionDistanceFeeConfig,

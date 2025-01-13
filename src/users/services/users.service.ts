@@ -117,10 +117,13 @@ export class UsersService {
     return this.userRepository.save(user);
   }
 
-  async updateFCMToken(id: string, fcmToken: string): Promise<User> {
-    const user = await this.findOne(id);
-    user.fcm_token = fcmToken;
-    return this.userRepository.save(user);
+  async updateFCMToken(id: string, fcmToken: string): Promise<void> {
+    await this.userRepository.update(id, { fcm_token: fcmToken });
+  }
+
+  async getFCMToken(id: string): Promise<string | null> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    return user?.fcm_token || null;
   }
 
   async updateAvatar(id: string, avatarUrl: string): Promise<User> {
