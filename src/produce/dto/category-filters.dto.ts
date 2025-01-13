@@ -77,6 +77,16 @@ export class VegetablesFilterDto {
 
   @IsString()
   color: string;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  moisture_content: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  foreign_matter: number;
 }
 
 export class SpicesFilterDto {

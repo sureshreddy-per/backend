@@ -232,6 +232,15 @@ UPDATE_BANK_RESPONSE=$(make_request "PATCH" "/farmers/bank-accounts/$BANK_ID" '{
 check_error "$UPDATE_BANK_RESPONSE"
 print_success "Updated bank account"
 
+# Update user details
+print_step "Updating User Details"
+UPDATE_USER_RESPONSE=$(make_request "PATCH" "/farmers/profile/user-details" '{
+    "name": "Updated Farmer Name",
+    "email": "updated.farmer@example.com"
+}' "$FARMER1_TOKEN")
+check_error "$UPDATE_USER_RESPONSE"
+print_success "Updated user details"
+
 # Test 6: Test nearby farmers search with different radiuses
 print_step "Testing Nearby Farmers Search"
 
