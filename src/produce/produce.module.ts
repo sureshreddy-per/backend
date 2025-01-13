@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule as NestConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule, HttpService } from '@nestjs/axios';
 import { ProduceController } from './produce.controller';
 import { ProduceService } from './services/produce.service';
@@ -13,13 +13,18 @@ import { MockAiSynonymService } from './services/mock-ai-synonym.service';
 import { LanguageService } from '../config/language.service';
 import { FarmersModule } from '../farmers/farmers.module';
 import { Farmer } from '../farmers/entities/farmer.entity';
+import { InspectionDistanceFeeService } from '../config/services/fee-config.service';
+import { InspectorsModule } from '../inspectors/inspectors.module';
+import { ConfigModule } from '../config/config.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Produce, Synonym, Farmer]),
+    NestConfigModule,
     ConfigModule,
     HttpModule,
     FarmersModule,
+    InspectorsModule,
   ],
   controllers: [ProduceController, ProduceSynonymController],
   providers: [

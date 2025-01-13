@@ -9,6 +9,8 @@ import { QualityAssessmentCompletedEvent } from '../../quality/events/quality-as
 import { ProduceSynonymService } from './synonym.service';
 import { AiSynonymService } from './ai-synonym.service';
 import { Farmer } from '../../farmers/entities/farmer.entity';
+import { InspectionDistanceFeeService } from '../../config/services/fee-config.service';
+import { InspectorsService } from '../../inspectors/inspectors.service';
 
 @Injectable()
 export class ProduceService {
@@ -21,7 +23,14 @@ export class ProduceService {
     private readonly aiSynonymService: AiSynonymService,
     @InjectRepository(Farmer)
     private readonly farmerRepository: Repository<Farmer>,
+    private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
+    private readonly inspectorsService: InspectorsService,
   ) {}
+
+  private parseLocation(location: string): { lat: number; lng: number } {
+    const [lat, lng] = location.split(',').map(Number);
+    return { lat, lng };
+  }
 
   private async findExistingProduceNameFromSynonyms(name: string): Promise<string | null> {
     try {
@@ -217,15 +226,42 @@ export class ProduceService {
         createProduceDto.name = 'Unidentified Produce';
       }
 
+      // Parse produce location
+      const { lat, lng } = this.parseLocation(createProduceDto.location);
+      this.logger.debug(`Parsed produce location: lat=${lat}, lng=${lng}`);
+
+      // Find nearest inspector within 100km radius
+      const nearbyInspectors = await this.inspectorsService.findNearby(lat, lng);
+      this.logger.debug(`Found ${nearbyInspectors.length} inspectors nearby`);
+      
+      let inspectionFee: number;
+      if (nearbyInspectors.length > 0) {
+        this.logger.debug(`Nearest inspector at ${nearbyInspectors[0].distance}km with ID ${nearbyInspectors[0].inspector.id}`);
+        // Calculate fee based on distance but ensure minimum of 200
+        const distanceFee = this.inspectionDistanceFeeService.getDistanceFee(nearbyInspectors[0].distance);
+        inspectionFee = Math.max(distanceFee, 200);
+      } else {
+        // If no inspector found, use maximum fee
+        const config = await this.inspectionDistanceFeeService.getActiveConfig();
+        inspectionFee = config?.max_distance_fee || 500; // Use default max fee if no config
+        this.logger.debug(`No nearby inspectors found, using maximum fee: ${inspectionFee}`);
+      }
+
+      this.logger.debug(`Final inspection fee: ${inspectionFee} (minimum fee: 200)`);
+
       const produce = this.produceRepository.create({
         ...createProduceDto,
         status: ProduceStatus.PENDING_AI_ASSESSMENT,
+        inspection_fee: inspectionFee
       });
 
-      return await this.produceRepository.save(produce);
+      const savedProduce = await this.produceRepository.save(produce);
+      this.logger.debug(`Saved produce with inspection fee: ${savedProduce.inspection_fee}`);
+
+      return savedProduce;
     } catch (error) {
-      this.logger.error(`Failed to create produce: ${error.message}`, error.stack);
-      throw new BadRequestException('Failed to create produce. Please check all required fields.');
+      this.logger.error(`Failed to create produce: ${error.message}`);
+      throw error;
     }
   }
 
