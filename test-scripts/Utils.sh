@@ -88,24 +88,24 @@ make_request() {
 # Get auth token
 get_auth_token() {
     local mobile="$1"
-    local name="$2"
-    local role="$3"
+    local role="$2"
+    local name="Test $role"
     local token=""
     
     # Check mobile number first
     local check_mobile_data="{\"mobile_number\":\"$mobile\"}"
     local check_response=$(make_request "POST" "/auth/check-mobile" "$check_mobile_data")
+    local is_registered=$(echo "$check_response" | jq -r '.isRegistered')
     
-    if [ $? -ne 0 ]; then
-        print_warning "Mobile check failed, proceeding with registration"
-    fi
-    
-    # Register user
-    local register_data="{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"buyer@test.com\"}"
-    local register_response=$(make_request "POST" "/auth/register" "$register_data")
-    
-    if [ $? -ne 0 ]; then
-        print_warning "Registration failed, user might already exist"
+    if [ "$is_registered" != "true" ]; then
+        # Register user
+        local register_data="{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"test${role,,}@example.com\"}"
+        local register_response=$(make_request "POST" "/auth/register" "$register_data")
+        
+        if [ $? -ne 0 ]; then
+            print_error "Registration failed: $register_response"
+            return 1
+        fi
     fi
     
     # Request OTP
@@ -113,33 +113,36 @@ get_auth_token() {
     local otp_response=$(make_request "POST" "/auth/otp/request" "$otp_data")
     
     if [ $? -ne 0 ]; then
-        print_error "Failed to request OTP"
+        print_error "Failed to request OTP: $otp_response"
         return 1
     fi
     
     # Extract OTP from response message
     local otp=$(echo "$otp_response" | jq -r '.message' | grep -o '[0-9]\{6\}')
     if [ -z "$otp" ]; then
-        print_error "Could not extract OTP from response"
+        print_error "Could not extract OTP from response: $otp_response"
         return 1
     fi
+    
+    print_success "Got OTP: $otp"
     
     # Verify OTP and get token
     local verify_data="{\"mobile_number\":\"$mobile\",\"otp\":\"$otp\"}"
     local verify_response=$(make_request "POST" "/auth/otp/verify" "$verify_data")
     
     if [ $? -ne 0 ]; then
-        print_error "Failed to verify OTP"
+        print_error "Failed to verify OTP: $verify_response"
         return 1
     fi
     
     # Extract token from verify response
     token=$(echo "$verify_response" | jq -r '.token')
     if [ -z "$token" ] || [ "$token" = "null" ]; then
-        print_error "Could not extract token from response"
+        print_error "Could not extract token from response: $verify_response"
         return 1
     fi
     
+    print_success "Got token for $role"
     echo "$token"
     return 0
 }
