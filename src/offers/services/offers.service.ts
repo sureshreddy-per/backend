@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, NotFoundException, forwardRef } from "@nestjs/common";
+import { Injectable, Logger, Inject, NotFoundException, forwardRef, ConflictException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, In } from "typeorm";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
@@ -50,26 +50,49 @@ export class OffersService {
 
   async create(createOfferDto: CreateOfferDto): Promise<Offer> {
     try {
+      // Validate produce exists
+      const produce = await this.produceService.findOne(createOfferDto.produce_id);
+      if (!produce) {
+        throw new NotFoundException(`Produce with ID ${createOfferDto.produce_id} not found`);
+      }
+
+      // Get farmer details to get user_id
+      const farmer = await this.produceService.getFarmerDetails(produce.farmer_id);
+      if (!farmer) {
+        throw new NotFoundException(`Farmer with ID ${produce.farmer_id} not found`);
+      }
+
+      // Validate buyer exists and get buyer ID
+      const buyer = await this.buyersService.findByUserId(createOfferDto.buyer_id);
+      createOfferDto.buyer_id = buyer.id; // Set the actual buyer ID
+
+      // Create and save the offer
       const offer = this.offerRepository.create({
         ...createOfferDto,
         status: OfferStatus.PENDING,
       });
+      
       const savedOffer = await this.offerRepository.save(offer);
 
-      // Notify the farmer about the new offer
+      // Notify the farmer about the new offer using their user_id
       await this.notificationService.create({
-        user_id: savedOffer.farmer_id,
+        user_id: farmer.user_id, // Use farmer's user_id directly
         type: NotificationType.NEW_OFFER,
         data: {
           offer_id: savedOffer.id,
           produce_id: savedOffer.produce_id,
           price_per_unit: savedOffer.price_per_unit,
+          quantity: savedOffer.quantity,
+          buyer_name: buyer.business_name
         },
       });
 
       return savedOffer;
     } catch (error) {
       this.logger.error(`Error creating offer: ${error.message}`);
+      if (error.code === '23505') { // Unique violation
+        throw new ConflictException('An offer with these details already exists');
+      }
       throw error;
     }
   }

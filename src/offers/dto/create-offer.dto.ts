@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsOptional, IsUUID, Min } from "class-validator";
+import { IsNotEmpty, IsNumber, IsOptional, IsUUID, Min, Max } from "class-validator";
 
 export class CreateOfferDto {
   @IsUUID()
@@ -15,11 +15,32 @@ export class CreateOfferDto {
 
   @IsNumber()
   @Min(0)
-  price: number;
+  price_per_unit: number;
 
   @IsNumber()
   @Min(0)
   quantity: number;
+
+  @IsNumber()
+  @Min(0)
+  buyer_min_price: number;
+
+  @IsNumber()
+  @Min(0)
+  buyer_max_price: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  quality_grade: number;
+
+  @IsNumber()
+  @Min(0)
+  distance_km: number;
+
+  @IsNumber()
+  @Min(0)
+  inspection_fee: number;
 
   @IsOptional()
   message?: string;

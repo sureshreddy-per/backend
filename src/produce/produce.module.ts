@@ -12,10 +12,11 @@ import { AiSynonymService } from './services/ai-synonym.service';
 import { MockAiSynonymService } from './services/mock-ai-synonym.service';
 import { LanguageService } from '../config/language.service';
 import { FarmersModule } from '../farmers/farmers.module';
+import { Farmer } from '../farmers/entities/farmer.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Produce, Synonym]),
+    TypeOrmModule.forFeature([Produce, Synonym, Farmer]),
     ConfigModule,
     HttpModule,
     FarmersModule,

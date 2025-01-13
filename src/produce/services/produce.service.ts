@@ -8,6 +8,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { QualityAssessmentCompletedEvent } from '../../quality/events/quality-assessment-completed.event';
 import { ProduceSynonymService } from './synonym.service';
 import { AiSynonymService } from './ai-synonym.service';
+import { Farmer } from '../../farmers/entities/farmer.entity';
 
 @Injectable()
 export class ProduceService {
@@ -18,6 +19,8 @@ export class ProduceService {
     private readonly produceRepository: Repository<Produce>,
     private readonly synonymService: ProduceSynonymService,
     private readonly aiSynonymService: AiSynonymService,
+    @InjectRepository(Farmer)
+    private readonly farmerRepository: Repository<Farmer>,
   ) {}
 
   private async findExistingProduceNameFromSynonyms(name: string): Promise<string | null> {
@@ -350,5 +353,17 @@ export class ProduceService {
     const produce = await this.findOne(id);
     await this.produceRepository.remove(produce);
     return { message: 'Produce deleted successfully' };
+  }
+
+  async getFarmerDetails(farmerId: string) {
+    const farmer = await this.farmerRepository.findOne({
+      where: { id: farmerId }
+    });
+
+    if (!farmer) {
+      throw new NotFoundException(`Farmer with ID ${farmerId} not found`);
+    }
+
+    return farmer;
   }
 }

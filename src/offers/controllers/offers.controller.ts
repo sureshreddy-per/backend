@@ -150,6 +150,7 @@ export class OffersController {
   @Post()
   @Roles(UserRole.BUYER)
   async create(@GetUser() user: User, @Body() createOfferDto: CreateOfferDto) {
+    createOfferDto.buyer_id = user.id;
     return this.offersService.create(createOfferDto);
   }
 
