@@ -16,6 +16,7 @@ import { User } from "../users/entities/user.entity";
 import { InspectionRequestService } from "./services/inspection-request.service";
 import { ProduceService } from "../produce/services/produce.service";
 import { validateRequiredFields } from "./utils/validation.util";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 
 @ApiTags('Quality Assessment')
 @Controller("quality")
@@ -25,6 +26,7 @@ export class QualityController {
     private readonly qualityAssessmentService: QualityAssessmentService,
     private readonly inspectionRequestService: InspectionRequestService,
     private readonly produceService: ProduceService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Post("ai-assessment")
@@ -171,6 +173,20 @@ export class QualityController {
 
     // Mark inspection request as completed
     await this.inspectionRequestService.complete(id);
+
+    // Emit quality assessment completed event
+    await this.eventEmitter.emit('quality.assessment.completed', {
+      produce_id: request.produce_id,
+      quality_grade: assessment.quality_grade,
+      confidence_level: assessment.confidence_level,
+      detected_name: produce.name,
+      assessment_details: {
+        defects: assessment.defects,
+        recommendations: assessment.recommendations,
+        category_specific_assessment: assessment.category_specific_assessment,
+        metadata: assessment.metadata
+      }
+    });
 
     return assessment;
   }

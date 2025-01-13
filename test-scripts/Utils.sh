@@ -92,7 +92,6 @@ get_auth_token() {
     local role="$3"
     local token=""
     
-    echo "Step 1: Checking mobile number..."
     # Check mobile number first
     local check_mobile_data="{\"mobile_number\":\"$mobile\"}"
     local check_response=$(make_request "POST" "/auth/check-mobile" "$check_mobile_data")
@@ -101,7 +100,6 @@ get_auth_token() {
         print_warning "Mobile check failed, proceeding with registration"
     fi
     
-    echo "Step 2: Registering user..."
     # Register user
     local register_data="{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"buyer@test.com\"}"
     local register_response=$(make_request "POST" "/auth/register" "$register_data")
@@ -110,7 +108,6 @@ get_auth_token() {
         print_warning "Registration failed, user might already exist"
     fi
     
-    echo "Step 3: Requesting OTP..."
     # Request OTP
     local otp_data="{\"mobile_number\":\"$mobile\"}"
     local otp_response=$(make_request "POST" "/auth/otp/request" "$otp_data")
@@ -127,7 +124,6 @@ get_auth_token() {
         return 1
     fi
     
-    echo "Step 4: Verifying OTP: $otp"
     # Verify OTP and get token
     local verify_data="{\"mobile_number\":\"$mobile\",\"otp\":\"$otp\"}"
     local verify_response=$(make_request "POST" "/auth/otp/verify" "$verify_data")

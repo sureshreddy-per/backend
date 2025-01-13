@@ -17,11 +17,17 @@ export class BuyersService {
     private readonly buyerPreferencesRepository: Repository<BuyerPreferences>,
   ) {}
 
-  async findByUserId(userId: string): Promise<Buyer | undefined> {
-    return this.buyerRepository.findOne({
+  async findByUserId(userId: string): Promise<Buyer> {
+    const buyer = await this.buyerRepository.findOne({
       where: { user_id: userId },
-      relations: ['preferences']
+      relations: ["preferences"],
     });
+
+    if (!buyer) {
+      throw new NotFoundException(`Buyer with user ID ${userId} not found`);
+    }
+
+    return buyer;
   }
 
   async findOne(id: string): Promise<Buyer> {
