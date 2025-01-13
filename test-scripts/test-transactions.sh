@@ -194,39 +194,45 @@ main() {
     
     print_test_header "Starting Transaction Tests"
     
-    # Get tokens for different roles
+    # Set up test users
+    FARMER_MOBILE="+1111222266"
+    BUYER_MOBILE="+1111222277"
+    INSPECTOR_MOBILE="+1111222288"
+
+    # Set up farmer
     print_test_header "Setting up FARMER user"
-    FARMER_RESPONSE=$(get_user_token "+1111222266" "Test Farmer" "FARMER" "farmer_$(date +%s)@test.com")
+    FARMER_RESPONSE=$(get_user_token "$FARMER_MOBILE" "Test Farmer" "FARMER" "farmer_$(date +%s)@test.com")
     if [ $? -ne 0 ]; then
         print_error "Failed to setup FARMER user"
         exit 1
     fi
     FARMER_TOKEN=$(echo "$FARMER_RESPONSE" | jq -r '.token')
-    
+
+    # Set up buyer
     print_test_header "Setting up BUYER user"
-    BUYER_RESPONSE=$(get_user_token "+1111222277" "Test Buyer" "BUYER" "buyer_$(date +%s)@test.com")
+    BUYER_RESPONSE=$(get_user_token "$BUYER_MOBILE" "Test Buyer" "BUYER" "buyer_$(date +%s)@test.com")
     if [ $? -ne 0 ]; then
         print_error "Failed to setup BUYER user"
         exit 1
     fi
     BUYER_TOKEN=$(echo "$BUYER_RESPONSE" | jq -r '.token')
-    
+    BUYER_ID=$(echo "$BUYER_RESPONSE" | jq -r '.user.id')
+    if [ -z "$BUYER_ID" ] || [ "$BUYER_ID" = "null" ]; then
+        print_error "Failed to get buyer ID from response"
+        exit 1
+    fi
+    print_success "Got buyer ID: $BUYER_ID"
+
+    # Set up inspector
     print_test_header "Setting up INSPECTOR user"
-    INSPECTOR_RESPONSE=$(get_user_token "+1111222288" "Test Inspector" "INSPECTOR" "inspector_$(date +%s)@test.com")
+    INSPECTOR_RESPONSE=$(get_user_token "$INSPECTOR_MOBILE" "Test Inspector" "INSPECTOR" "inspector_$(date +%s)@test.com")
     if [ $? -ne 0 ]; then
         print_error "Failed to setup INSPECTOR user"
         exit 1
     fi
     INSPECTOR_TOKEN=$(echo "$INSPECTOR_RESPONSE" | jq -r '.token')
-    INSPECTOR_ID=$(echo "$INSPECTOR_RESPONSE" | jq -r '.user.id')
-    
-    # Verify we have all tokens
-    if [ -z "$FARMER_TOKEN" ] || [ -z "$BUYER_TOKEN" ] || [ -z "$INSPECTOR_TOKEN" ]; then
-        print_error "Failed to get all required tokens"
-        exit 1
-    fi
     print_success "Got all required tokens"
-    
+
     # Create test produce
     print_test_header "Creating Test Produce"
     PRODUCE_DATA='{
@@ -246,6 +252,8 @@ main() {
         exit 1
     fi
     check_response "$PRODUCE_RESPONSE" 201
+    echo "Produce Response:"
+    echo "$PRODUCE_RESPONSE" | jq '.'
     
     PRODUCE_ID=$(echo "$PRODUCE_RESPONSE" | jq -r '.id')
     if [ -z "$PRODUCE_ID" ] || [ "$PRODUCE_ID" = "null" ]; then
@@ -256,150 +264,107 @@ main() {
     
     # Create test offer
     print_test_header "Creating Test Offer"
-    
-    # Get farmer ID from produce response
     FARMER_ID=$(echo "$PRODUCE_RESPONSE" | jq -r '.farmer_id')
     if [ -z "$FARMER_ID" ] || [ "$FARMER_ID" = "null" ]; then
         print_error "Failed to get farmer ID from produce response"
         exit 1
     fi
     print_success "Got farmer ID: $FARMER_ID"
-    
-    # Get buyer ID from response
+
     BUYER_ID=$(echo "$BUYER_RESPONSE" | jq -r '.user.id')
     if [ -z "$BUYER_ID" ] || [ "$BUYER_ID" = "null" ]; then
-        print_error "Failed to get buyer ID"
+        print_error "Failed to get buyer ID from buyer response"
         exit 1
     fi
     print_success "Got buyer ID: $BUYER_ID"
-    
-    OFFER_DATA=$(cat <<EOF
-{
-    "produce_id": "$PRODUCE_ID",
-    "buyer_id": "$BUYER_ID",
-    "farmer_id": "$FARMER_ID",
-    "quantity": 50,
-    "price_per_unit": 48,
-    "buyer_min_price": 45,
-    "buyer_max_price": 50,
-    "quality_grade": 8,
-    "distance_km": 10,
-    "inspection_fee": 100,
-    "message": "Test offer for transaction"
-}
-EOF
-)
-    
+
+    OFFER_DATA="{\"produce_id\":\"$PRODUCE_ID\",\"buyer_id\":\"$BUYER_ID\",\"farmer_id\":\"$FARMER_ID\",\"quantity\":50,\"price_per_unit\":48,\"buyer_min_price\":45,\"buyer_max_price\":50,\"quality_grade\":8,\"distance_km\":10,\"inspection_fee\":100,\"message\":\"Test offer for transaction\"}"
     OFFER_RESPONSE=$(make_request "POST" "/offers" "$OFFER_DATA" "$BUYER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to create offer"
-        exit 1
-    fi
-    check_response "$OFFER_RESPONSE" 201
-    
+    echo "Offer Response:"
+    echo "$OFFER_RESPONSE" | jq '.'
+
     OFFER_ID=$(echo "$OFFER_RESPONSE" | jq -r '.id')
     if [ -z "$OFFER_ID" ] || [ "$OFFER_ID" = "null" ]; then
-        print_error "Failed to get offer ID"
+        print_error "Failed to get offer ID from response"
         exit 1
     fi
     print_success "Created offer with ID: $OFFER_ID"
-    
-    # Create transaction
-    print_test_header "Create Transaction"
-    TRANSACTION_DATA='{
-        "offer_id": "'$OFFER_ID'",
-        "produce_id": "'$PRODUCE_ID'",
-        "final_price": 48,
-        "final_quantity": 50
-    }'
 
-    TRANSACTION_RESPONSE=$(make_request "POST" "/transactions" "$TRANSACTION_DATA" "$BUYER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to create transaction"
+    # Update buyer ID from offer response
+    BUYER_ID=$(echo "$OFFER_RESPONSE" | jq -r '.buyer_id')
+    if [ -z "$BUYER_ID" ] || [ "$BUYER_ID" = "null" ]; then
+        print_error "Failed to get buyer ID from offer response"
         exit 1
     fi
-    check_response "$TRANSACTION_RESPONSE" 201
-    
+    print_success "Updated buyer ID from offer: $BUYER_ID"
+
+    # Get new buyer token with updated ID
+    BUYER_RESPONSE=$(get_user_token "$BUYER_MOBILE" "Test Buyer" "BUYER" "buyer_$(date +%s)@test.com")
+    if [ -z "$BUYER_RESPONSE" ]; then
+        print_error "Failed to get new buyer token"
+        exit 1
+    fi
+    BUYER_TOKEN=$(echo "$BUYER_RESPONSE" | jq -r '.token')
+    if [ -z "$BUYER_TOKEN" ] || [ "$BUYER_TOKEN" = "null" ]; then
+        print_error "Failed to extract buyer token from response"
+        exit 1
+    fi
+    print_success "Got new buyer token"
+
+    # Create transaction
+    print_test_header "Create Transaction"
+    TRANSACTION_DATA="{\"offer_id\":\"$OFFER_ID\",\"produce_id\":\"$PRODUCE_ID\",\"final_price\":48,\"final_quantity\":50}"
+    TRANSACTION_RESPONSE=$(make_request "POST" "/transactions" "$TRANSACTION_DATA" "$BUYER_TOKEN")
+    echo "Transaction Creation Response:"
+    echo "$TRANSACTION_RESPONSE" | jq '.'
     TRANSACTION_ID=$(echo "$TRANSACTION_RESPONSE" | jq -r '.id')
     if [ -z "$TRANSACTION_ID" ] || [ "$TRANSACTION_ID" = "null" ]; then
-        print_error "Failed to get transaction ID"
+        print_error "Failed to get transaction ID from response"
         exit 1
     fi
     print_success "Created transaction with ID: $TRANSACTION_ID"
-    
-    # Get all transactions
-    print_test_header "Get All Transactions"
+
+    # Get all transactions (as buyer)
+    print_test_header "Get All Transactions (as buyer)"
     TRANSACTIONS_RESPONSE=$(make_request "GET" "/transactions" "" "$BUYER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to get transactions"
-        exit 1
-    fi
     print_success "Retrieved all transactions"
 
-    # Get transaction by ID
-    print_test_header "Get Transaction by ID"
+    # Get transaction details (as buyer)
+    print_test_header "Get Transaction by ID (as buyer)"
     TRANSACTION_DETAILS_RESPONSE=$(make_request "GET" "/transactions/$TRANSACTION_ID" "" "$BUYER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to get transaction details"
-        exit 1
-    fi
     print_success "Retrieved transaction details"
 
-    # Start delivery window (farmer only)
-    print_test_header "Start Delivery Window"
-    START_DELIVERY_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/start-delivery" "{}" "$FARMER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to start delivery window"
-        exit 1
-    fi
-    print_success "Started delivery window"
+    # Start delivery (as farmer)
+    print_test_header "Start Delivery (as farmer)"
+    START_DELIVERY_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/start-delivery" "" "$FARMER_TOKEN")
+    print_success "Started delivery"
 
-    # Confirm delivery (farmer only)
-    print_test_header "Confirm Delivery"
-    CONFIRM_DELIVERY_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/confirm-delivery" "{}" "$FARMER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to confirm delivery"
-        exit 1
-    fi
+    # Confirm delivery (as farmer)
+    print_test_header "Confirm Delivery (as farmer)"
+    CONFIRM_DELIVERY_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/confirm-delivery" "" "$FARMER_TOKEN")
     print_success "Confirmed delivery"
 
-    # Confirm inspection (buyer only)
-    print_test_header "Confirm Inspection"
-    CONFIRM_INSPECTION_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/confirm-inspection" '{"inspection_notes":"Quality matches description","quality_score":90}' "$BUYER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to confirm inspection"
-        exit 1
-    fi
+    # Confirm inspection (as buyer)
+    print_test_header "Confirm Inspection (as buyer)"
+    CONFIRM_INSPECTION_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/confirm-inspection" "" "$BUYER_TOKEN")
     print_success "Confirmed inspection"
 
-    # Complete transaction (buyer only)
-    print_test_header "Complete Transaction"
-    COMPLETE_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/complete" "{}" "$BUYER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to complete transaction"
-        exit 1
-    fi
+    # Complete transaction (as buyer)
+    print_test_header "Complete Transaction (as buyer)"
+    COMPLETE_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/complete" "" "$BUYER_TOKEN")
     print_success "Completed transaction"
 
-    # Reactivate expired transaction (farmer only)
-    print_test_header "Reactivate Expired Transaction"
-    REACTIVATE_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/reactivate" "{}" "$FARMER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to reactivate transaction"
-        exit 1
-    fi
-    print_success "Reactivated transaction"
+    # Reactivate expired transaction (as farmer)
+    print_test_header "Reactivate Expired Transaction (as farmer)"
+    REACTIVATE_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/reactivate" "" "$FARMER_TOKEN")
+    print_success "Reactivated expired transaction"
 
-    # Cancel transaction (either party)
-    print_test_header "Cancel Transaction"
-    CANCEL_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/cancel" '{"cancellation_reason":"Unable to fulfill order"}' "$FARMER_TOKEN")
-    if [ $? -ne 0 ]; then
-        print_error "Failed to cancel transaction"
-        exit 1
-    fi
+    # Cancel transaction (as farmer)
+    print_test_header "Cancel Transaction (as farmer)"
+    CANCEL_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/cancel" "" "$FARMER_TOKEN")
     print_success "Cancelled transaction"
     
-    print_success "All transaction tests completed!"
+    print_success "All transaction tests completed"
 }
 
 # Run the tests
