@@ -97,7 +97,7 @@ export class ProduceController {
   }
 
   @Get("my")
-  findMyProduce(
+  async findMyProduce(
     @GetUser() user: User,
     @Query("farm_id") farm_id?: string,
     @Query("status") status?: ProduceStatus,
@@ -105,9 +105,14 @@ export class ProduceController {
     @Query("page", new DefaultValuePipe(1), ParseIntPipe) page = 1,
     @Query("limit", new DefaultValuePipe(10), ParseIntPipe) limit = 10,
   ): Promise<PaginatedResponse<Produce>> {
+    const farmer = await this.farmerService.findByUserId(user.id);
+    if (!farmer) {
+      throw new BadRequestException('User is not a farmer');
+    }
+
     return this.produceService.findAndPaginate({
       where: {
-        farmer_id: user.id,
+        farmer_id: farmer.id,
         ...(farm_id && { farm_id }),
         ...(status && { status }),
         ...(produce_category && { produce_category }),

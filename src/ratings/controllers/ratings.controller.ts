@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, UseGuards } from "@nestjs/common";
+import { Controller, Post, Get, Delete, Body, Param, UseGuards } from "@nestjs/common";
 import {
   ApiTags,
   ApiBearerAuth,
@@ -11,6 +11,7 @@ import { GetUser } from "../../auth/decorators/get-user.decorator";
 import { User } from "../../users/entities/user.entity";
 import { RatingsService } from "../services/ratings.service";
 import { CreateRatingDto } from "../dto/create-rating.dto";
+import { Rating } from "../entities/rating.entity";
 
 @ApiTags("Ratings")
 @ApiBearerAuth()
@@ -20,24 +21,44 @@ export class RatingsController {
   constructor(private readonly ratingsService: RatingsService) {}
 
   @Post()
-  @ApiOperation({ summary: "Submit a rating for a completed transaction" })
-  @ApiResponse({ status: 201, description: "Rating submitted successfully" })
-  async createRating(
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Create a new rating' })
+  @ApiResponse({ status: 201, description: 'Rating created successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  create(@GetUser() user: User, @Body() createRatingDto: CreateRatingDto) {
+    return this.ratingsService.create(createRatingDto, user);
+  }
+
+  @Get("received")
+  @ApiOperation({ summary: "Get all ratings received by the user" })
+  async getReceivedRatings(@GetUser() user: User): Promise<Rating[]> {
+    return this.ratingsService.findReceivedRatings(user.id);
+  }
+
+  @Get("given")
+  @ApiOperation({ summary: "Get all ratings given by the user" })
+  async getGivenRatings(@GetUser() user: User): Promise<Rating[]> {
+    return this.ratingsService.findGivenRatings(user.id);
+  }
+
+  @Get(":id")
+  @ApiOperation({ summary: "Get a specific rating by ID" })
+  async getRating(@Param("id") id: string): Promise<Rating> {
+    return this.ratingsService.findOne(id);
+  }
+
+  @Get("transaction/:id")
+  @ApiOperation({ summary: "Get all ratings for a specific transaction" })
+  async getTransactionRatings(@Param("id") transactionId: string): Promise<Rating[]> {
+    return this.ratingsService.findByTransaction(transactionId);
+  }
+
+  @Delete(":id")
+  @ApiOperation({ summary: "Delete a rating" })
+  async deleteRating(
     @GetUser() user: User,
-    @Body() createRatingDto: CreateRatingDto,
-  ) {
-    return this.ratingsService.create(user.id, createRatingDto);
-  }
-
-  @Get("user/:userId")
-  @ApiOperation({ summary: "Get all ratings for a user" })
-  async getUserRatings(@Param("userId") userId: string) {
-    return this.ratingsService.findByUser(userId);
-  }
-
-  @Get("user/:userId/average")
-  @ApiOperation({ summary: "Get average rating for a user" })
-  async getUserAverageRating(@Param("userId") userId: string) {
-    return this.ratingsService.getUserAverageRating(userId);
+    @Param("id") id: string,
+  ): Promise<void> {
+    return this.ratingsService.delete(user.id, id);
   }
 }

@@ -8,7 +8,7 @@ import { OnEvent } from '@nestjs/event-emitter';
 import { QualityAssessmentCompletedEvent } from '../../quality/events/quality-assessment-completed.event';
 import { ProduceSynonymService } from './synonym.service';
 import { AiSynonymService } from './ai-synonym.service';
-import { Farmer } from '../../farmers/entities/farmer.entity';
+import { FarmersService } from '../../farmers/farmers.service';
 import { InspectionDistanceFeeService } from '../../config/services/fee-config.service';
 import { InspectorsService } from '../../inspectors/inspectors.service';
 
@@ -21,8 +21,7 @@ export class ProduceService {
     private readonly produceRepository: Repository<Produce>,
     private readonly synonymService: ProduceSynonymService,
     private readonly aiSynonymService: AiSynonymService,
-    @InjectRepository(Farmer)
-    private readonly farmerRepository: Repository<Farmer>,
+    private readonly farmersService: FarmersService,
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly inspectorsService: InspectorsService,
   ) {}
@@ -221,6 +220,12 @@ export class ProduceService {
     }
 
     try {
+      // Verify farmer exists
+      const farmer = await this.farmersService.findOne(createProduceDto.farmer_id);
+      if (!farmer) {
+        throw new NotFoundException(`Farmer with ID ${createProduceDto.farmer_id} not found`);
+      }
+
       // Set initial name as "Unidentified Produce" if not provided
       if (!createProduceDto.name) {
         createProduceDto.name = 'Unidentified Produce';
@@ -243,22 +248,18 @@ export class ProduceService {
       } else {
         // If no inspector found, use maximum fee
         const config = await this.inspectionDistanceFeeService.getActiveConfig();
-        inspectionFee = config?.max_distance_fee || 500; // Use default max fee if no config
-        this.logger.debug(`No nearby inspectors found, using maximum fee: ${inspectionFee}`);
+        inspectionFee = config.max_distance_fee || 500; // Use default max fee if no config
       }
 
-      this.logger.debug(`Final inspection fee: ${inspectionFee} (minimum fee: 200)`);
-
+      // Create and save the produce
       const produce = this.produceRepository.create({
         ...createProduceDto,
+        farmer_id: farmer.id, // Use the farmer ID from the profile
         status: ProduceStatus.PENDING_AI_ASSESSMENT,
-        inspection_fee: inspectionFee
+        inspection_fee: inspectionFee,
       });
 
-      const savedProduce = await this.produceRepository.save(produce);
-      this.logger.debug(`Saved produce with inspection fee: ${savedProduce.inspection_fee}`);
-
-      return savedProduce;
+      return this.produceRepository.save(produce);
     } catch (error) {
       this.logger.error(`Failed to create produce: ${error.message}`);
       throw error;
@@ -392,9 +393,7 @@ export class ProduceService {
   }
 
   async getFarmerDetails(farmerId: string) {
-    const farmer = await this.farmerRepository.findOne({
-      where: { id: farmerId }
-    });
+    const farmer = await this.farmersService.findOne(farmerId);
 
     if (!farmer) {
       throw new NotFoundException(`Farmer with ID ${farmerId} not found`);

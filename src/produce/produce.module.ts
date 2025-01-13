@@ -12,14 +12,13 @@ import { AiSynonymService } from './services/ai-synonym.service';
 import { MockAiSynonymService } from './services/mock-ai-synonym.service';
 import { LanguageService } from '../config/language.service';
 import { FarmersModule } from '../farmers/farmers.module';
-import { Farmer } from '../farmers/entities/farmer.entity';
 import { InspectionDistanceFeeService } from '../config/services/fee-config.service';
 import { InspectorsModule } from '../inspectors/inspectors.module';
 import { ConfigModule } from '../config/config.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Produce, Synonym, Farmer]),
+    TypeOrmModule.forFeature([Produce, Synonym]),
     NestConfigModule,
     ConfigModule,
     HttpModule,

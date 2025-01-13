@@ -51,6 +51,10 @@ export class TransactionService extends BaseService<Transaction> {
     transaction.status = TransactionStatus.IN_PROGRESS;
     transaction.delivery_window_starts_at = now;
     transaction.delivery_window_ends_at = endTime;
+    transaction.metadata = {
+      ...transaction.metadata,
+      delivery_notes: `Delivery window started at ${now.toISOString()}`,
+    };
 
     return this.transactionRepository.save(transaction);
   }
@@ -61,10 +65,12 @@ export class TransactionService extends BaseService<Transaction> {
       throw new NotFoundException(`Transaction ${id} not found`);
     }
 
-    transaction.delivery_confirmed_at = new Date();
+    const now = new Date();
+    transaction.status = TransactionStatus.IN_PROGRESS;
+    transaction.delivery_confirmed_at = now;
     transaction.metadata = {
       ...transaction.metadata,
-      delivery_notes: notes,
+      delivery_notes: notes || `Delivery confirmed at ${now.toISOString()}`,
     };
 
     return this.transactionRepository.save(transaction);
@@ -127,6 +133,10 @@ export class TransactionService extends BaseService<Transaction> {
       ...transaction.metadata,
       completed_at: new Date(),
     };
+
+    // Set requires_rating to true when transaction is completed
+    transaction.requires_rating = true;
+    transaction.rating_completed = false;
 
     return this.transactionRepository.save(transaction);
   }

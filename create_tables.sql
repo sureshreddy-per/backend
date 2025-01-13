@@ -907,16 +907,15 @@ CREATE TRIGGER update_business_metrics_updated_at
 DROP TABLE IF EXISTS ratings CASCADE;
 
 CREATE TABLE ratings (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    transaction_id UUID NOT NULL REFERENCES transactions(id),
-    rating_user_id UUID NOT NULL REFERENCES users(id),
-    rated_user_id UUID NOT NULL REFERENCES users(id),
-    rating DECIMAL(2,1) NOT NULL,
-    comment TEXT,
-    aspects JSONB,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT check_rating CHECK (rating >= 0 AND rating <= 5)
+id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transaction_id UUID NOT NULL REFERENCES transactions(id),
+  rating_user_id UUID NOT NULL REFERENCES users(id),
+  rated_user_id UUID NOT NULL REFERENCES users(id),
+  rating INTEGER NOT NULL,
+  review TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT check_rating_range CHECK (rating >= 1 AND rating <= 5)
 );
 
 CREATE INDEX idx_ratings_transaction_id ON ratings(transaction_id);

@@ -24,8 +24,8 @@ export class TransactionTasksService {
 
     for (const transaction of response.items) {
       // Check if buyer has rated
-      const buyerRating = await this.ratingsService.findByUser(transaction.buyer_id);
-      if (!buyerRating) {
+      const buyerRatings = await this.ratingsService.findGivenRatings(transaction.buyer_id);
+      if (buyerRatings.length === 0) {
         await this.notificationService.create({
           user_id: transaction.buyer_id,
           type: NotificationType.RATING_REQUIRED,
@@ -36,8 +36,8 @@ export class TransactionTasksService {
       }
 
       // Check if farmer has rated
-      const farmerRating = await this.ratingsService.findByUser(transaction.farmer_id);
-      if (!farmerRating) {
+      const farmerRatings = await this.ratingsService.findGivenRatings(transaction.farmer_id);
+      if (farmerRatings.length === 0) {
         await this.notificationService.create({
           user_id: transaction.farmer_id,
           type: NotificationType.RATING_REQUIRED,

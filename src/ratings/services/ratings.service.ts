@@ -2,163 +2,155 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Rating } from "../entities/rating.entity";
-import { CreateRatingDto } from "../dto/create-rating.dto";
+import { CreateRatingDto, RatingType } from "../dto/create-rating.dto";
 import { TransactionService } from "../../transactions/services/transaction.service";
 import { NotificationService } from "../../notifications/services/notification.service";
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
+import { TransactionStatus } from "../../transactions/entities/transaction.entity";
+import { User } from "../../users/entities/user.entity";
+import { BuyersService } from "../../buyers/buyers.service";
+import { FarmersService } from "../../farmers/farmers.service";
 
 @Injectable()
 export class RatingsService {
   constructor(
     @InjectRepository(Rating)
     private readonly ratingRepository: Repository<Rating>,
-    private readonly transactionsService: TransactionService,
+    private readonly transactionService: TransactionService,
     private readonly notificationService: NotificationService,
+    private readonly buyersService: BuyersService,
+    private readonly farmersService: FarmersService,
   ) {}
 
-  async create(
-    userId: string,
-    createRatingDto: CreateRatingDto,
-  ): Promise<Rating> {
-    // Get transaction details
-    const transaction = await this.transactionsService.findOne(
-      createRatingDto.transaction_id,
-    );
+  async create(createRatingDto: CreateRatingDto, user: User): Promise<Rating> {
+    const transaction = await this.transactionService.findOne(createRatingDto.transaction_id);
     if (!transaction) {
-      throw new NotFoundException("Transaction not found");
+      throw new NotFoundException('Transaction not found');
     }
 
-    // Verify user is part of the transaction
-    if (transaction.buyer_id !== userId && transaction.farmer_id !== userId) {
-      throw new BadRequestException(
-        "You can only rate transactions you are part of",
-      );
+    if (transaction.status !== TransactionStatus.COMPLETED) {
+      throw new BadRequestException('Can only rate completed transactions');
     }
 
-    // Determine who is rating whom
-    const ratingUserId = userId;
-    const ratedUserId =
-      userId === transaction.buyer_id
-        ? transaction.farmer_id
-        : transaction.buyer_id;
+    // Determine who is rating whom based on rating type
+    let rating_user_id = user.id;
+    let rated_user_id: string;
+
+    if (createRatingDto.rating_type === RatingType.BUYER_TO_FARMER) {
+      const buyer = await this.buyersService.findByUserId(user.id);
+      if (!buyer || buyer.id !== transaction.buyer_id) {
+        throw new UnauthorizedException('Only the buyer can rate the farmer');
+      }
+      // Get the farmer's user ID
+      const farmer = await this.farmersService.findOne(transaction.farmer_id);
+      if (!farmer || !farmer.user_id) {
+        throw new NotFoundException('Farmer not found');
+      }
+      rated_user_id = farmer.user_id;
+    } else {
+      const farmer = await this.farmersService.findByUserId(user.id);
+      if (!farmer || farmer.id !== transaction.farmer_id) {
+        throw new UnauthorizedException('Only the farmer can rate the buyer');
+      }
+      // Get the buyer's user ID
+      const buyer = await this.buyersService.findOne(transaction.buyer_id);
+      if (!buyer || !buyer.user_id) {
+        throw new NotFoundException('Buyer not found');
+      }
+      rated_user_id = buyer.user_id;
+    }
 
     // Check if rating already exists
     const existingRating = await this.ratingRepository.findOne({
       where: {
-        transaction_id: createRatingDto.transaction_id,
-        rating_user_id: ratingUserId,
+        transaction_id: transaction.id,
+        rating_user_id: rating_user_id,
       },
     });
 
     if (existingRating) {
-      throw new BadRequestException("You have already rated this transaction");
+      throw new BadRequestException('Rating already exists for this transaction');
     }
 
-    // Create rating
     const rating = this.ratingRepository.create({
-      transaction_id: createRatingDto.transaction_id,
-      rating_user_id: ratingUserId,
-      rated_user_id: ratedUserId,
+      transaction_id: transaction.id,
+      rating_user_id: rating_user_id,
+      rated_user_id: rated_user_id,
       rating: createRatingDto.rating,
-      comment: createRatingDto.comment,
-      aspects: createRatingDto.aspects,
+      review: createRatingDto.review,
     });
 
     const savedRating = await this.ratingRepository.save(rating);
 
-    // Notify rated user
+    // Send notification
     await this.notificationService.create({
-      user_id: ratedUserId,
+      user_id: rated_user_id,
       type: NotificationType.RATING_RECEIVED,
       data: {
-        transaction_id: createRatingDto.transaction_id,
-        rating: createRatingDto.rating,
-        from_user_id: ratingUserId,
+        rating_id: savedRating.id,
+        transaction_id: transaction.id,
+        rating: rating.rating,
+        from_user_id: rating_user_id
       },
     });
 
     return savedRating;
   }
 
-  async findByUser(userId: string): Promise<Rating[]> {
+  async findReceivedRatings(userId: string): Promise<Rating[]> {
     return this.ratingRepository.find({
       where: { rated_user_id: userId },
+      relations: ["rating_user", "rated_user", "transaction"],
       order: { created_at: "DESC" },
-      relations: ["rating_user", "transaction"],
     });
   }
 
-  async getUserAverageRating(userId: string): Promise<{
-    overall: number;
-    aspects: {
-      quality_accuracy: number;
-      communication: number;
-      reliability: number;
-      timeliness: number;
-    };
-    total_ratings: number;
-  }> {
-    const ratings = await this.ratingRepository.find({
-      where: { rated_user_id: userId },
+  async findGivenRatings(userId: string): Promise<Rating[]> {
+    return this.ratingRepository.find({
+      where: { rating_user_id: userId },
+      relations: ["rating_user", "rated_user", "transaction"],
+      order: { created_at: "DESC" },
+    });
+  }
+
+  async findOne(id: string): Promise<Rating> {
+    const rating = await this.ratingRepository.findOne({
+      where: { id },
+      relations: ["rating_user", "rated_user", "transaction"],
     });
 
-    if (ratings.length === 0) {
-      return {
-        overall: 0,
-        aspects: {
-          quality_accuracy: 0,
-          communication: 0,
-          reliability: 0,
-          timeliness: 0,
-        },
-        total_ratings: 0,
-      };
+    if (!rating) {
+      throw new NotFoundException("Rating not found");
     }
 
-    const overall =
-      ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length;
+    return rating;
+  }
 
-    // Calculate aspect averages
-    const aspects = {
-      quality_accuracy: 0,
-      communication: 0,
-      reliability: 0,
-      timeliness: 0,
-    };
-
-    const aspectCounts = {
-      quality_accuracy: 0,
-      communication: 0,
-      reliability: 0,
-      timeliness: 0,
-    };
-
-    ratings.forEach((rating) => {
-      if (rating.aspects) {
-        Object.keys(aspects).forEach((aspect) => {
-          if (rating.aspects[aspect]) {
-            aspects[aspect] += rating.aspects[aspect];
-            aspectCounts[aspect]++;
-          }
-        });
-      }
+  async findByTransaction(transactionId: string): Promise<Rating[]> {
+    return this.ratingRepository.find({
+      where: { transaction_id: transactionId },
+      relations: ["rating_user", "rated_user", "transaction"],
+      order: { created_at: "DESC" },
     });
+  }
 
-    // Calculate averages for aspects
-    Object.keys(aspects).forEach((aspect) => {
-      if (aspectCounts[aspect] > 0) {
-        aspects[aspect] = aspects[aspect] / aspectCounts[aspect];
-      }
-    });
+  async delete(userId: string, id: string): Promise<void> {
+    const rating = await this.findOne(id);
 
-    return {
-      overall,
-      aspects,
-      total_ratings: ratings.length,
-    };
+    if (!rating) {
+      throw new NotFoundException("Rating not found");
+    }
+
+    if (rating.rating_user_id !== userId) {
+      throw new UnauthorizedException("You can only delete your own ratings");
+    }
+
+    await this.ratingRepository.remove(rating);
   }
 }
+

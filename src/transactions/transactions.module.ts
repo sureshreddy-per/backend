@@ -11,6 +11,8 @@ import { NotificationsModule } from "../notifications/notifications.module";
 import { ProduceModule } from '../produce/produce.module';
 import { RatingsModule } from "../ratings/ratings.module";
 import { ScheduleModule } from "@nestjs/schedule";
+import { BuyersModule } from "../buyers/buyers.module";
+import { FarmersModule } from "../farmers/farmers.module";
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { ScheduleModule } from "@nestjs/schedule";
     OffersModule,
     NotificationsModule,
     ProduceModule,
+    BuyersModule,
+    FarmersModule,
     forwardRef(() => RatingsModule),
     ScheduleModule.forRoot(),
   ],
