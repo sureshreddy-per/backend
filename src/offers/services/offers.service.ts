@@ -65,6 +65,7 @@ export class OffersService {
       // Validate buyer exists and get buyer ID
       const buyer = await this.buyersService.findByUserId(createOfferDto.buyer_id);
       createOfferDto.buyer_id = buyer.id; // Set the actual buyer ID
+      createOfferDto.farmer_id = produce.farmer_id; // Set the farmer ID from the produce
 
       // Create and save the offer
       const offer = this.offerRepository.create({

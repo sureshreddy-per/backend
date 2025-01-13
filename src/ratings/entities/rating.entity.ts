@@ -24,19 +24,11 @@ export class Rating {
   @Column({ name: "rated_user_id" })
   rated_user_id: string;
 
-  @Column("decimal", { precision: 2, scale: 1 })
+  @Column({ type: "integer" })
   rating: number;
 
-  @Column({ nullable: true })
-  comment: string;
-
-  @Column({ type: "jsonb", nullable: true })
-  aspects: {
-    quality_accuracy?: number;
-    communication?: number;
-    reliability?: number;
-    timeliness?: number;
-  };
+  @Column({ name: "review", type: "text", nullable: true })
+  review: string;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: "rating_user_id" })

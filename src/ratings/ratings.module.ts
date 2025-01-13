@@ -9,6 +9,8 @@ import { AuthModule } from "../auth/auth.module";
 import { OffersModule } from "../offers/offers.module";
 import { TransactionsModule } from "../transactions/transactions.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { BuyersModule } from "../buyers/buyers.module";
+import { FarmersModule } from "../farmers/farmers.module";
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { NotificationsModule } from "../notifications/notifications.module";
     OffersModule,
     forwardRef(() => TransactionsModule),
     NotificationsModule,
+    BuyersModule,
+    FarmersModule,
   ],
   providers: [RatingsService],
   controllers: [RatingsController],

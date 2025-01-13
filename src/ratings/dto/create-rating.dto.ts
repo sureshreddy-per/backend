@@ -4,10 +4,16 @@ import {
   IsString,
   IsUUID,
   IsOptional,
+  IsEnum,
   Min,
   Max,
 } from "class-validator";
 import { ApiProperty } from "@nestjs/swagger";
+
+export enum RatingType {
+  BUYER_TO_FARMER = "BUYER_TO_FARMER",
+  FARMER_TO_BUYER = "FARMER_TO_BUYER",
+}
 
 export class CreateRatingDto {
   @ApiProperty({
@@ -27,14 +33,10 @@ export class CreateRatingDto {
   @ApiProperty({ description: "Optional feedback comment" })
   @IsString()
   @IsOptional()
-  comment?: string;
+  review?: string;
 
-  @ApiProperty({ description: "Specific aspects ratings", required: false })
-  @IsOptional()
-  aspects?: {
-    quality_accuracy?: number; // How accurate was the quality assessment
-    communication?: number; // Communication during transaction
-    reliability?: number; // Reliability of the other party
-    timeliness?: number; // Timeliness in responses/delivery
-  };
+  @ApiProperty({ description: "Type of rating (BUYER_TO_FARMER or FARMER_TO_BUYER)" })
+  @IsEnum(RatingType)
+  @IsNotEmpty()
+  rating_type: RatingType;
 }
