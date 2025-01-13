@@ -484,7 +484,7 @@ export class AutoOfferService {
         buyer_id: buyer.id,
         status: OfferStatus.PENDING
       },
-      relations: ['produce']
+      relations: ['produce', 'produce.farmer']
     });
 
     for (const offer of pendingOffers) {
@@ -504,7 +504,7 @@ export class AutoOfferService {
           
           // Notify farmer about cancellation
           await this.notificationService.create({
-            user_id: offer.produce.farmer_id,
+            user_id: offer.produce.farmer.user_id,
             type: NotificationType.OFFER_STATUS_UPDATE,
             data: {
               offer_id: offer.id,

@@ -167,4 +167,12 @@ export class OffersController {
     }
     return this.offersService.updateStatus(id, OfferStatus.PENDING);
   }
+
+  @Get('stats')
+  @Roles(UserRole.ADMIN, UserRole.BUYER)
+  @ApiOperation({ summary: 'Get offer statistics' })
+  @ApiResponse({ status: 200, description: 'Returns offer statistics' })
+  async getStats() {
+    return this.offersService.getStats();
+  }
 }

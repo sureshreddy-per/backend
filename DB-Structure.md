@@ -1,34 +1,30 @@
--- First, drop all tables
+-- First, drop all tables in reverse order of dependencies
+DROP TABLE IF EXISTS inspection_base_fee_config CASCADE;
+DROP TABLE IF EXISTS transaction_history CASCADE;
+DROP TABLE IF EXISTS config_audit_logs CASCADE;
+DROP TABLE IF EXISTS admin_audit_logs CASCADE;
+DROP TABLE IF EXISTS system_configs CASCADE;
+DROP TABLE IF EXISTS produce_synonyms CASCADE;
+DROP TABLE IF EXISTS business_metrics CASCADE;
+DROP TABLE IF EXISTS daily_prices CASCADE;
+DROP TABLE IF EXISTS ratings CASCADE;
+DROP TABLE IF EXISTS bank_accounts CASCADE;
+DROP TABLE IF EXISTS farm_details CASCADE;
+DROP TABLE IF EXISTS support_tickets CASCADE;
+DROP TABLE IF EXISTS reports CASCADE;
+DROP TABLE IF EXISTS notifications CASCADE;
+DROP TABLE IF EXISTS media CASCADE;
+DROP TABLE IF EXISTS transactions CASCADE;
+DROP TABLE IF EXISTS offers CASCADE;
+DROP TABLE IF EXISTS buyer_preferences CASCADE;
+DROP TABLE IF EXISTS buyers CASCADE;
 DROP TABLE IF EXISTS quality_assessments CASCADE;
 DROP TABLE IF EXISTS inspection_requests CASCADE;
-DROP TABLE IF EXISTS inspection_base_fees CASCADE;
-DROP TABLE IF EXISTS inspection_distance_fees CASCADE;
+DROP TABLE IF EXISTS inspection_distance_fee_config CASCADE;
 DROP TABLE IF EXISTS produce CASCADE;
 DROP TABLE IF EXISTS farms CASCADE;
 DROP TABLE IF EXISTS farmers CASCADE;
-DROP TABLE IF EXISTS inspectors CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
-DROP TABLE IF EXISTS produce_synonyms CASCADE;
-DROP TABLE IF EXISTS admin_audit_logs CASCADE;
-DROP TABLE IF EXISTS system_configs CASCADE;
-DROP TABLE IF EXISTS buyers CASCADE;
-DROP TABLE IF EXISTS offers CASCADE;
-DROP TABLE IF EXISTS transactions CASCADE;
-DROP TABLE IF EXISTS buyer_preferences CASCADE;
-DROP TABLE IF EXISTS media CASCADE;
-DROP TABLE IF EXISTS notifications CASCADE;
-DROP TABLE IF EXISTS reports CASCADE;
-DROP TABLE IF EXISTS config_audit_logs CASCADE;
-DROP TABLE IF EXISTS support_tickets CASCADE;
-DROP TABLE IF EXISTS synonyms CASCADE;
-DROP TABLE IF EXISTS daily_prices CASCADE;
-DROP TABLE IF EXISTS business_metrics CASCADE;
-DROP TABLE IF EXISTS ratings CASCADE;
-DROP TABLE IF EXISTS farm_details CASCADE;
-DROP TABLE IF EXISTS bank_accounts CASCADE;
-DROP TABLE IF EXISTS inspection_distance_fee_config CASCADE;
-DROP TABLE IF EXISTS transaction_history CASCADE;
-DROP TABLE IF EXISTS inspection_base_fee_config CASCADE;
 
 -- Drop all enums
 DROP TYPE IF EXISTS user_role_enum CASCADE;
@@ -523,7 +519,7 @@ CREATE TRIGGER update_quality_assessments_updated_at
 
 CREATE TABLE buyers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   gst TEXT,
   business_name TEXT NOT NULL,
   registration_number TEXT,
@@ -693,9 +689,9 @@ ALTER TABLE farms
   ADD CONSTRAINT fk_farms_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
 ALTER TABLE produce
-  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id),
-  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id),
-  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id);
+  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id) ON DELETE SET NULL;
 
 -- Add check constraints
 ALTER TABLE produce
@@ -750,17 +746,66 @@ CREATE TRIGGER update_media_updated_at
 
 CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id),
+  user_id UUID NOT NULL,
   type notification_type_enum NOT NULL,
   data JSONB NOT NULL,
-  is_read BOOLEAN DEFAULT false,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  read_at TIMESTAMP,
+  CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_type ON notifications(type);
 CREATE INDEX idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX idx_notifications_read_at ON notifications(read_at);
+CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
+
+CREATE OR REPLACE FUNCTION update_notifications_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.read_at = CASE 
+        WHEN OLD.is_read = FALSE AND NEW.is_read = TRUE THEN CURRENT_TIMESTAMP
+        ELSE NEW.read_at
+    END;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_notifications_read_at
+    BEFORE UPDATE ON notifications
+    FOR EACH ROW
+    EXECUTE FUNCTION update_notifications_updated_at();
+
+CREATE TABLE notification_preferences (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL,
+  email_enabled BOOLEAN DEFAULT true,
+  sms_enabled BOOLEAN DEFAULT true,
+  push_enabled BOOLEAN DEFAULT true,
+  notification_types TEXT[] DEFAULT ARRAY[]::TEXT[],
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_notification_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT unique_user_preferences UNIQUE (user_id)
+);
+
+CREATE INDEX idx_notification_preferences_user_id ON notification_preferences(user_id);
+CREATE INDEX idx_notification_preferences_notification_types ON notification_preferences USING GIN (notification_types);
+
+CREATE OR REPLACE FUNCTION update_notification_preferences_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_notification_preferences_updated_at
+    BEFORE UPDATE ON notification_preferences
+    FOR EACH ROW
+    EXECUTE FUNCTION update_notification_preferences_updated_at();
 
 CREATE TABLE reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -892,35 +937,7 @@ CREATE TRIGGER update_ratings_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_ratings_updated_at();
 
-DROP TABLE IF EXISTS farm_details CASCADE;
-
-CREATE TABLE farm_details (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    size DECIMAL(10,2),
-    size_unit TEXT,
-    name TEXT,
-    address TEXT,
-    location JSONB,
-    farmer_id UUID NOT NULL REFERENCES farmers(id),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_farm_details_farmer_id ON farm_details(farmer_id);
-CREATE INDEX idx_farm_details_name ON farm_details(name);
-
-CREATE OR REPLACE FUNCTION update_farm_details_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_farm_details_updated_at
-    BEFORE UPDATE ON farm_details
-    FOR EACH ROW
-    EXECUTE FUNCTION update_farm_details_updated_at();
+DROP TABLE IF EXISTS bank_accounts CASCADE;
 
 CREATE TABLE bank_accounts (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -989,30 +1006,30 @@ ALTER TABLE farms
   ADD CONSTRAINT fk_farms_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
 ALTER TABLE produce
-  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id),
-  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id),
-  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id);
+  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE quality_assessments
   ADD CONSTRAINT fk_quality_assessments_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_quality_assessments_inspector FOREIGN KEY (inspector_id) REFERENCES users(id),
-  ADD CONSTRAINT fk_quality_assessments_request FOREIGN KEY (inspection_request_id) REFERENCES inspection_requests(id);
+  ADD CONSTRAINT fk_quality_assessments_inspector FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL,
+  ADD CONSTRAINT fk_quality_assessments_request FOREIGN KEY (inspection_request_id) REFERENCES inspection_requests(id) ON DELETE CASCADE;
 
 ALTER TABLE inspection_requests
   ADD CONSTRAINT fk_inspection_requests_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_inspection_requests_requester FOREIGN KEY (requester_id) REFERENCES users(id),
-  ADD CONSTRAINT fk_inspection_requests_inspector FOREIGN KEY (inspector_id) REFERENCES users(id);
+  ADD CONSTRAINT fk_inspection_requests_requester FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_inspection_requests_inspector FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE offers
   ADD CONSTRAINT fk_offers_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_offers_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id),
-  ADD CONSTRAINT fk_offers_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id);
+  ADD CONSTRAINT fk_offers_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_offers_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
 ALTER TABLE transactions
-  ADD CONSTRAINT fk_transactions_offer FOREIGN KEY (offer_id) REFERENCES offers(id),
-  ADD CONSTRAINT fk_transactions_produce FOREIGN KEY (produce_id) REFERENCES produce(id),
-  ADD CONSTRAINT fk_transactions_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id),
-  ADD CONSTRAINT fk_transactions_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id);
+  ADD CONSTRAINT fk_transactions_offer FOREIGN KEY (offer_id) REFERENCES offers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_transactions_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_transactions_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_transactions_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
 ALTER TABLE buyer_preferences
   ADD CONSTRAINT fk_buyer_preferences_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE;
@@ -1021,18 +1038,15 @@ ALTER TABLE notifications
   ADD CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE support_tickets
-  ADD CONSTRAINT fk_support_tickets_user FOREIGN KEY (user_id) REFERENCES users(id);
+  ADD CONSTRAINT fk_support_tickets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE daily_prices
-  ADD CONSTRAINT fk_daily_prices_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id);
+  ADD CONSTRAINT fk_daily_prices_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE;
 
 ALTER TABLE ratings
-  ADD CONSTRAINT fk_ratings_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id),
-  ADD CONSTRAINT fk_ratings_rating_user FOREIGN KEY (rating_user_id) REFERENCES users(id),
-  ADD CONSTRAINT fk_ratings_rated_user FOREIGN KEY (rated_user_id) REFERENCES users(id);
-
-ALTER TABLE farm_details
-  ADD CONSTRAINT fk_farm_details_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
+  ADD CONSTRAINT fk_ratings_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_ratings_rating_user FOREIGN KEY (rating_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  ADD CONSTRAINT fk_ratings_rated_user FOREIGN KEY (rated_user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE bank_accounts
   ADD CONSTRAINT fk_bank_accounts_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
@@ -1138,8 +1152,6 @@ CREATE INDEX idx_business_metrics_entity ON business_metrics(entity_type, entity
 
 CREATE INDEX idx_ratings_transaction ON ratings(transaction_id);
 CREATE INDEX idx_ratings_users ON ratings(rating_user_id, rated_user_id);
-
-CREATE INDEX idx_farm_details_farmer ON farm_details(farmer_id);
 
 CREATE INDEX idx_bank_accounts_farmer ON bank_accounts(farmer_id);
 
@@ -1435,5 +1447,40 @@ CREATE TRIGGER update_admin_audit_logs_updated_at
     BEFORE UPDATE ON admin_audit_logs
     FOR EACH ROW
     EXECUTE FUNCTION update_admin_audit_logs_updated_at();
+
+-- Create inspectors table
+CREATE TABLE inspectors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  location VARCHAR(255) NOT NULL,
+  mobile_number VARCHAR(20) NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Create Report table
+CREATE TABLE IF NOT EXISTS report (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  report_type report_type_enum NOT NULL,
+  format report_format_enum NOT NULL,
+  status report_status_enum NOT NULL DEFAULT 'DRAFT',
+  parameters JSONB,
+  file_url VARCHAR(255),
+  file_size INTEGER,
+  summary TEXT,
+  error_message TEXT,
+  completed_at TIMESTAMP WITH TIME ZONE,
+  scheduled_time TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Add indexes for Report table
+CREATE INDEX IF NOT EXISTS idx_report_user_id ON report(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_status ON report(status);
+CREATE INDEX IF NOT EXISTS idx_report_scheduled_time ON report(scheduled_time);
 
 -- End of file

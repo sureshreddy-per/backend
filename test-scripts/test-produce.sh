@@ -159,6 +159,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 check_response "$ASSIGN_RESPONSE"
+echo "Assign Response: $ASSIGN_RESPONSE"
 print_success "Assigned inspector to inspection request"
 
 # Step 6: Submit Inspection Result
@@ -169,27 +170,30 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 check_response "$INSPECTION_RESULT_RESPONSE"
+echo "Inspection Result Response: $INSPECTION_RESULT_RESPONSE"
 print_success "Submitted inspection result"
 
 # Step 7: Verifying Final Status
 print_test_header "7. Verifying Final Status"
-FINAL_STATUS_RESPONSE=$(make_request "GET" "/api/produce/$PRODUCE_ID" "" "$FARMER_TOKEN")
+FINAL_STATUS_RESPONSE=$(make_request "GET" "/produce/$PRODUCE_ID" "" "$FARMER_TOKEN")
 if [ $? -ne 0 ]; then
     print_error "Failed to get final status"
     exit 1
 fi
 check_response "$FINAL_STATUS_RESPONSE"
+echo "Final Status Response: $FINAL_STATUS_RESPONSE"
 FINAL_STATUS=$(echo "$FINAL_STATUS_RESPONSE" | jq -r '.status')
 print_success "Final produce status: $FINAL_STATUS"
 
 # Step 8: Getting All Quality Assessments
 print_test_header "8. Getting All Quality Assessments"
-QUALITY_ASSESSMENTS_RESPONSE=$(make_request "GET" "/api/quality/produce/$PRODUCE_ID" "" "$FARMER_TOKEN")
+QUALITY_ASSESSMENTS_RESPONSE=$(make_request "GET" "/quality/produce/$PRODUCE_ID" "" "$FARMER_TOKEN")
 if [ $? -ne 0 ]; then
     print_error "Failed to get quality assessments"
     exit 1
 fi
 check_response "$QUALITY_ASSESSMENTS_RESPONSE"
+echo "Quality Assessments Response: $QUALITY_ASSESSMENTS_RESPONSE"
 print_success "Retrieved all quality assessments"
 
 echo -e "\n${GREEN}All produce creation and assessment tests completed!${NC}" 

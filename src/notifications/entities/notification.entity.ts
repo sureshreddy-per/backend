@@ -17,6 +17,7 @@ export class Notification {
   @Column({
     type: "enum",
     enum: NotificationType,
+    enumName: "notification_type_enum",
   })
   type: NotificationType;
 
@@ -28,4 +29,7 @@ export class Notification {
 
   @CreateDateColumn()
   created_at: Date;
+
+  @Column({ name: "read_at", nullable: true })
+  read_at?: Date;
 }
