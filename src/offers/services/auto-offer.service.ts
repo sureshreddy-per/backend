@@ -12,7 +12,7 @@ import { QualityAssessment } from "../../quality/entities/quality-assessment.ent
 import { NotificationService } from "../../notifications/services/notification.service";
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
 import { OfferStatus } from "../enums/offer-status.enum";
-import { InspectionFeeService, CalculateInspectionFeeParams } from "../../config/services/inspection-fee.service";
+import { InspectionDistanceFeeService } from "../../config/services/fee-config.service";
 import { DailyPriceService } from "./daily-price.service";
 import { CategorySpecificAssessment } from "../../quality/interfaces/category-assessments.interface";
 
@@ -40,7 +40,7 @@ export class AutoOfferService {
     @InjectRepository(QualityAssessment)
     private readonly qualityAssessmentRepository: Repository<QualityAssessment>,
     private readonly notificationService: NotificationService,
-    private readonly inspectionFeeService: InspectionFeeService,
+    private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly dailyPriceService: DailyPriceService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -224,10 +224,8 @@ export class AutoOfferService {
         this.logger.debug(`Found daily price for produce ${produce.name}: min=${dailyPrice.min_price}, max=${dailyPrice.max_price}`);
 
         // Calculate inspection fee
-        const inspectionFee = await this.inspectionFeeService.calculateInspectionFee({
-          distance_km: distance
-        });
-        this.logger.debug(`Calculated inspection fee for buyer ${buyer.id}: ${inspectionFee.total_fee}`);
+        const inspectionFee = this.inspectionDistanceFeeService.getDistanceFee(distance);
+        this.logger.debug(`Calculated inspection fee for buyer ${buyer.id}: ${inspectionFee}`);
 
         // Calculate offer price using quality grade and attributes
         const offerPrice = this.calculateOfferPrice(
@@ -238,7 +236,7 @@ export class AutoOfferService {
         );
         this.logger.debug(`Calculated offer price for buyer ${buyer.id}: ${offerPrice}`);
 
-        const offer = this.offerRepository.create({
+        const offer = await this.offerRepository.save({
           produce_id: produce.id,
           buyer_id: buyer.id,
           farmer_id: produce.farmer_id,
@@ -250,32 +248,29 @@ export class AutoOfferService {
           buyer_max_price: dailyPrice.max_price,
           quality_grade: latestAssessment.quality_grade,
           distance_km: distance,
-          inspection_fee: inspectionFee.total_fee,
+          inspection_fee: inspectionFee,
           valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000),
           metadata: {
-            ai_confidence: latestAssessment.confidence_level,
-            inspection_fee_details: inspectionFee,
-            quality_assessment: {
-              grade: latestAssessment.quality_grade,
-              defects: latestAssessment.defects || [],
-              recommendations: latestAssessment.recommendations || [],
-              category_specific_assessment: latestAssessment.category_specific_assessment || {},
-            },
+            auto_generated: true,
             daily_price_id: dailyPrice.id,
-            price_history: [{
-              price: offerPrice,
-              timestamp: new Date(),
-              reason: 'Auto-generated based on quality grade and attributes'
-            }]
-          }
-        } as Partial<Offer>);
+            quality_assessment_id: latestAssessment.id,
+            price: offerPrice,
+            quality_grade: latestAssessment.quality_grade,
+            inspection_fee_details: {
+              total_fee: inspectionFee,
+              distance_km: distance
+            },
+            valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            distance_km: distance,
+            category_specific_assessment: latestAssessment.category_specific_assessment,
+          },
+        });
 
-        const savedOffer = await this.offerRepository.save(offer as Offer);
-        this.logger.log(`Created offer ${savedOffer.id} for buyer ${buyer.id}`);
+        this.logger.log(`Created offer ${offer.id} for buyer ${buyer.id}`);
 
         // Emit event for other services
         this.eventEmitter.emit('offer.created', {
-          offer: savedOffer,
+          offer: offer,
           produce,
           buyer,
           distance,
@@ -286,11 +281,11 @@ export class AutoOfferService {
           user_id: buyer.user_id,
           type: NotificationType.NEW_AUTO_OFFER,
           data: {
-            offer_id: savedOffer.id,
+            offer_id: offer.id,
             produce_id: produce.id,
             price: offerPrice,
             quality_grade: latestAssessment.quality_grade,
-            inspection_fee: inspectionFee.total_fee,
+            inspection_fee: inspectionFee,
             valid_until: offer.valid_until,
             distance_km: distance,
             daily_price_id: dailyPrice.id,

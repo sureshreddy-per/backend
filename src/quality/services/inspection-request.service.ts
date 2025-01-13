@@ -2,15 +2,16 @@ import { Injectable, NotFoundException, BadRequestException } from "@nestjs/comm
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { InspectionRequest, InspectionRequestStatus } from "../entities/inspection-request.entity";
-import { InspectionFeeService } from "../../config/services/inspection-fee.service";
 import { EventEmitter2 } from "@nestjs/event-emitter";
+import { Produce } from "../../produce/entities/produce.entity";
 
 @Injectable()
 export class InspectionRequestService {
   constructor(
     @InjectRepository(InspectionRequest)
     private readonly inspectionRequestRepository: Repository<InspectionRequest>,
-    private readonly inspectionFeeService: InspectionFeeService,
+    @InjectRepository(Produce)
+    private readonly produceRepository: Repository<Produce>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -19,14 +20,18 @@ export class InspectionRequestService {
     requester_id: string;
     location: string;
   }): Promise<InspectionRequest> {
-    // Calculate inspection fee
-    const fee = await this.inspectionFeeService.calculateInspectionFee({
-      distance_km: 0, // This will be updated when inspector is assigned
+    // Get produce to access its inspection fee
+    const produce = await this.produceRepository.findOne({
+      where: { id: data.produce_id }
     });
+
+    if (!produce) {
+      throw new NotFoundException(`Produce with ID ${data.produce_id} not found`);
+    }
 
     const request = this.inspectionRequestRepository.create({
       ...data,
-      inspection_fee: fee.total_fee,
+      inspection_fee: produce.inspection_fee,
       status: InspectionRequestStatus.PENDING,
     });
 
