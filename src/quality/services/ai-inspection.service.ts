@@ -75,11 +75,17 @@ export class AIInspectionService {
       
       this.logger.log(`Created AI assessment for produce ${event.produce_id}`);
       
-      // Emit success event
+      // Emit success event with all required fields
       await this.eventEmitter.emit('quality.assessment.completed', {
         produce_id: event.produce_id,
-        assessment_id: assessment.id,
-        source: 'AI_ASSESSMENT'
+        quality_grade: assessment.quality_grade,
+        confidence_level: assessment.confidence_level,
+        detected_name: analysis.name,
+        assessment_details: {
+          product_variety: analysis.product_variety,
+          description: analysis.description,
+          category_specific_attributes: analysis.category_specific_attributes
+        }
       });
       
       return assessment;
@@ -87,13 +93,15 @@ export class AIInspectionService {
     } catch (error) {
       this.logger.error(`Failed to process AI assessment for produce ${event.produce_id}: ${error.message}`);
       
-      // Update produce status to indicate failed assessment
-      await this.eventEmitter.emit('produce.status.update', {
-        produce_id: event.produce_id,
-        status: 'ASSESSMENT_FAILED',
-        error: error.message,
-        source: 'AI_ASSESSMENT'
-      });
+      // Only emit failure if it's a real error, not just low confidence
+      if (!(error instanceof BadRequestException)) {
+        await this.eventEmitter.emit('produce.status.update', {
+          produce_id: event.produce_id,
+          status: 'ASSESSMENT_FAILED',
+          error: error.message,
+          source: 'AI_ASSESSMENT'
+        });
+      }
       
       throw error;
     }

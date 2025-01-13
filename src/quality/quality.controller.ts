@@ -15,7 +15,7 @@ import { GetUser } from "../auth/decorators/get-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { InspectionRequestService } from "./services/inspection-request.service";
 import { ProduceService } from "../produce/services/produce.service";
-import { validateRequiredFields } from "../utils/validation.util";
+import { validateRequiredFields } from "./utils/validation.util";
 
 @ApiTags('Quality Assessment')
 @Controller("quality")

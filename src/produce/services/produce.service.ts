@@ -109,60 +109,65 @@ export class ProduceService {
 
       // Update produce name if AI detected one
       if (event.detected_name) {
-        // STEP 1: First check existing names and synonyms
-        const existingName = await this.findExistingProduceNameFromSynonyms(event.detected_name);
-        
-        if (existingName) {
-          this.logger.log(`Found existing produce name "${existingName}" for detected name "${event.detected_name}"`);
-          produce.name = existingName;
-        } else {
-          // STEP 2: Generate AI synonyms and translations
-          this.logger.log(`No existing match found for "${event.detected_name}". Generating AI synonyms...`);
-          const aiResult = await this.aiSynonymService.generateSynonyms(event.detected_name);
+        try {
+          // STEP 1: First check existing names and synonyms
+          const existingName = await this.findExistingProduceNameFromSynonyms(event.detected_name);
           
-          // STEP 3: Check if any of the AI-generated synonyms match existing entries
-          const allGeneratedTerms = [
-            ...aiResult.synonyms,
-            ...Object.values(aiResult.translations).flat()
-          ];
-          
-          for (const term of allGeneratedTerms) {
-            const matchingName = await this.findExistingProduceNameFromSynonyms(term);
-            if (matchingName) {
-              this.logger.log(`Found existing produce name "${matchingName}" matching AI-generated term "${term}"`);
-              produce.name = matchingName;
-              break;
-            }
-          }
-          
-          // If no matches found in existing or AI-generated terms, create new entry
-          if (!produce.name || produce.name === 'Unidentified Produce') {
-            this.logger.log(`No matches found. Creating new synonym entries for "${event.detected_name}"`);
+          if (existingName) {
+            this.logger.log(`Found existing produce name "${existingName}" for detected name "${event.detected_name}"`);
+            produce.name = existingName;
+          } else {
+            // STEP 2: Generate AI synonyms and translations
+            this.logger.log(`No existing match found for "${event.detected_name}". Generating AI synonyms...`);
+            const aiResult = await this.aiSynonymService.generateSynonyms(event.detected_name);
             
-            // Add English synonyms
-            await this.synonymService.addSynonyms(
-              event.detected_name,
-              aiResult.synonyms,
-              'en',
-              true,
-              event.confidence_level
-            );
+            // STEP 3: Check if any of the AI-generated synonyms match existing entries
+            const allGeneratedTerms = [
+              ...aiResult.synonyms,
+              ...Object.values(aiResult.translations).flat()
+            ];
             
-            // Add translations for each supported language
-            for (const [language, translations] of Object.entries(aiResult.translations)) {
-              if (translations && translations.length > 0) {
-                await this.synonymService.addSynonyms(
-                  event.detected_name,
-                  translations as string[],
-                  language,
-                  true,
-                  event.confidence_level
-                );
+            for (const term of allGeneratedTerms) {
+              const matchingName = await this.findExistingProduceNameFromSynonyms(term);
+              if (matchingName) {
+                this.logger.log(`Found existing produce name "${matchingName}" matching AI-generated term "${term}"`);
+                produce.name = matchingName;
+                break;
               }
             }
-            
-            produce.name = event.detected_name;
+
+            // If no matches found in existing or AI-generated terms, create new entry
+            if (!produce.name || produce.name === 'Unidentified Produce') {
+              this.logger.log(`No matches found. Creating new synonym entries for "${event.detected_name}"`);
+              
+              // Add English synonyms
+              await this.synonymService.addSynonyms(
+                event.detected_name,
+                aiResult.synonyms,
+                'en',
+                true,
+                event.confidence_level
+              );
+              
+              // Add translations for each supported language
+              for (const [language, translations] of Object.entries(aiResult.translations)) {
+                if (translations && translations.length > 0) {
+                  await this.synonymService.addSynonyms(
+                    event.detected_name,
+                    translations as string[],
+                    language,
+                    true,
+                    event.confidence_level
+                  );
+                }
+              }
+              
+              produce.name = event.detected_name;
+            }
           }
+        } catch (nameError) {
+          // If name processing fails, log error but continue with status update
+          this.logger.error(`Failed to process produce name: ${nameError.message}`);
         }
       }
 
@@ -176,20 +181,21 @@ export class ProduceService {
         produce.status = ProduceStatus.AVAILABLE;
         this.logger.log(`Produce ${produce.id} marked as available with quality grade ${event.quality_grade}`);
       }
-      
+
       await this.produceRepository.save(produce);
       this.logger.log(`Successfully updated produce ${produce.id} after quality assessment`);
     } catch (error) {
       this.logger.error(`Failed to handle quality assessment for produce ${event.produce_id}: ${error.message}`);
-      // Update produce status to indicate assessment failure
+      // Set status to PENDING_INSPECTION instead of ASSESSMENT_FAILED when AI fails
       try {
         const produce = await this.findOne(event.produce_id);
-        produce.status = ProduceStatus.ASSESSMENT_FAILED;
+        produce.status = ProduceStatus.PENDING_INSPECTION;
         await this.produceRepository.save(produce);
+        this.logger.log(`Set produce ${produce.id} to PENDING_INSPECTION due to AI assessment failure`);
       } catch (innerError) {
         this.logger.error(`Failed to update produce status after assessment failure: ${innerError.message}`);
       }
-      throw error;
+      // Don't throw the error since we've handled it by setting status to PENDING_INSPECTION
     }
   }
 
