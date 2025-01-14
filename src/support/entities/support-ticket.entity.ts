@@ -9,6 +9,29 @@ import {
 } from "typeorm";
 import { User } from "../../users/entities/user.entity";
 
+export enum SupportTicketStatus {
+  OPEN = "OPEN",
+  IN_PROGRESS = "IN_PROGRESS",
+  RESOLVED = "RESOLVED",
+  CLOSED = "CLOSED",
+}
+
+export enum SupportTicketPriority {
+  LOW = "LOW",
+  MEDIUM = "MEDIUM",
+  HIGH = "HIGH",
+  URGENT = "URGENT",
+}
+
+export enum SupportTicketCategory {
+  GENERAL = "GENERAL",
+  TECHNICAL = "TECHNICAL",
+  BILLING = "BILLING",
+  ACCOUNT = "ACCOUNT",
+  ORDER = "ORDER",
+  OTHER = "OTHER",
+}
+
 @Entity("support_tickets")
 export class SupportTicket {
   @PrimaryGeneratedColumn("uuid")
@@ -23,14 +46,34 @@ export class SupportTicket {
   @Column("text")
   description: string;
 
-  @Column({ nullable: true })
-  category: string;
+  @Column({
+    type: "enum",
+    enum: SupportTicketCategory,
+    default: SupportTicketCategory.GENERAL,
+  })
+  category: SupportTicketCategory;
 
-  @Column({ default: "MEDIUM" })
-  priority: string;
+  @Column({
+    type: "enum",
+    enum: SupportTicketPriority,
+    default: SupportTicketPriority.MEDIUM,
+  })
+  priority: SupportTicketPriority;
 
-  @Column({ default: "OPEN" })
-  status: string;
+  @Column({
+    type: "enum",
+    enum: SupportTicketStatus,
+    default: SupportTicketStatus.OPEN,
+  })
+  status: SupportTicketStatus;
+
+  @Column({
+    type: "text",
+    array: true,
+    nullable: true,
+    default: "{}",
+  })
+  attachments: string[];
 
   @CreateDateColumn()
   created_at: Date;

@@ -1,10 +1,7 @@
-import { IsNotEmpty, IsString, IsOptional, IsUUID } from "class-validator";
+import { IsString, IsNotEmpty, IsEnum, IsOptional, IsArray, ArrayMinSize } from "class-validator";
+import { SupportTicketCategory, SupportTicketPriority } from "../entities/support-ticket.entity";
 
 export class CreateSupportTicketDto {
-  @IsUUID()
-  @IsNotEmpty()
-  user_id: string;
-
   @IsString()
   @IsNotEmpty()
   title: string;
@@ -13,15 +10,16 @@ export class CreateSupportTicketDto {
   @IsNotEmpty()
   description: string;
 
-  @IsString()
+  @IsEnum(SupportTicketCategory)
   @IsOptional()
-  category?: string;
+  category?: SupportTicketCategory;
 
-  @IsString()
+  @IsEnum(SupportTicketPriority)
   @IsOptional()
-  priority?: string;
+  priority?: SupportTicketPriority;
 
-  @IsString()
   @IsOptional()
-  status?: string;
+  @IsArray()
+  @IsString({ each: true })
+  attachments?: string[];
 }
