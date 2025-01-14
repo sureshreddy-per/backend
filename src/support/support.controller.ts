@@ -25,11 +25,19 @@ export class SupportController {
   constructor(private readonly supportService: SupportService) {}
 
   @Post()
-  create(
+  async create(
     @GetUser() user: User,
     @Body() createSupportTicketDto: CreateSupportTicketDto,
   ): Promise<SupportTicket> {
-    return this.supportService.create(user.id, createSupportTicketDto);
+    try {
+      console.log('Creating ticket with data:', JSON.stringify(createSupportTicketDto, null, 2));
+      const ticket = await this.supportService.create(user.id, createSupportTicketDto);
+      console.log('Created ticket:', JSON.stringify(ticket, null, 2));
+      return ticket;
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+      throw error;
+    }
   }
 
   @Get()

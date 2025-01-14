@@ -1482,4 +1482,15 @@ CREATE INDEX IF NOT EXISTS idx_report_user_id ON report(user_id);
 CREATE INDEX IF NOT EXISTS idx_report_status ON report(status);
 CREATE INDEX IF NOT EXISTS idx_report_scheduled_time ON report(scheduled_time);
 
+-- Create request_metrics table
+CREATE TABLE IF NOT EXISTS request_metrics (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES users(id),
+  endpoint TEXT NOT NULL,
+  method TEXT NOT NULL,
+  status_code INTEGER NOT NULL,
+  response_time INTEGER NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- End of file

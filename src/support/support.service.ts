@@ -17,11 +17,44 @@ export class SupportService {
     userId: string,
     createSupportTicketDto: CreateSupportTicketDto,
   ): Promise<SupportTicket> {
-    const ticket = this.supportTicketRepository.create({
-      ...createSupportTicketDto,
-      user_id: userId,
-    });
-    return this.supportTicketRepository.save(ticket);
+    try {
+      console.log('Creating ticket with DTO:', JSON.stringify(createSupportTicketDto, null, 2));
+      
+      // Ensure attachments is properly formatted for PostgreSQL simple-array
+      if (createSupportTicketDto.attachments) {
+        if (!Array.isArray(createSupportTicketDto.attachments)) {
+          createSupportTicketDto.attachments = [createSupportTicketDto.attachments];
+        }
+        // Convert to array of strings and join with commas for PostgreSQL simple-array
+        const attachmentsArray = createSupportTicketDto.attachments.map(String);
+        console.log('Attachments array:', attachmentsArray);
+        
+        const ticket = this.supportTicketRepository.create({
+          ...createSupportTicketDto,
+          user_id: userId,
+          attachments: attachmentsArray,
+        });
+
+        console.log('Saving ticket:', JSON.stringify(ticket, null, 2));
+        const savedTicket = await this.supportTicketRepository.save(ticket);
+        console.log('Saved ticket:', JSON.stringify(savedTicket, null, 2));
+        return savedTicket;
+      } else {
+        const ticket = this.supportTicketRepository.create({
+          ...createSupportTicketDto,
+          user_id: userId,
+          attachments: [],
+        });
+
+        console.log('Saving ticket:', JSON.stringify(ticket, null, 2));
+        const savedTicket = await this.supportTicketRepository.save(ticket);
+        console.log('Saved ticket:', JSON.stringify(savedTicket, null, 2));
+        return savedTicket;
+      }
+    } catch (error) {
+      console.error('Error in create:', error);
+      throw error;
+    }
   }
 
   async findAll(
