@@ -1,20 +1,20 @@
-import { Test, TestingModule } from "@nestjs/testing";
-import { AuthService } from "./auth.service";
-import { UsersService } from "../users/users.service";
-import { JwtService } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
-import { RedisService } from "../redis/redis.service";
-import { FarmersService } from "../farmers/farmers.service";
-import { User, UserRole, UserStatus } from "../users/entities/user.entity";
+import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from './auth.service';
+import { UsersService } from '../users/users.service';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../redis/redis.service';
+import { FarmersService } from '../farmers/farmers.service';
+import { User, UserRole, UserStatus } from '../users/entities/user.entity';
 
-describe("AuthService", () => {
+describe('AuthService', () => {
   let service: AuthService;
 
   const mockUser = {
-    id: "test-id",
-    mobile_number: "+1234567890",
-    email: "test@example.com",
-    name: "Test User",
+    id: 'test-id',
+    mobile_number: '+1234567890',
+    email: 'test@example.com',
+    name: 'Test User',
     role: UserRole.FARMER,
     status: UserStatus.ACTIVE,
     block_reason: null,
@@ -24,7 +24,7 @@ describe("AuthService", () => {
     login_attempts: 0,
     last_login_attempt: null,
     created_at: new Date(),
-    updated_at: new Date(),
+    updated_at: new Date()
   } as User;
 
   const mockUsersService = {
@@ -84,7 +84,7 @@ describe("AuthService", () => {
     service = module.get<AuthService>(AuthService);
   });
 
-  it("should be defined", () => {
+  it('should be defined', () => {
     expect(service).toBeDefined();
   });
 });

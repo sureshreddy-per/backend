@@ -719,6 +719,7 @@ DROP TABLE IF EXISTS media CASCADE;
 CREATE TABLE media (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     url TEXT NOT NULL,
+    key TEXT NOT NULL,
     type media_type_enum NOT NULL DEFAULT 'IMAGE',
     mime_type TEXT,
     size INTEGER,
@@ -730,6 +731,7 @@ CREATE TABLE media (
 
 CREATE INDEX idx_media_type ON media(type);
 CREATE INDEX idx_media_mime_type ON media(mime_type);
+CREATE INDEX idx_media_key ON media(key);
 
 CREATE OR REPLACE FUNCTION update_media_updated_at()
 RETURNS TRIGGER AS $$
@@ -765,7 +767,7 @@ CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
 CREATE OR REPLACE FUNCTION update_notifications_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.read_at = CASE 
+    NEW.read_at = CASE
         WHEN OLD.is_read = FALSE AND NEW.is_read = TRUE THEN CURRENT_TIMESTAMP
         ELSE NEW.read_at
     END;
@@ -1245,22 +1247,22 @@ CREATE TRIGGER update_business_metrics_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- Update media table
-ALTER TABLE media 
+ALTER TABLE media
 ADD COLUMN type media_type_enum NOT NULL DEFAULT 'IMAGE',
 ADD COLUMN entity_category media_category_enum;
 
 -- Update notifications table
-ALTER TABLE notifications 
+ALTER TABLE notifications
 ADD COLUMN read_at TIMESTAMP;
 
 -- Update support_tickets table
-ALTER TABLE support_tickets 
+ALTER TABLE support_tickets
 ADD COLUMN priority support_priority_enum NOT NULL DEFAULT 'MEDIUM',
 ADD COLUMN category support_category_enum NOT NULL,
 ADD COLUMN attachments TEXT[] DEFAULT ARRAY[]::TEXT[];
 
 -- Update users table
-ALTER TABLE users 
+ALTER TABLE users
 ADD COLUMN metadata JSONB,
 ADD COLUMN profile JSONB,
 ADD COLUMN roles user_role_enum[] DEFAULT ARRAY['BUYER']::user_role_enum[],

@@ -1,16 +1,29 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
-import { BaseService } from "./base.service";
-import { BaseController } from "./base.controller";
-import { FileUploadService } from "./services/file-upload.service";
-import { FileUploadController } from "./controllers/file-upload.controller";
 import { S3Service } from "./services/s3.service";
+import { GcpStorageService } from "./services/gcp-storage.service";
 import { GeospatialService } from "./services/geospatial.service";
+import { FileUploadInterceptor } from "./interceptors/file-upload.interceptor";
+import { FileValidator } from "./validators/file.validator";
+import { StorageServiceProvider, STORAGE_SERVICE } from "./providers/storage.provider";
 
 @Module({
   imports: [ConfigModule],
-  controllers: [FileUploadController],
-  providers: [BaseService, FileUploadService, S3Service, GeospatialService],
-  exports: [BaseService, FileUploadService, S3Service, GeospatialService],
+  providers: [
+    S3Service,
+    GcpStorageService,
+    GeospatialService,
+    FileUploadInterceptor,
+    FileValidator,
+    StorageServiceProvider,
+  ],
+  exports: [
+    S3Service,
+    GcpStorageService,
+    GeospatialService,
+    FileUploadInterceptor,
+    FileValidator,
+    STORAGE_SERVICE,
+  ],
 })
 export class CommonModule {}

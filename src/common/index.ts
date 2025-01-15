@@ -6,6 +6,7 @@ export * from "./base.response";
 export * from "./interfaces/paginated-response.interface";
 export * from "./dto/pagination-query.dto";
 export * from "./common.module";
-export * from "./services/file-upload.service";
 export * from "./services/s3.service";
 export * from "./services/geospatial.service";
+export * from "./validators/file.validator";
+export * from "./interceptors/file-upload.interceptor";

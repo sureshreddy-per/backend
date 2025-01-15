@@ -1,45 +1,59 @@
-import { Controller, Post, Get, Delete, Param, Body, UseGuards } from "@nestjs/common";
-import { MediaService } from "../services/media.service";
-import { Media, MediaType } from "../entities/media.entity";
-import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
-import { RolesGuard } from "../../auth/guards/roles.guard";
-import { Roles } from "../../auth/decorators/roles.decorator";
-import { UserRole } from "../../enums/user-role.enum";
+import { Controller, Post, UseInterceptors, UploadedFile, Get, Param, Delete, UseGuards } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { MediaService } from '../services/media.service';
+import { FileUploadInterceptor } from '../../common/interceptors/file-upload.interceptor';
+import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { ApiTags, ApiConsumes, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 
-@Controller("media")
-@UseGuards(JwtAuthGuard, RolesGuard)
+@ApiTags('media')
+@Controller('media')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class MediaController {
-  constructor(private readonly mediaService: MediaService) {}
+  constructor(
+    private readonly mediaService: MediaService,
+    private readonly configService: ConfigService,
+  ) {}
 
-  @Post()
-  @Roles(UserRole.ADMIN, UserRole.FARMER, UserRole.INSPECTOR)
-  async create(
-    @Body()
-    data: {
-      url: string;
-      type: MediaType;
-      mime_type?: string;
-      size?: number;
-      original_name?: string;
-      metadata?: {
-        width?: number;
-        height?: number;
-        duration?: number;
-        thumbnail_url?: string;
-      };
+  @Post('upload')
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
     },
-  ): Promise<Media> {
-    return this.mediaService.create(data);
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 50 * 1024 * 1024, // 50MB
+      },
+      fileFilter: (req, file, cb) => {
+        // Allow all file types, FileValidator will handle type validation
+        cb(null, true);
+      },
+    }),
+    FileUploadInterceptor,
+  )
+  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    return this.mediaService.uploadFile(file);
   }
 
-  @Get(":id")
-  async findOne(@Param("id") id: string): Promise<Media> {
-    return this.mediaService.findOne(id);
+  @Get(':id')
+  async getFile(@Param('id') id: string) {
+    return this.mediaService.getFile(id);
   }
 
-  @Delete(":id")
-  @Roles(UserRole.ADMIN)
-  async delete(@Param("id") id: string): Promise<void> {
-    await this.mediaService.delete(id);
+  @Delete(':id')
+  async deleteFile(@Param('id') id: string) {
+    return this.mediaService.deleteFile(id);
   }
-} 
+}
