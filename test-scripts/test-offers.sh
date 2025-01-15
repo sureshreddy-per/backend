@@ -4,7 +4,7 @@
 API_BASE_URL="http://localhost:3000/api"
 FARMER_MOBILE="+1234567891"
 FARMER_NAME="Test Farmer"
-BUYER_MOBILE="+1234567892"
+BUYER_MOBILE="+1234567893"
 BUYER_NAME="Test Buyer"
 
 # Colors for output
@@ -318,7 +318,30 @@ EOF
     # Test 2: Set buyer preferences
     print_test_header "Testing Set Buyer Preferences"
     
-    # Get buyer details first
+    # Update buyer profile first
+    echo "Updating buyer profile"
+    BUYER_UPDATE_DATA=$(cat <<EOF
+{
+    "business_name": "Test Buyer Business",
+    "lat_lng": "12.9716,77.5946",
+    "location_name": "Bangalore",
+    "address": "123 Test Street, Bangalore"
+}
+EOF
+)
+    RESPONSE=$(curl -s -X PUT \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $BUYER_TOKEN" \
+        -d "$BUYER_UPDATE_DATA" \
+        "${API_BASE_URL}/buyers/me")
+    
+    if [ -z "$RESPONSE" ]; then
+        print_error "Empty response received"
+        exit 1
+    fi
+    echo "Updated buyer profile: $RESPONSE"
+    
+    # Get buyer details
     echo "Getting buyer details"
     RESPONSE=$(curl -s -X GET \
         -H "Content-Type: application/json" \

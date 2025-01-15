@@ -3,12 +3,16 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
+# Copy package files
 COPY package*.json ./
 
-RUN npm install
+# Install dependencies
+RUN npm ci
 
+# Copy source code
 COPY . .
 
+# Build the application
 RUN npm run build
 
 # Production stage
@@ -16,12 +20,27 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Copy package files
 COPY package*.json ./
 
-RUN npm install --only=production
+# Install production dependencies only
+RUN npm ci --only=production
 
-COPY --from=builder /app/dist/src ./dist
+# Copy built application
+COPY --from=builder /app/dist ./dist
 
+# Copy production configuration
+COPY --from=builder /app/src/config/production.config.ts ./dist/config/
+
+# Create uploads directory
+RUN mkdir -p uploads/produce/images uploads/produce/videos uploads/documents
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=3000
+
+# Expose port
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"] 
+# Start the application
+CMD ["node", "dist/main"] 

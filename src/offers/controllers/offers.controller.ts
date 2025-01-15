@@ -32,6 +32,7 @@ import { ProduceService } from "../../produce/services/produce.service";
 import { CreateOfferDto } from "../dto/create-offer.dto";
 import { UpdateOfferDto } from "../dto/update-offer.dto";
 import { OfferStatus } from "../enums/offer-status.enum";
+import { CreateAdminOfferDto } from "../dto/create-admin-offer.dto";
 
 @ApiTags("Offers")
 @ApiBearerAuth()
@@ -174,5 +175,15 @@ export class OffersController {
   @ApiResponse({ status: 200, description: 'Returns offer statistics' })
   async getStats() {
     return this.offersService.getStats();
+  }
+
+  @Post("admin")
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: "Create an offer as admin with minimum fields" })
+  @ApiResponse({ status: 201, description: "Offer created successfully" })
+  @ApiResponse({ status: 401, description: "Unauthorized" })
+  @ApiResponse({ status: 400, description: "Bad Request - Invalid input data" })
+  async createAsAdmin(@Body() createAdminOfferDto: CreateAdminOfferDto) {
+    return this.offersService.createAdminOffer(createAdminOfferDto);
   }
 }

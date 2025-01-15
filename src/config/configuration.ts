@@ -12,6 +12,16 @@ export default () => ({
     expiresIn: process.env.JWT_EXPIRY || "1h",
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRY || "7d",
   },
+  uploads: {
+    maxImageSize: parseInt(process.env.MAX_IMAGE_SIZE_MB, 10) || 8,
+    maxVideoSize: parseInt(process.env.MAX_VIDEO_SIZE_MB, 10) || 50,
+    maxDocumentSize: parseInt(process.env.MAX_DOCUMENT_SIZE_MB, 10) || 10,
+    allowedImageTypes: (process.env.ALLOWED_IMAGE_TYPES || "jpg,jpeg,png,gif").split(","),
+    allowedVideoTypes: (process.env.ALLOWED_VIDEO_TYPES || "mp4,mov,avi").split(","),
+    allowedDocumentTypes: (process.env.ALLOWED_DOCUMENT_TYPES || "pdf,doc,docx,txt,xls,xlsx").split(","),
+    uploadDir: process.env.UPLOAD_DIR || "uploads",
+    useS3: process.env.USE_S3 === "true",
+  },
   security: {
     // Admin users are configured through environment variables for security
     // ADMIN_USERS should be a comma-separated list of admin email addresses
