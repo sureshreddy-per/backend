@@ -26,18 +26,18 @@ make_request() {
     local endpoint=$2
     local data=$3
     local token=$4
-    
+
     local headers="-H 'Content-Type: application/json'"
     if [ ! -z "$token" ]; then
         headers="$headers -H 'Authorization: Bearer $token'"
     fi
-    
+
     local response=$(curl -s -X "$method" \
         -H "Content-Type: application/json" \
         ${token:+-H "Authorization: Bearer $token"} \
         ${data:+-d "$data"} \
         "http://localhost:3000/api$endpoint")
-    
+
     echo "$response"
 }
 
@@ -60,11 +60,11 @@ get_test_token() {
     local mobile="+1234567890${number}"
     local name="Test ${role} ${number}"
     local email="test${role}${number}@example.com"
-    
+
     # Request OTP
     local otp_response=$(make_request "POST" "/auth/otp/request" "{\"mobile_number\": \"$mobile\"}")
     echo "OTP Response: $otp_response" >&2
-    
+
     # Extract OTP from response
     local otp=""
     if echo "$otp_response" | grep -q "User not found"; then
@@ -80,26 +80,26 @@ get_test_token() {
     else
         otp=$(echo "$otp_response" | grep -o '"OTP sent successfully: [0-9]*"' | grep -o '[0-9]*')
     fi
-    
+
     if [ -z "$otp" ]; then
         echo "Failed to get OTP" >&2
         return 1
     fi
     echo "Got OTP: $otp" >&2
-    
+
     # Verify OTP and get token
     local verify_response=$(make_request "POST" "/auth/otp/verify" "{
         \"mobile_number\": \"$mobile\",
         \"otp\": \"$otp\"
     }")
     echo "Verify Response: $verify_response" >&2
-    
+
     local token=$(echo "$verify_response" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
     if [ -z "$token" ]; then
         echo "Failed to get token" >&2
         return 1
     fi
-    
+
     echo "$token"
 }
 
@@ -259,4 +259,4 @@ NEARBY_15KM=$(make_request "GET" "/farmers/nearby?lat=12.9716&lng=77.5946&radius
 check_error "$NEARBY_15KM"
 print_success "Tested 15km radius search"
 
-print_success "All Farmer and Farm Management Tests Completed Successfully" 
+print_success "All Farmer and Farm Management Tests Completed Successfully"

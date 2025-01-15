@@ -7,11 +7,13 @@ import {
   Param,
   Query,
   NotFoundException,
+  Controller,
 } from "@nestjs/common";
 import { BaseService } from "./base.service";
 import { PaginatedResponse } from "./interfaces/paginated-response.interface";
 import { PaginationQueryDto } from "./dto/pagination-query.dto";
 
+@Controller()
 export class BaseController<T extends { id: string }> {
   constructor(protected readonly service: BaseService<T>) {}
 

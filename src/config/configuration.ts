@@ -40,4 +40,11 @@ export default () => ({
       requireLowercase: process.env.PASSWORD_REQUIRE_LOWERCASE === "true",
     },
   },
+  gcp: {
+    projectId: process.env.GCP_PROJECT_ID,
+    keyFilePath: process.env.GCP_KEY_FILE_PATH,
+    bucket: process.env.GCP_STORAGE_BUCKET,
+  },
+  // Choose storage provider ('s3' or 'gcp')
+  storageProvider: process.env.STORAGE_PROVIDER || 'gcp',
 });

@@ -38,6 +38,9 @@ export class Media {
     thumbnail_url?: string;
   };
 
+  @Column()
+  key: string;
+
   @CreateDateColumn()
   created_at: Date;
 
