@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, NotFoundException, forwardRef, ConflictException } from "@nestjs/common";
+import { Injectable, Logger, Inject, NotFoundException, forwardRef, ConflictException, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, In } from "typeorm";
 import { CACHE_MANAGER } from "@nestjs/cache-manager";
@@ -14,6 +14,8 @@ import { ProduceService } from "../../produce/services/produce.service";
 import { BuyersService } from "../../buyers/buyers.service";
 import { DailyPriceService } from "./daily-price.service";
 import { AutoOfferService } from "./auto-offer.service";
+import { CreateAdminOfferDto } from '../dto/create-admin-offer.dto';
+import { UsersService } from "../../users/services/users.service";
 
 const CACHE_TTL = 3600; // 1 hour
 const CACHE_PREFIX = 'offer:';
@@ -34,6 +36,7 @@ export class OffersService {
     private readonly autoOfferService: AutoOfferService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly usersService: UsersService,
   ) {}
 
   private getCacheKey(key: string): string {
@@ -373,6 +376,101 @@ export class OffersService {
     } catch (error) {
       console.error('Error in handlePriceChange:', error);
       throw error;
+    }
+  }
+
+  async createAdminOffer(createAdminOfferDto: CreateAdminOfferDto): Promise<Offer> {
+    try {
+      // Validate that buyer exists and is a BUYER
+      const buyer = await this.usersService.findOne(createAdminOfferDto.buyer_id);
+      if (!buyer || buyer.role !== 'BUYER') {
+        throw new BadRequestException('Invalid buyer ID or user is not a buyer');
+      }
+
+      // Validate that farmer exists and is a FARMER
+      const farmer = await this.usersService.findOne(createAdminOfferDto.farmer_id);
+      if (!farmer || farmer.role !== 'FARMER') {
+        throw new BadRequestException('Invalid farmer ID or user is not a farmer');
+      }
+
+      // Validate that produce exists and belongs to the farmer
+      const produce = await this.produceService.findOne(createAdminOfferDto.produce_id);
+      if (!produce) {
+        throw new BadRequestException('Invalid produce ID');
+      }
+      if (produce.farmer_id !== createAdminOfferDto.farmer_id) {
+        throw new BadRequestException('Produce does not belong to the specified farmer');
+      }
+
+      // Validate produce availability
+      if (produce.quantity < createAdminOfferDto.quantity) {
+        throw new BadRequestException('Requested quantity exceeds available produce quantity');
+      }
+
+      // Convert admin DTO to full offer DTO with default values
+      const fullOfferDto: CreateOfferDto = {
+        ...createAdminOfferDto,
+        buyer_min_price: createAdminOfferDto.price_per_unit,
+        buyer_max_price: createAdminOfferDto.price_per_unit,
+        quality_grade: produce.quality_grade || 5,
+        distance_km: 0,
+        inspection_fee: 0,
+        metadata: {
+          created_by_admin: true,
+          admin_created_at: new Date().toISOString(),
+          produce_name: produce.name,
+          buyer_name: buyer.name,
+          farmer_name: farmer.name
+        }
+      };
+
+      const offer = this.offerRepository.create({
+        ...fullOfferDto,
+        status: OfferStatus.PENDING,
+      });
+
+      const savedOffer = await this.offerRepository.save(offer);
+
+      // Notify both buyer and farmer about the admin-created offer
+      await Promise.all([
+        this.notificationService.create({
+          user_id: buyer.id,
+          type: NotificationType.NEW_OFFER,
+          data: {
+            offer_id: savedOffer.id,
+            produce_id: savedOffer.produce_id,
+            price_per_unit: savedOffer.price_per_unit,
+            quantity: savedOffer.quantity,
+            message: 'An administrator has created this offer on your behalf'
+          },
+        }),
+        this.notificationService.create({
+          user_id: farmer.id,
+          type: NotificationType.NEW_OFFER,
+          data: {
+            offer_id: savedOffer.id,
+            produce_id: savedOffer.produce_id,
+            price_per_unit: savedOffer.price_per_unit,
+            quantity: savedOffer.quantity,
+            message: 'An administrator has created this offer'
+          },
+        }),
+      ]);
+
+      // Emit event for offer creation
+      this.eventEmitter.emit('offer.created', {
+        offer_id: savedOffer.id,
+        created_by: 'admin',
+        timestamp: new Date(),
+      });
+
+      return savedOffer;
+    } catch (error) {
+      this.logger.error(`Error in createAdminOffer: ${error.message}`, error.stack);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Failed to create admin offer: ' + error.message);
     }
   }
 }

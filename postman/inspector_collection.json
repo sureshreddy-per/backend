@@ -1,0 +1,402 @@
+{
+  "info": {
+    "name": "AgroChain Inspector API",
+    "description": "API collection for Inspector role in AgroChain platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Check Mobile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/check-mobile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "check-mobile"]
+            }
+          }
+        },
+        {
+          "name": "Register Inspector",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\",\n    \"name\": \"Inspector Name\",\n    \"email\": \"inspector@example.com\",\n    \"role\": \"INSPECTOR\",\n    \"certification_id\": \"CERT123\",\n    \"specializations\": [\"VEGETABLES\", \"FRUITS\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Request OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/otp/request",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "otp", "request"]
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\",\n    \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/otp/verify",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "otp", "verify"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Inspector Name\",\n    \"email\": \"updated.inspector@example.com\",\n    \"specializations\": [\"VEGETABLES\", \"FRUITS\", \"GRAINS\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update FCM Token",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"fcm_token\": \"sample-fcm-token-123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/fcm-token",
+              "host": ["{{base_url}}"],
+              "path": ["users", "fcm-token"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inspections",
+      "item": [
+        {
+          "name": "Get Pending Inspections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quality/inspections/pending",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "inspections", "pending"]
+            }
+          }
+        },
+        {
+          "name": "Get My Assigned Inspections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quality/inspections/assigned",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "inspections", "assigned"]
+            }
+          }
+        },
+        {
+          "name": "Accept Inspection Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"scheduled_date\": \"2024-02-01T10:00:00Z\",\n    \"estimated_duration_minutes\": 60\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/quality/inspections/:id/accept",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "inspections", ":id", "accept"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Submit Inspection Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"quality_score\": 85,\n    \"certification_status\": \"APPROVED\",\n    \"findings\": [\n        {\n            \"category\": \"APPEARANCE\",\n            \"score\": 90,\n            \"notes\": \"Good color and size consistency\"\n        },\n        {\n            \"category\": \"FRESHNESS\",\n            \"score\": 85,\n            \"notes\": \"Harvested within acceptable timeframe\"\n        },\n        {\n            \"category\": \"PACKAGING\",\n            \"score\": 80,\n            \"notes\": \"Proper packaging with minor improvements needed\"\n        }\n    ],\n    \"recommendations\": \"Improve packaging material for longer shelf life\",\n    \"validity_period_days\": 90,\n    \"attachments\": [\"photo1.jpg\", \"photo2.jpg\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/quality/inspections/:id/report",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "inspections", ":id", "report"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Inspection Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"status\": \"IN_PROGRESS\",\n    \"notes\": \"Started inspection process\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/quality/inspections/:id/status",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "inspections", ":id", "status"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Generate Inspection Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"report_type\": \"INSPECTION_HISTORY\",\n    \"start_date\": \"2024-01-01\",\n    \"end_date\": \"2024-01-31\",\n    \"format\": \"PDF\",\n    \"filters\": {\n        \"status\": [\"COMPLETED\", \"REJECTED\"],\n        \"produce_type\": [\"VEGETABLES\", \"FRUITS\"]\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/reports",
+              "host": ["{{base_url}}"],
+              "path": ["reports"]
+            }
+          }
+        },
+        {
+          "name": "Get Report Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reports/:id",
+              "host": ["{{base_url}}"],
+              "path": ["reports", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Support",
+      "item": [
+        {
+          "name": "Create Support Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"subject\": \"Issue with inspection submission\",\n    \"description\": \"Unable to submit inspection report\",\n    \"priority\": \"HIGH\",\n    \"category\": \"TECHNICAL\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/support/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["support", "tickets"]
+            }
+          }
+        },
+        {
+          "name": "Get My Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/support/tickets/my",
+              "host": ["{{base_url}}"],
+              "path": ["support", "tickets", "my"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+} 

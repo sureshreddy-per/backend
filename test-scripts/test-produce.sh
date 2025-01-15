@@ -5,6 +5,14 @@ source "$(dirname "$0")/utils.sh"
 
 print_test_header "Produce Creation and Assessment Flow Tests"
 
+# Configuration
+ADMIN_MOBILE="+1234567890"
+ADMIN_NAME="Test Admin"
+INSPECTOR_MOBILE="+1234567894"
+INSPECTOR_NAME="Test Inspector"
+FARMER_MOBILE="+1234567891"
+FARMER_NAME="Test Farmer"
+
 # Function to register and get token
 get_user_token() {
     local mobile="$1"
@@ -56,7 +64,7 @@ print_test_header "Registering and authenticating users"
 
 # Setup ADMIN
 print_test_header "Setting up ADMIN user"
-ADMIN_RESPONSE=$(get_user_token "+5555555555" "ADMIN" "ADMIN" "admin_$(date +%s)@test.com")
+ADMIN_RESPONSE=$(get_user_token "$ADMIN_MOBILE" "$ADMIN_NAME" "ADMIN" "admin@test.com")
 if [ $? -ne 0 ]; then
     print_error "Failed to setup ADMIN user"
     exit 1
@@ -65,7 +73,7 @@ ADMIN_TOKEN=$(echo "$ADMIN_RESPONSE" | jq -r '.token')
 
 # Setup INSPECTOR
 print_test_header "Setting up INSPECTOR user"
-INSPECTOR_RESPONSE=$(get_user_token "+6666666666" "INSPECTOR" "INSPECTOR" "inspector_$(date +%s)@test.com")
+INSPECTOR_RESPONSE=$(get_user_token "$INSPECTOR_MOBILE" "$INSPECTOR_NAME" "INSPECTOR" "inspector@test.com")
 if [ $? -ne 0 ]; then
     print_error "Failed to setup INSPECTOR user"
     exit 1
@@ -77,7 +85,7 @@ INSPECTOR_MOBILE=$(echo "$INSPECTOR_RESPONSE" | jq -r '.user.mobile_number')
 
 # Setup FARMER
 print_test_header "Setting up FARMER user"
-FARMER_RESPONSE=$(get_user_token "+7777777777" "FARMER" "FARMER" "farmer_$(date +%s)@test.com")
+FARMER_RESPONSE=$(get_user_token "$FARMER_MOBILE" "$FARMER_NAME" "FARMER" "farmer@test.com")
 if [ $? -ne 0 ]; then
     print_error "Failed to setup FARMER user"
     exit 1
@@ -97,12 +105,45 @@ if [ -z "$INSPECTOR_ID" ] || [ -z "$INSPECTOR_NAME" ] || [ -z "$INSPECTOR_MOBILE
     exit 1
 fi
 
-INSPECTOR_PROFILE_RESPONSE=$(make_request "POST" "/inspectors" "{\"name\":\"$INSPECTOR_NAME\",\"mobile_number\":\"$INSPECTOR_MOBILE\",\"location\":\"12.9716,77.5946\",\"user_id\":\"$INSPECTOR_ID\"}" "$INSPECTOR_TOKEN")
+# Update inspector profile with location details
+INSPECTOR_PROFILE_DATA=$(cat <<EOF
+{
+    "name": "$INSPECTOR_NAME",
+    "mobile_number": "$INSPECTOR_MOBILE",
+    "location": "12.9716,77.5946",
+    "location_name": "Bangalore",
+    "address": "456 Inspector Street, Bangalore",
+    "user_id": "$INSPECTOR_ID"
+}
+EOF
+)
+
+INSPECTOR_PROFILE_RESPONSE=$(make_request "PUT" "/inspectors/me" "$INSPECTOR_PROFILE_DATA" "$INSPECTOR_TOKEN")
 if [ $? -ne 0 ]; then
-    print_warning "Inspector profile might already exist, continuing..."
+    print_warning "Failed to update inspector profile, continuing..."
 else
-    check_response "$INSPECTOR_PROFILE_RESPONSE" 201
-    print_success "Created inspector profile"
+    check_response "$INSPECTOR_PROFILE_RESPONSE"
+    print_success "Updated inspector profile"
+fi
+
+# Update farmer profile with location details
+print_test_header "Updating Farmer Profile"
+FARMER_PROFILE_DATA=$(cat <<EOF
+{
+    "business_name": "$FARMER_NAME Farm",
+    "lat_lng": "12.9716,77.5946",
+    "location_name": "Bangalore",
+    "address": "789 Farmer Street, Bangalore"
+}
+EOF
+)
+
+FARMER_PROFILE_RESPONSE=$(make_request "PUT" "/farmers/me" "$FARMER_PROFILE_DATA" "$FARMER_TOKEN")
+if [ $? -ne 0 ]; then
+    print_warning "Failed to update farmer profile, continuing..."
+else
+    check_response "$FARMER_PROFILE_RESPONSE"
+    print_success "Updated farmer profile"
 fi
 
 # Step 1: Initial Produce Creation

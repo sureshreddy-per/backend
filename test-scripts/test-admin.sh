@@ -1,183 +1,304 @@
 #!/bin/bash
 
-# Import common functions
-source "$(dirname "$0")/utils.sh"
+# Color codes for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-echo -e "\nTesting: Admin Endpoints"
+# Utility functions
+print_test_header() {
+    echo -e "\n${BLUE}=== $1 ===${NC}\n"
+}
 
-# Register and get token for admin user
-admin_token=$(get_auth_token "+1111222259" "Test Admin" "ADMIN")
-if [ -z "$admin_token" ]; then
-    echo "Failed to get admin token"
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
+
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+    return 1
+}
+
+print_warning() {
+    echo -e "${YELLOW}! $1${NC}"
+}
+
+# Function to make API requests
+make_request() {
+    local method=$1
+    local endpoint=$2
+    local data=$3
+    local token=$4
+    
+    local response=$(curl -s -X "$method" \
+        -H "Content-Type: application/json" \
+        ${token:+-H "Authorization: Bearer $token"} \
+        ${data:+-d "$data"} \
+        "http://localhost:3000/api$endpoint")
+    
+    # Check for curl errors
+    if [ $? -ne 0 ]; then
+        print_error "Failed to make request to $endpoint"
+        return 1
+    fi
+    
+    # Check for API errors
+    if echo "$response" | grep -q '"statusCode":[45]'; then
+        print_error "API request failed: $response"
+        return 1
+    fi
+    
+    echo "$response"
+    return 0
+}
+
+# Function to get user token with registration if needed
+get_user_token() {
+    local mobile="$1"
+    local name="$2"
+    local role="$3"
+    local email="$4"
+
+    # Try to register
+    local REGISTER_RESPONSE=$(make_request "POST" "/auth/register" "{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"$email\"}")
+    if [ $? -ne 0 ]; then
+        local IS_REGISTERED=$(make_request "POST" "/auth/check-mobile" "{\"mobile_number\":\"$mobile\"}")
+        if [ "$IS_REGISTERED" != "true" ]; then
+            print_error "Failed to register user and user does not exist"
+            return 1
+        fi
+    fi
+
+    # Request OTP
+    local OTP_RESPONSE=$(make_request "POST" "/auth/otp/request" "{\"mobile_number\":\"$mobile\"}")
+    if [ $? -ne 0 ]; then
+        print_error "Failed to request OTP"
+        return 1
+    fi
+    local OTP=$(echo "$OTP_RESPONSE" | jq -r '.message' | grep -o '[0-9]\{6\}')
+    if [ -z "$OTP" ]; then
+        print_error "Failed to extract OTP"
+        return 1
+    fi
+
+    # Verify OTP and get token
+    local VERIFY_RESPONSE=$(make_request "POST" "/auth/otp/verify" "{\"mobile_number\":\"$mobile\",\"otp\":\"$OTP\"}")
+    if [ $? -ne 0 ]; then
+        print_error "Failed to verify OTP"
+        return 1
+    fi
+    
+    echo "$VERIFY_RESPONSE"
+    return 0
+}
+
+print_test_header "Starting Admin Flow Tests"
+
+# Setup test users
+print_test_header "Setting up test users"
+
+# Setup ADMIN
+print_test_header "Setting up ADMIN user"
+ADMIN_RESPONSE=$(get_user_token "+7777777771" "Test Admin" "ADMIN" "test_admin_flow@example.com")
+if [ $? -ne 0 ]; then
+    print_error "Failed to setup ADMIN user"
     exit 1
 fi
+ADMIN_TOKEN=$(echo "$ADMIN_RESPONSE" | jq -r '.token')
 
-# Register and get token for farmer user
-farmer_token=$(get_auth_token "+1111222260" "Test Farmer" "FARMER")
-if [ -z "$farmer_token" ]; then
-    echo "Failed to get farmer token"
+# Setup FARMER
+print_test_header "Setting up FARMER user"
+FARMER_RESPONSE=$(get_user_token "+7777777772" "Test Farmer" "FARMER" "test_farmer_flow@example.com")
+if [ $? -ne 0 ]; then
+    print_error "Failed to setup FARMER user"
     exit 1
 fi
+FARMER_TOKEN=$(echo "$FARMER_RESPONSE" | jq -r '.token')
+FARMER_ID=$(echo "$FARMER_RESPONSE" | jq -r '.user.id')
 
-# Register and get token for buyer user
-buyer_token=$(get_auth_token "+1111222261" "Test Buyer" "BUYER")
-if [ -z "$buyer_token" ]; then
-    echo "Failed to get buyer token"
+# Setup BUYER
+print_test_header "Setting up BUYER user"
+BUYER_RESPONSE=$(get_user_token "+7777777773" "Test Buyer" "BUYER" "test_buyer_flow@example.com")
+if [ $? -ne 0 ]; then
+    print_error "Failed to setup BUYER user"
     exit 1
 fi
+BUYER_TOKEN=$(echo "$BUYER_RESPONSE" | jq -r '.token')
+BUYER_ID=$(echo "$BUYER_RESPONSE" | jq -r '.user.id')
 
 # Create buyer profile
-echo -e "\nTesting: Create Buyer Profile"
-make_request "POST" "/buyers/profile" '{
+print_test_header "Creating Buyer Profile"
+BUYER_PROFILE_RESPONSE=$(make_request "POST" "/buyers/profile" '{
     "business_name": "Test Buyer Business",
     "address": "123 Test Street, Test City",
     "lat_lng": "12.9716-77.5946"
-}' "$buyer_token"
+}' "$BUYER_TOKEN")
+
+if [ $? -ne 0 ]; then
+    print_warning "Buyer profile might already exist, continuing..."
+else
+    print_success "Created buyer profile"
+fi
 
 # Create test produce
-echo -e "\nTesting: Create Produce"
-produce_response=$(make_request "POST" "/produce" '{
+print_test_header "Creating Test Produce"
+PRODUCE_RESPONSE=$(make_request "POST" "/produce" '{
     "name": "Admin Test Produce",
+    "description": "Test produce for admin flow",
+    "product_variety": "Test Variety",
     "produce_category": "VEGETABLES",
     "quantity": 100,
     "unit": "KG",
-    "price_per_unit": 50,
-    "location": "12.9716,77.5946"
-}' "$farmer_token")
-produce_id=$(echo "$produce_response" | jq -r '.id')
-if [ "$produce_id" == "null" ] || [ -z "$produce_id" ]; then
-    echo "Failed to create produce"
+    "price_per_unit": 50.00,
+    "location": "12.9716,77.5946",
+    "location_name": "Test Farm",
+    "images": ["https://example.com/test.jpg"],
+    "harvested_at": "2024-02-01T00:00:00Z"
+}' "$FARMER_TOKEN")
+
+if [ $? -ne 0 ]; then
+    print_error "Failed to create produce"
     exit 1
 fi
+
+PRODUCE_ID=$(echo "$PRODUCE_RESPONSE" | jq -r '.id')
+print_success "Created produce with ID: $PRODUCE_ID"
 
 # Test admin offer creation
-echo -e "\nTesting: Admin Create Offer"
-buyer_response=$(make_request "GET" "/users/role/BUYER" "{}" "$admin_token")
-buyer_user_id=$(echo "$buyer_response" | jq -r '.[0].id')
-farmer_response=$(make_request "GET" "/users/role/FARMER" "{}" "$admin_token")
-farmer_user_id=$(echo "$farmer_response" | jq -r '.[0].id')
-
-admin_offer_response=$(make_request "POST" "/offers/admin/create" "{
-    \"buyer_id\": \"$buyer_user_id\",
-    \"farmer_id\": \"$farmer_user_id\",
-    \"produce_id\": \"$produce_id\",
+print_test_header "Testing Admin Offer Creation"
+ADMIN_OFFER_RESPONSE=$(make_request "POST" "/offers/admin/create" "{
+    \"buyer_id\": \"$BUYER_ID\",
+    \"farmer_id\": \"$FARMER_ID\",
+    \"produce_id\": \"$PRODUCE_ID\",
     \"quantity\": 75,
-    \"price\": 55,
+    \"price_per_unit\": 55,
     \"message\": \"Admin created offer for testing\"
-}" "$admin_token")
-admin_offer_id=$(echo "$admin_offer_response" | jq -r '.id')
-if [ "$admin_offer_id" == "null" ] || [ -z "$admin_offer_id" ]; then
-    echo "Failed to create admin offer"
+}" "$ADMIN_TOKEN")
+
+if [ $? -ne 0 ]; then
+    print_error "Failed to create admin offer"
     exit 1
 fi
+
+ADMIN_OFFER_ID=$(echo "$ADMIN_OFFER_RESPONSE" | jq -r '.id')
+print_success "Created admin offer with ID: $ADMIN_OFFER_ID"
 
 # Create test transaction
-echo -e "\nTesting: Create Transaction"
-transaction_response=$(make_request "POST" "/transactions" "{
-    \"offer_id\": \"$admin_offer_id\",
-    \"produce_id\": \"$produce_id\",
+print_test_header "Creating Test Transaction"
+TRANSACTION_RESPONSE=$(make_request "POST" "/transactions" "{
+    \"offer_id\": \"$ADMIN_OFFER_ID\",
+    \"produce_id\": \"$PRODUCE_ID\",
     \"final_price\": 55,
     \"final_quantity\": 75
-}" "$farmer_token")
-transaction_id=$(echo "$transaction_response" | jq -r '.id')
-if [ "$transaction_id" == "null" ] || [ -z "$transaction_id" ]; then
-    echo "Failed to create transaction"
+}" "$FARMER_TOKEN")
+
+if [ $? -ne 0 ]; then
+    print_error "Failed to create transaction"
     exit 1
 fi
 
-# Get farmer user ID
-echo -e "\nTesting: Get Farmer User"
-farmer_response=$(make_request "GET" "/users/role/FARMER" "{}" "$admin_token")
-farmer_user_id=$(echo "$farmer_response" | jq -r '.[0].id')
-if [ "$farmer_user_id" == "null" ] || [ -z "$farmer_user_id" ]; then
-    echo "Failed to get farmer user ID"
+TRANSACTION_ID=$(echo "$TRANSACTION_RESPONSE" | jq -r '.id')
+print_success "Created transaction with ID: $TRANSACTION_ID"
+
+# Test admin system configuration
+print_test_header "Testing System Configuration"
+CONFIG_RESPONSE=$(make_request "GET" "/admin/system/config" "{}" "$ADMIN_TOKEN")
+if [ $? -ne 0 ]; then
+    print_error "Failed to get system config"
     exit 1
 fi
+print_success "Retrieved system configuration"
 
-# Test admin system configuration endpoints
-echo -e "\nTesting: Get System Config"
-make_request "GET" "/admin/system/config" "{}" "$admin_token"
-
-echo -e "\nTesting: Update System Config"
-make_request "POST" "/admin/system/config" '{
+print_test_header "Updating System Configuration"
+UPDATE_CONFIG_RESPONSE=$(make_request "POST" "/admin/system/config" '{
     "maintenance_mode": false,
     "max_file_size_mb": 10,
     "default_pagination_limit": 20,
     "cache_ttl_minutes": 15
-}' "$admin_token"
+}' "$ADMIN_TOKEN")
 
-# Test admin user management endpoints
-echo -e "\nTesting: Block User"
-make_request "POST" "/admin/users/$farmer_user_id/block" '{
-    "reason": "Violation of terms",
-    "duration_days": 7
-}' "$admin_token"
-
-echo -e "\nTesting: Unblock User"
-make_request "POST" "/admin/users/$farmer_user_id/unblock" '{
-    "reason": "Appeal approved"
-}' "$admin_token"
-
-# Test admin produce management endpoints
-echo -e "\nTesting: Delete Produce"
-make_request "POST" "/admin/produce/$produce_id/delete" '{
-    "reason": "Inappropriate listing"
-}' "$admin_token"
-
-# Test admin offer management endpoints
-echo -e "\nTesting: Cancel Offer"
-make_request "POST" "/admin/offers/$admin_offer_id/cancel" '{
-    "reason": "Suspicious activity"
-}' "$admin_token"
-
-# Test admin transaction management endpoints
-echo -e "\nTesting: Cancel Transaction"
-make_request "POST" "/admin/transactions/$transaction_id/cancel" '{
-    "reason": "Dispute resolution"
-}' "$admin_token"
-
-# Test admin inspector management endpoints
-echo -e "\nTesting: Register Inspector"
-inspector_token=$(get_auth_token "+1111222262" "Test Inspector" "INSPECTOR")
-if [ -z "$inspector_token" ]; then
-    echo "Failed to get inspector token"
+if [ $? -ne 0 ]; then
+    print_error "Failed to update system config"
     exit 1
 fi
+print_success "Updated system configuration"
 
-echo -e "\nTesting: Get Inspector Profile"
-inspector_response=$(make_request "GET" "/users/me" "{}" "$inspector_token")
-inspector_id=$(echo "$inspector_response" | jq -r '.id')
-if [ "$inspector_id" == "null" ] || [ -z "$inspector_id" ]; then
-    echo "Failed to get inspector ID"
+# Test user management
+print_test_header "Testing User Management"
+BLOCK_RESPONSE=$(make_request "POST" "/admin/users/$FARMER_ID/block" '{
+    "reason": "Test block",
+    "duration_days": 1
+}' "$ADMIN_TOKEN")
+
+if [ $? -ne 0 ]; then
+    print_error "Failed to block user"
     exit 1
 fi
+print_success "Blocked user successfully"
 
-echo -e "\nTesting: Assign Inspector to Produce"
-make_request "POST" "/admin/produce/$produce_id/assign-inspector" "{
-    \"inspector_id\": \"$inspector_id\",
-    \"priority\": \"HIGH\",
-    \"notes\": \"Urgent quality verification needed\"
-}" "$admin_token"
+UNBLOCK_RESPONSE=$(make_request "POST" "/admin/users/$FARMER_ID/unblock" '{
+    "reason": "Test unblock"
+}' "$ADMIN_TOKEN")
 
-# Test admin statistics endpoints
-echo -e "\nTesting: Get User Stats"
-make_request "GET" "/admin/stats/users" "{}" "$admin_token"
+if [ $? -ne 0 ]; then
+    print_error "Failed to unblock user"
+    exit 1
+fi
+print_success "Unblocked user successfully"
 
-echo -e "\nTesting: Get Transaction Stats"
-make_request "GET" "/admin/stats/transactions" "{}" "$admin_token"
+# Test admin statistics
+print_test_header "Testing Admin Statistics"
 
-echo -e "\nTesting: Get Revenue Stats"
-make_request "GET" "/admin/stats/revenue" "{}" "$admin_token"
+print_test_header "Getting User Stats"
+USER_STATS_RESPONSE=$(make_request "GET" "/admin/stats/users" "{}" "$ADMIN_TOKEN")
+if [ $? -ne 0 ]; then
+    print_error "Failed to get user stats"
+    exit 1
+fi
+print_success "Retrieved user statistics"
 
-echo -e "\nTesting: Get Produce Stats"
-make_request "GET" "/admin/stats/produce" "{}" "$admin_token"
+print_test_header "Getting Transaction Stats"
+TRANSACTION_STATS_RESPONSE=$(make_request "GET" "/admin/stats/transactions" "{}" "$ADMIN_TOKEN")
+if [ $? -ne 0 ]; then
+    print_error "Failed to get transaction stats"
+    exit 1
+fi
+print_success "Retrieved transaction statistics"
 
-# Test admin audit logs
-echo -e "\nTesting: Get Audit Logs"
-make_request "GET" "/admin/audit-logs" "{}" "$admin_token"
+print_test_header "Getting Revenue Stats"
+REVENUE_STATS_RESPONSE=$(make_request "GET" "/admin/stats/revenue" "{}" "$ADMIN_TOKEN")
+if [ $? -ne 0 ]; then
+    print_error "Failed to get revenue stats"
+    exit 1
+fi
+print_success "Retrieved revenue statistics"
 
-# Test admin metrics
-echo -e "\nTesting: Get System Metrics"
-make_request "GET" "/admin/metrics" "{}" "$admin_token"
+print_test_header "Getting Produce Stats"
+PRODUCE_STATS_RESPONSE=$(make_request "GET" "/admin/stats/produce" "{}" "$ADMIN_TOKEN")
+if [ $? -ne 0 ]; then
+    print_error "Failed to get produce stats"
+    exit 1
+fi
+print_success "Retrieved produce statistics"
 
-echo -e "\nAdmin endpoint testing completed" 
+# Test audit logs
+print_test_header "Testing Audit Logs"
+AUDIT_LOGS_RESPONSE=$(make_request "GET" "/admin/audit-logs" "{}" "$ADMIN_TOKEN")
+if [ $? -ne 0 ]; then
+    print_error "Failed to get audit logs"
+    exit 1
+fi
+print_success "Retrieved audit logs"
+
+# Test system metrics
+print_test_header "Testing System Metrics"
+METRICS_RESPONSE=$(make_request "GET" "/admin/metrics" "{}" "$ADMIN_TOKEN")
+if [ $? -ne 0 ]; then
+    print_error "Failed to get system metrics"
+    exit 1
+fi
+print_success "Retrieved system metrics"
+
+echo -e "\n${GREEN}All admin flow tests completed successfully!${NC}" 

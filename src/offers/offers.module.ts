@@ -13,6 +13,7 @@ import { AutoOfferService } from "./services/auto-offer.service";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { QualityModule } from "../quality/quality.module";
 import { ConfigModule } from "../config/config.module";
+import { UsersModule } from "../users/users.module";
 import { Buyer } from "../buyers/entities/buyer.entity";
 import { QualityAssessment } from "../quality/entities/quality-assessment.entity";
 import { Produce } from "../produce/entities/produce.entity";
@@ -27,6 +28,7 @@ import { OfferNotificationListener } from "./listeners/offer-notification.listen
     NotificationsModule,
     forwardRef(() => QualityModule),
     ConfigModule,
+    UsersModule,
     CacheModule.register(),
   ],
   providers: [
