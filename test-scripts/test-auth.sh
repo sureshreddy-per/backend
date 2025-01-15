@@ -1,52 +1,105 @@
 #!/bin/bash
 
-# Source utilities
-source "$(dirname "$0")/utils.sh"
+# Constants
+TEST_MOBILE="+1234567890"
+TEST_NAME="Test User"
+TEST_EMAIL="test@example.com"
+TEST_ROLE="BUYER"
 
-print_header "Testing Authentication Endpoints"
+# Color codes for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# Test mobile number check
-print_test_header "Check Mobile Number"
-response=$(make_request "POST" "/auth/check-mobile" '{"mobile_number":"+1234567890"}')
-check_response "$response"
+print_step() {
+    echo -e "\n${BLUE}=== $1 ===${NC}\n"
+}
 
-# Check if user is registered
-is_registered=$(echo "$response" | jq -r '.isRegistered')
+print_success() {
+    echo -e "${GREEN}✓ $1${NC}"
+}
 
-if [ "$is_registered" = "false" ]; then
-    # Test registration for new user
-    print_test_header "Register User"
-    response=$(make_request "POST" "/auth/register" '{"mobile_number":"+1234567890","name":"Test User","role":"FARMER"}')
-    check_response "$response"
-fi
+print_error() {
+    echo -e "${RED}✗ $1${NC}"
+    exit 1
+}
 
-# Test OTP request
-print_test_header "Request OTP"
-response=$(make_request "POST" "/auth/otp/request" '{"mobile_number":"+1234567890"}')
-check_response "$response"
+# Function to make API calls
+call_api() {
+    local method=$1
+    local endpoint=$2
+    local data=$3
+    local auth_header=$4
 
-# Extract OTP from response
-otp=$(echo "$response" | grep -o '[0-9]\{6\}')
+    local headers="-H 'Content-Type: application/json'"
+    if [ ! -z "$auth_header" ]; then
+        headers="$headers -H 'Authorization: Bearer $auth_header'"
+    fi
 
-# Test OTP verification
-print_test_header "Verify OTP"
-response=$(make_request "POST" "/auth/otp/verify" "{\"mobile_number\":\"+1234567890\",\"otp\":\"$otp\"}")
-check_response "$response"
+    local cmd="curl -s -X $method 'http://localhost:3000/api$endpoint' $headers"
+    if [ ! -z "$data" ]; then
+        cmd="$cmd -d '$data'"
+    fi
 
-# Extract token for further tests
-token=$(echo "$response" | jq -r '.token')
+    eval $cmd
+}
 
-# Test token validation
-print_test_header "Validate Token"
-response=$(make_request "GET" "/auth/validate" "{}" "$token")
-check_response "$response"
+# Main test flow
+main() {
+    print_step "Starting Authentication Tests"
 
-# Test logout
-print_test_header "Logout"
-response=$(make_request "POST" "/auth/logout" "{}" "$token")
-check_response "$response"
+    # Test 1: Check if mobile number exists
+    print_step "Testing Check Mobile Number"
+    response=$(call_api "POST" "/auth/check-mobile" "{\"mobile_number\": \"$TEST_MOBILE\"}")
+    is_registered=$(echo "$response" | grep -o '"isRegistered":[^,}]*' | cut -d':' -f2 | tr -d ' ')
+    
+    if [ "$is_registered" = "false" ]; then
+        # Register new user if not exists
+        print_step "Testing User Registration"
+        response=$(call_api "POST" "/auth/register" "{\"mobile_number\": \"$TEST_MOBILE\", \"name\": \"$TEST_NAME\", \"email\": \"$TEST_EMAIL\", \"role\": \"$TEST_ROLE\"}")
+        otp=$(echo "$response" | grep -o '"OTP sent successfully: [0-9]*"' | grep -o '[0-9]*')
+        if [ -z "$otp" ]; then
+            print_error "Registration failed"
+        fi
+        print_success "Registration successful"
+    else
+        # Request OTP for existing user
+        print_step "Testing OTP Request"
+        response=$(call_api "POST" "/auth/otp/request" "{\"mobile_number\": \"$TEST_MOBILE\"}")
+        otp=$(echo "$response" | grep -o '"OTP sent successfully: [0-9]*"' | grep -o '[0-9]*')
+        if [ -z "$otp" ]; then
+            print_error "OTP request failed"
+        fi
+        print_success "OTP request successful"
+    fi
 
-print_success "Authentication tests completed!"
+    # Test 2: Verify OTP
+    print_step "Testing OTP Verification"
+    response=$(call_api "POST" "/auth/otp/verify" "{\"mobile_number\": \"$TEST_MOBILE\", \"otp\": \"$otp\"}")
+    token=$(echo "$response" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
+    if [ -z "$token" ]; then
+        print_error "OTP verification failed"
+    fi
+    print_success "OTP verification successful"
 
-# Cleanup
-cleanup 
+    # Test 3: Validate token
+    print_step "Testing Token Validation"
+    response=$(call_api "GET" "/auth/validate" "" "$token")
+    if ! echo "$response" | grep -q '"valid":true'; then
+        print_error "Token validation failed"
+    fi
+    print_success "Token validation successful"
+
+    # Test 4: Logout
+    print_step "Testing Logout"
+    response=$(call_api "POST" "/auth/logout" "" "$token")
+    if ! echo "$response" | grep -q '"message":"Successfully logged out"'; then
+        print_error "Logout failed"
+    fi
+    print_success "Logout successful"
+
+    print_step "All Authentication Tests Completed Successfully"
+}
+
+main 

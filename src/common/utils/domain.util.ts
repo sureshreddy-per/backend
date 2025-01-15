@@ -1,4 +1,4 @@
-import * as tr46 from 'tr46';
+import * as tr46 from "tr46";
 
 export class DomainUtil {
   static toASCII(domain: string): string {
@@ -21,4 +21,4 @@ export class DomainUtil {
     });
     return result;
   }
-} 
+}

@@ -1,13 +1,18 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+} from "typeorm";
 
 export enum RequestStatus {
-  SUCCESS = 'SUCCESS',
-  ERROR = 'ERROR'
+  SUCCESS = "SUCCESS",
+  ERROR = "ERROR",
 }
 
-@Entity('request_metrics')
+@Entity("request_metrics")
 export class RequestMetric {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column()
@@ -16,22 +21,22 @@ export class RequestMetric {
   @Column()
   method: string;
 
-  @Column({ name: 'user_id', nullable: true })
+  @Column({ name: "user_id", nullable: true })
   user_id: string;
 
-  @Column({ name: 'response_time' })
+  @Column({ name: "response_time" })
   response_time: number;
 
   @Column({
-    type: 'enum',
-    enum: RequestStatus
+    type: "enum",
+    enum: RequestStatus,
   })
   status: RequestStatus;
 
   @Column({ nullable: true })
   error_message: string;
 
-  @Column({ type: 'jsonb', nullable: true })
+  @Column({ type: "jsonb", nullable: true })
   metadata: {
     ip_address?: string;
     user_agent?: string;
@@ -40,6 +45,6 @@ export class RequestMetric {
     response_body?: any;
   };
 
-  @CreateDateColumn({ name: 'created_at' })
+  @CreateDateColumn({ name: "created_at" })
   created_at: Date;
-} 
+}

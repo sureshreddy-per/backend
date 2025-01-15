@@ -1,30 +1,37 @@
-import { IsString, IsUUID, IsNumber, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsUUID, IsNumber, IsOptional } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateFarmDto {
-  @ApiProperty()
+  @ApiPropertyOptional()
   @IsUUID()
-  farmer_id: string;
+  @IsOptional()
+  farmer_id?: string;
 
   @ApiProperty()
   @IsString()
   name: string;
 
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  description?: string;
+
   @ApiProperty()
   @IsNumber()
-  size: number;
+  size_in_acres: number;
 
   @ApiProperty()
   @IsString()
-  address: string;
+  @IsOptional()
+  address?: string;
 
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
-  lat_lng?: string;
+  location?: string;
 
   @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   image?: string;
-} 
+}

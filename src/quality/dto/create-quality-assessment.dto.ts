@@ -1,28 +1,41 @@
-import { IsNotEmpty, IsString, IsUUID, IsOptional, IsArray } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsArray, IsUUID, Min, Max, IsObject } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateQualityAssessmentDto {
+  @ApiProperty({ description: 'ID of the produce being assessed' })
   @IsUUID()
-  @IsNotEmpty()
   produce_id: string;
 
-  @IsUUID()
-  @IsNotEmpty()
-  inspector_id: string;
+  @ApiProperty({ description: 'Quality grade (0-10)', minimum: 0, maximum: 10 })
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  quality_grade: number;
 
-  @IsString()
-  @IsNotEmpty()
-  grade: string;
+  @ApiProperty({ description: 'Confidence level of the assessment (0-100)', minimum: 0, maximum: 100 })
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  confidence_level: number;
 
-  @IsString()
-  @IsOptional()
-  notes?: string;
-
+  @ApiPropertyOptional({ description: 'List of defects found in the produce' })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
-  images?: string[];
+  defects?: string[];
 
-  @IsString()
-  @IsNotEmpty()
-  method: string;
-} 
+  @ApiPropertyOptional({ description: 'List of recommendations for the produce' })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  recommendations?: string[];
+
+  @ApiProperty({ description: 'Category-specific assessment details' })
+  @IsObject()
+  category_specific_assessment: Record<string, any>;
+
+  @ApiPropertyOptional({ description: 'Additional metadata about the assessment' })
+  @IsObject()
+  @IsOptional()
+  metadata?: Record<string, any>;
+}

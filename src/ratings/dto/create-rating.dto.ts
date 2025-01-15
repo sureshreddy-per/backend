@@ -1,27 +1,42 @@
-import { IsUUID, IsString, IsOptional, IsNumber, Min, Max } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  IsUUID,
+  IsOptional,
+  IsEnum,
+  Min,
+  Max,
+} from "class-validator";
+import { ApiProperty } from "@nestjs/swagger";
+
+export enum RatingType {
+  BUYER_TO_FARMER = "BUYER_TO_FARMER",
+  FARMER_TO_BUYER = "FARMER_TO_BUYER",
+}
 
 export class CreateRatingDto {
-  @ApiProperty()
+  @ApiProperty({
+    description: "Transaction ID for which rating is being submitted",
+  })
   @IsUUID()
-  rated_user_id: string;
-
-  @ApiProperty()
-  @IsUUID()
-  rating_user_id: string;
-
-  @ApiProperty()
-  @IsUUID()
+  @IsNotEmpty()
   transaction_id: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: "Rating score (1-5)" })
   @IsNumber()
-  @Min(0)
+  @Min(1)
   @Max(5)
-  stars: number;
+  @IsNotEmpty()
+  rating: number;
 
-  @ApiPropertyOptional()
+  @ApiProperty({ description: "Optional feedback comment" })
   @IsString()
   @IsOptional()
-  comment?: string;
-} 
+  review?: string;
+
+  @ApiProperty({ description: "Type of rating (BUYER_TO_FARMER or FARMER_TO_BUYER)" })
+  @IsEnum(RatingType)
+  @IsNotEmpty()
+  rating_type: RatingType;
+}

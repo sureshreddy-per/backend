@@ -23,4 +23,4 @@ export interface OfferMetadata {
     expiredAt: Date;
     originalValidUntil: Date;
   };
-} 
+}

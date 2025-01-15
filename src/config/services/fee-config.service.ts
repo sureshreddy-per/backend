@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { InspectionDistanceFeeConfig } from '../entities/fee-config.entity';
+import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { InspectionDistanceFeeConfig } from "../entities/fee-config.entity";
 
 @Injectable()
 export class InspectionDistanceFeeService {
@@ -10,7 +10,7 @@ export class InspectionDistanceFeeService {
 
   constructor(
     @InjectRepository(InspectionDistanceFeeConfig)
-    private readonly inspectionDistanceFeeRepository: Repository<InspectionDistanceFeeConfig>
+    private readonly inspectionDistanceFeeRepository: Repository<InspectionDistanceFeeConfig>,
   ) {
     this.initializeCache();
   }
@@ -18,13 +18,16 @@ export class InspectionDistanceFeeService {
   private async initializeCache(): Promise<void> {
     try {
       this.cachedConfig = await this.getActiveConfig();
-      
+
       if (!this.cachedConfig) {
         // Create default config if none exists
         this.cachedConfig = await this.createDefaultConfig();
       }
     } catch (error) {
-      this.logger.error('Failed to initialize inspection distance fee config cache', error.stack);
+      this.logger.error(
+        "Failed to initialize inspection distance fee config cache",
+        error.stack,
+      );
     }
   }
 
@@ -32,7 +35,7 @@ export class InspectionDistanceFeeService {
     const defaultConfig = this.inspectionDistanceFeeRepository.create({
       fee_per_km: 5, // Default ₹5 per km
       max_distance_fee: 500, // Default max ₹500
-      is_active: true
+      is_active: true,
     });
 
     return this.inspectionDistanceFeeRepository.save(defaultConfig);
@@ -41,20 +44,20 @@ export class InspectionDistanceFeeService {
   async getActiveConfig(): Promise<InspectionDistanceFeeConfig | null> {
     return this.inspectionDistanceFeeRepository.findOne({
       where: { is_active: true },
-      order: { created_at: 'DESC' }
+      order: { created_at: "DESC" },
     });
   }
 
   async updateConfig(
     feePerKm: number,
     maxDistanceFee: number,
-    updatedBy: string
+    updatedBy: string,
   ): Promise<InspectionDistanceFeeConfig> {
     // Deactivate current config
     if (this.cachedConfig) {
       await this.inspectionDistanceFeeRepository.update(
         { id: this.cachedConfig.id },
-        { is_active: false }
+        { is_active: false },
       );
     }
 
@@ -63,11 +66,12 @@ export class InspectionDistanceFeeService {
       fee_per_km: feePerKm,
       max_distance_fee: maxDistanceFee,
       is_active: true,
-      updated_by: updatedBy
+      updated_by: updatedBy,
     });
 
     // Save and update cache
-    this.cachedConfig = await this.inspectionDistanceFeeRepository.save(newConfig);
+    this.cachedConfig =
+      await this.inspectionDistanceFeeRepository.save(newConfig);
     return this.cachedConfig;
   }
 
@@ -79,7 +83,7 @@ export class InspectionDistanceFeeService {
 
     return Math.min(
       distance * this.cachedConfig.fee_per_km,
-      this.cachedConfig.max_distance_fee
+      this.cachedConfig.max_distance_fee,
     );
   }
-} 
+}

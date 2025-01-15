@@ -1,0 +1,619 @@
+{
+  "info": {
+    "name": "AgroChain Admin API",
+    "description": "API collection for Admin role in AgroChain platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Check Mobile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/check-mobile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "check-mobile"]
+            }
+          }
+        },
+        {
+          "name": "Register Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\",\n    \"name\": \"Admin User\",\n    \"email\": \"admin@example.com\",\n    \"role\": \"ADMIN\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Request OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/otp/request",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "otp", "request"]
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\",\n    \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/otp/verify",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "otp", "verify"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Management",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": ["{{base_url}}"],
+              "path": ["users"]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/:id",
+              "host": ["{{base_url}}"],
+              "path": ["users", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Users by Role",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/role/:role",
+              "host": ["{{base_url}}"],
+              "path": ["users", "role", ":role"],
+              "variable": [
+                {
+                  "key": "role",
+                  "value": "FARMER"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Name\",\n    \"email\": \"updated@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/:id",
+              "host": ["{{base_url}}"],
+              "path": ["users", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/:id/verify",
+              "host": ["{{base_url}}"],
+              "path": ["users", ":id", "verify"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Block User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/:id/block",
+              "host": ["{{base_url}}"],
+              "path": ["users", ":id", "block"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unblock User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/:id/unblock",
+              "host": ["{{base_url}}"],
+              "path": ["users", ":id", "unblock"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "System Configuration",
+      "item": [
+        {
+          "name": "Get System Config",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/config/system",
+              "host": ["{{base_url}}"],
+              "path": ["config", "system"]
+            }
+          }
+        },
+        {
+          "name": "Update System Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"maintenance_mode\": false,\n    \"max_file_size_mb\": 10,\n    \"default_pagination_limit\": 20,\n    \"cache_ttl_minutes\": 15,\n    \"allowed_file_types\": [\"jpg\", \"png\", \"pdf\", \"doc\", \"docx\"],\n    \"max_failed_login_attempts\": 5,\n    \"password_expiry_days\": 90,\n    \"session_timeout_minutes\": 30\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/config/system",
+              "host": ["{{base_url}}"],
+              "path": ["config", "system"]
+            }
+          }
+        },
+        {
+          "name": "Get Fee Config",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/config/fees",
+              "host": ["{{base_url}}"],
+              "path": ["config", "fees"]
+            }
+          }
+        },
+        {
+          "name": "Update Fee Config",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"transaction_fee_percentage\": 2.5,\n    \"minimum_transaction_fee\": 10,\n    \"maximum_transaction_fee\": 1000,\n    \"inspection_base_fee\": 50,\n    \"distance_fee_per_km\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/config/fees",
+              "host": ["{{base_url}}"],
+              "path": ["config", "fees"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Get Platform Overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/overview",
+              "host": ["{{base_url}}"],
+              "path": ["analytics", "overview"]
+            }
+          }
+        },
+        {
+          "name": "Get User Growth Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/users/growth?period=MONTHLY",
+              "host": ["{{base_url}}"],
+              "path": ["analytics", "users", "growth"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "MONTHLY"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Engagement Metrics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/users/engagement",
+              "host": ["{{base_url}}"],
+              "path": ["analytics", "users", "engagement"]
+            }
+          }
+        },
+        {
+          "name": "Get Produce Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/produce?category=VEGETABLES",
+              "host": ["{{base_url}}"],
+              "path": ["analytics", "produce"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "VEGETABLES"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Transaction Analytics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/analytics/transactions?period=LAST_30_DAYS",
+              "host": ["{{base_url}}"],
+              "path": ["analytics", "transactions"],
+              "query": [
+                {
+                  "key": "period",
+                  "value": "LAST_30_DAYS"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit",
+      "item": [
+        {
+          "name": "Get All Audit Logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit/logs",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "logs"]
+            }
+          }
+        },
+        {
+          "name": "Get Audit Logs with Filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit/logs?action=CREATE&entity=USER&start_date=2024-01-01&end_date=2024-01-31",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "logs"],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "CREATE"
+                },
+                {
+                  "key": "entity",
+                  "value": "USER"
+                },
+                {
+                  "key": "start_date",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "end_date",
+                  "value": "2024-01-31"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Audit Logs by User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/audit/logs/by-user/:userId",
+              "host": ["{{base_url}}"],
+              "path": ["audit", "logs", "by-user", ":userId"],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Integrations",
+      "item": [
+        {
+          "name": "Get Available Integrations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/integrations",
+              "host": ["{{base_url}}"],
+              "path": ["integrations"]
+            }
+          }
+        },
+        {
+          "name": "Get Integration Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/integrations/:integration_id",
+              "host": ["{{base_url}}"],
+              "path": ["integrations", ":integration_id"],
+              "variable": [
+                {
+                  "key": "integration_id",
+                  "value": "payment-gateway"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Enable Integration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"provider\": \"STRIPE\",\n    \"config\": {\n        \"api_key\": \"test_key_123\",\n        \"webhook_secret\": \"whsec_test_123\",\n        \"currency\": \"USD\",\n        \"payment_methods\": [\"CARD\", \"UPI\", \"BANK_TRANSFER\"]\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/integrations/:integration_id/enable",
+              "host": ["{{base_url}}"],
+              "path": ["integrations", ":integration_id", "enable"],
+              "variable": [
+                {
+                  "key": "integration_id",
+                  "value": "payment-gateway"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+} 

@@ -1,23 +1,31 @@
-import { IsNotEmpty, IsEnum, IsNumber, Min, Max } from 'class-validator';
+import { IsNumber, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
-import { ProduceCategory } from '../../produce/enums/produce-category.enum';
+
+export class UpdateBaseFeeDto {
+  @ApiProperty({
+    description: 'The new base fee percentage',
+    minimum: 0,
+    maximum: 100,
+    example: 5
+  })
+  @IsNumber()
+  @Min(0)
+  percentage: number;
+}
 
 export class UpdateInspectionBaseFeeDto {
   @ApiProperty({
-    description: 'Category of produce',
-    enum: ProduceCategory
-  })
-  @IsEnum(ProduceCategory)
-  produce_category: ProduceCategory;
-
-  @ApiProperty({
-    description: 'Base inspection fee for the produce category',
-    minimum: 100,
-    maximum: 5000,
-    example: 500
+    description: 'The new base inspection fee amount',
+    minimum: 0,
+    example: 50
   })
   @IsNumber()
-  @Min(100)
-  @Max(5000)
+  @Min(0)
   inspection_base_fee: number;
-} 
+
+  @ApiProperty({
+    description: 'The produce category for which to update the fee',
+    example: 'FOOD_GRAINS'
+  })
+  produce_category: string;
+}

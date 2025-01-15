@@ -1,7 +1,7 @@
-import { IsEnum, IsUUID, IsOptional, IsObject } from 'class-validator';
-import { TransactionEvent } from '../entities/transaction-history.entity';
-import { TransactionStatus } from '../entities/transaction.entity';
-import { BaseDto } from '../../common/base.dto';
+import { IsEnum, IsUUID, IsOptional, IsObject } from "class-validator";
+import { TransactionEvent } from "../entities/transaction-history.entity";
+import { TransactionStatus } from "../entities/transaction.entity";
+import { BaseDto } from "../../common/base.dto";
 
 export class TransactionHistoryDto extends BaseDto {
   @IsUUID()
@@ -24,4 +24,4 @@ export class TransactionHistoryDto extends BaseDto {
   @IsOptional()
   @IsObject()
   metadata?: Record<string, any>;
-} 
+}

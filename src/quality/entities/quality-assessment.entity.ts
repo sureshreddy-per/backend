@@ -1,60 +1,46 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 import { Produce } from '../../produce/entities/produce.entity';
-
-export enum AssessmentSource {
-  AI = 'AI',
-  MANUAL_INSPECTION = 'MANUAL_INSPECTION'
-}
 
 @Entity('quality_assessments')
 export class QualityAssessment {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'produce_id' })
+  @Column({ type: 'uuid' })
   produce_id: string;
 
-  @Column({
-    type: 'enum',
-    enum: AssessmentSource,
-    default: AssessmentSource.AI
-  })
-  source: AssessmentSource;
+  @Column({ type: 'text' })
+  produce_name: string;
 
-  @Column('int')
+  @Column({ type: 'enum', enum: ProduceCategory })
+  category: ProduceCategory;
+
+  @Column({ type: 'float' })
   quality_grade: number;
 
-  @Column('decimal', { precision: 5, scale: 2 })
+  @Column({ type: 'float' })
   confidence_level: number;
 
-  @Column('text', { array: true, nullable: true })
+  @Column({ type: 'text', array: true, default: '{}' })
   defects: string[];
 
-  @Column('text', { array: true, nullable: true })
+  @Column({ type: 'text', array: true, default: '{}' })
   recommendations: string[];
-
-  @Column({ type: 'text', nullable: true })
-  description: string;
 
   @Column({ type: 'jsonb', nullable: true })
   category_specific_assessment: Record<string, any>;
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: {
-    inspector_id?: string;
-    inspection_id?: string;
-    ai_model_version?: string;
-    assessment_parameters?: Record<string, any>;
-    images?: string[];
-  };
+  metadata: Record<string, any>;
 
-  @ManyToOne(() => Produce)
-  @JoinColumn({ name: 'produce_id' })
-  produce: Produce;
-
-  @CreateDateColumn()
+  @CreateDateColumn({ type: 'timestamptz' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ type: 'timestamptz' })
   updated_at: Date;
-} 
+
+  @ManyToOne(() => Produce, produce => produce.quality_assessments)
+  @JoinColumn({ name: 'produce_id' })
+  produce: Produce;
+}

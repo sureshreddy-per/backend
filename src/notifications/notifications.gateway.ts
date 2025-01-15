@@ -4,20 +4,22 @@ import {
   OnGatewayConnection,
   OnGatewayDisconnect,
   SubscribeMessage,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { UseGuards } from '@nestjs/common';
-import { WsJwtGuard } from '../auth/guards/ws-jwt.guard';
-import { RedisService } from '../redis/redis.service';
-import { Notification } from './entities/notification.entity';
+} from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
+import { UseGuards } from "@nestjs/common";
+import { WsJwtGuard } from "../auth/guards/ws-jwt.guard";
+import { RedisService } from "../redis/redis.service";
+import { Notification } from "./entities/notification.entity";
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: "*",
   },
-  namespace: 'notifications',
+  namespace: "notifications",
 })
-export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class NotificationsGateway
+  implements OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer()
   server: Server;
 
@@ -40,7 +42,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
 
     // Subscribe to Redis channel for this user
     await this.redisService.subscribe(`notifications:${userId}`, (message) => {
-      this.sendToUser(userId, 'notification', JSON.parse(message));
+      this.sendToUser(userId, "notification", JSON.parse(message));
     });
   }
 
@@ -58,7 +60,7 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     }
   }
 
-  @SubscribeMessage('readNotification')
+  @SubscribeMessage("readNotification")
   async handleReadNotification(client: Socket, notificationId: string) {
     // Handle read notification event
     // This can be implemented based on your requirements
@@ -72,15 +74,15 @@ export class NotificationsGateway implements OnGatewayConnection, OnGatewayDisco
     );
 
     // Send to connected WebSocket clients
-    this.sendToUser(userId, 'notification', notification);
+    this.sendToUser(userId, "notification", notification);
   }
 
   private sendToUser(userId: string, event: string, data: any) {
     const userSocketIds = this.userSockets.get(userId);
     if (userSocketIds) {
-      userSocketIds.forEach(socketId => {
+      userSocketIds.forEach((socketId) => {
         this.server.to(socketId).emit(event, data);
       });
     }
   }
-} 
+}

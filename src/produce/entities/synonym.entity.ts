@@ -1,28 +1,34 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 
 @Entity('produce_synonyms')
-export class ProduceSynonym {
+export class Synonym {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column({ name: 'produce_name' })
+  produce_name: string;
+
   @Column()
-  canonical_name: string;
+  synonym: string;
 
-  @Column('jsonb')
-  words: string[];
+  @Column({ length: 10, nullable: true })
+  language: string;
 
-  @Column('jsonb', { nullable: true })
-  translations: Record<string, string>;
-
-  @Column({ default: true })
+  @Column({ name: 'is_active', default: true })
   is_active: boolean;
 
-  @Column({ nullable: true })
-  updated_by: string;
+  @Column({ name: 'is_ai_generated', default: false })
+  is_ai_generated: boolean;
 
-  @CreateDateColumn()
+  @Column({ name: 'confidence_score', type: 'decimal', precision: 5, scale: 2, nullable: true })
+  confidence_score: number;
+
+  @Column({ name: 'last_validated_at', type: 'timestamp', nullable: true })
+  last_validated_at: Date;
+
+  @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({ name: 'updated_at' })
   updated_at: Date;
-} 
+}

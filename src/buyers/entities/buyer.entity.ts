@@ -1,16 +1,26 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  OneToOne,
+} from "typeorm";
+import { User } from "../../users/entities/user.entity";
+import { BuyerPreferences } from "./buyer-preferences.entity";
 
-@Entity('buyers')
+@Entity("buyers")
 export class Buyer {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column()
   user_id: string;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'user_id' })
+  @ManyToOne(() => User, { onDelete: "CASCADE" })
+  @JoinColumn({ name: "user_id" })
   user: User;
 
   @Column({ nullable: true })
@@ -31,18 +41,15 @@ export class Buyer {
   @Column()
   address: string;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  min_price: number;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  max_price: number;
-
   @Column({ default: true })
   is_active: boolean;
 
-  @CreateDateColumn({ name: 'created_at' })
+  @OneToOne(() => BuyerPreferences, preferences => preferences.buyer)
+  preferences: BuyerPreferences;
+
+  @CreateDateColumn({ name: "created_at" })
   created_at: Date;
 
-  @UpdateDateColumn({ name: 'updated_at' })
+  @UpdateDateColumn({ name: "updated_at" })
   updated_at: Date;
-} 
+}

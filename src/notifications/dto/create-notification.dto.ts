@@ -1,5 +1,5 @@
-import { IsNotEmpty, IsString, IsUUID, IsEnum } from 'class-validator';
-import { NotificationType } from '../enums/notification-type.enum';
+import { IsNotEmpty, IsString, IsUUID, IsEnum } from "class-validator";
+import { NotificationType } from "../enums/notification-type.enum";
 
 export class CreateNotificationDto {
   @IsNotEmpty()
@@ -17,4 +17,4 @@ export class CreateNotificationDto {
   @IsNotEmpty()
   @IsString()
   message: string;
-} 
+}

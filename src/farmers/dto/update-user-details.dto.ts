@@ -1,6 +1,6 @@
-import { IsString, IsEmail, IsOptional, IsEnum } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { UserStatus } from '../../users/entities/user.entity';
+import { IsString, IsEmail, IsOptional, IsEnum } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { UserStatus } from "../../users/entities/user.entity";
 
 export class UpdateUserDetailsDto {
   @ApiPropertyOptional()
@@ -22,4 +22,4 @@ export class UpdateUserDetailsDto {
   @IsEnum(UserStatus)
   @IsOptional()
   status?: UserStatus;
-} 
+}

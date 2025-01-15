@@ -3,13 +3,13 @@ import {
   WebSocketServer,
   OnGatewayConnection,
   OnGatewayDisconnect,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { Offer } from './entities/offer.entity';
+} from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
+import { Offer } from "./entities/offer.entity";
 
 @WebSocketGateway({
   cors: {
-    origin: '*',
+    origin: "*",
   },
 })
 export class OffersGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -43,19 +43,21 @@ export class OffersGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   notifyNewOffer(offer: Offer) {
     // Notify all clients subscribed to this produce
-    this.server.to(`produce:${offer.produce_id}`).emit('newOffer', offer);
+    this.server.to(`produce:${offer.produce_id}`).emit("newOffer", offer);
   }
 
   notifyOfferStatusUpdated(offer: Offer) {
     // Notify all clients subscribed to this produce
-    this.server.to(`produce:${offer.produce_id}`).emit('offerStatusUpdated', offer);
+    this.server
+      .to(`produce:${offer.produce_id}`)
+      .emit("offerStatusUpdated", offer);
 
     // Notify the buyer
     const buyerSockets = this.userSockets.get(offer.buyer_id);
     if (buyerSockets) {
-      buyerSockets.forEach(socketId => {
-        this.server.to(socketId).emit('offerStatusUpdated', offer);
+      buyerSockets.forEach((socketId) => {
+        this.server.to(socketId).emit("offerStatusUpdated", offer);
       });
     }
   }
-} 
+}

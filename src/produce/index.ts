@@ -1,4 +1,5 @@
-export * from './services/produce.service';
-export { Produce } from './entities/produce.entity';
-export { ProduceCategory } from './enums/produce-category.enum';
-export { QualityGrade } from './enums/quality-grade.enum';
+export * from './entities';
+export * from './enums';
+export * from './services';
+export * from './produce.module';
+export * from './controllers';

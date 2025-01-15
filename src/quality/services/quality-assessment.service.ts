@@ -1,134 +1,143 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { QualityAssessment, AssessmentSource } from '../entities/quality-assessment.entity';
-import { NotificationService } from '../../notifications/services/notification.service';
-import { NotificationType } from '../../notifications/entities/notification.entity';
-import { ProduceService } from '../../produce/services/produce.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { QualityAssessment } from '../entities/quality-assessment.entity';
+import { Produce } from '../../produce/entities/produce.entity';
+import { CreateQualityAssessmentDto } from '../dto/create-quality-assessment.dto';
+import { validateRequiredFields } from '../utils/validation.util';
 
 @Injectable()
 export class QualityAssessmentService {
+  private readonly logger = new Logger(QualityAssessmentService.name);
+  private readonly CACHE_TTL = 3600; // 1 hour
+  private readonly CACHE_PREFIX = 'quality_assessment:';
+
   constructor(
     @InjectRepository(QualityAssessment)
-    private readonly assessmentRepository: Repository<QualityAssessment>,
-    private readonly notificationService: NotificationService,
-    private readonly produceService: ProduceService,
+    private readonly qualityAssessmentRepository: Repository<QualityAssessment>,
+    @InjectRepository(Produce)
+    private readonly produceRepository: Repository<Produce>,
+    @Inject(CACHE_MANAGER)
+    private readonly cacheManager: Cache,
   ) {}
 
-  async createFromAI(data: {
-    produce_id: string;
-    quality_grade: number;
-    confidence_level: number;
-    defects?: string[];
-    recommendations?: string[];
-    description?: string;
-    category_specific_assessment?: Record<string, any>;
-    metadata?: {
-      ai_model_version?: string;
-      assessment_parameters?: Record<string, any>;
-      images?: string[];
-    };
-  }): Promise<QualityAssessment> {
-    const produce = await this.produceService.findOne(data.produce_id);
-    if (!produce) {
-      throw new NotFoundException('Produce not found');
+  async create(createQualityAssessmentDto: CreateQualityAssessmentDto): Promise<QualityAssessment> {
+    try {
+      const produce = await this.produceRepository.findOne({
+        where: { id: createQualityAssessmentDto.produce_id }
+      });
+
+      if (!produce) {
+        throw new NotFoundException(`Produce with ID ${createQualityAssessmentDto.produce_id} not found`);
+      }
+
+      // Validate required fields based on produce category
+      const validationResult = validateRequiredFields(
+        produce.produce_category,
+        createQualityAssessmentDto.category_specific_assessment
+      );
+
+      if (!validationResult.isValid) {
+        throw new BadRequestException(
+          `Missing required fields for category ${produce.produce_category}: ${validationResult.missingFields.join(', ')}`
+        );
+      }
+
+      if (createQualityAssessmentDto.quality_grade < 0 || createQualityAssessmentDto.quality_grade > 10) {
+        throw new BadRequestException('Quality grade must be between 0 and 10');
+      }
+
+      const assessment = new QualityAssessment();
+      assessment.produce_id = produce.id;
+      assessment.produce_name = produce.name;
+      assessment.category = produce.produce_category;
+      assessment.quality_grade = createQualityAssessmentDto.quality_grade;
+      assessment.confidence_level = createQualityAssessmentDto.confidence_level;
+      assessment.defects = createQualityAssessmentDto.defects || [];
+      assessment.recommendations = createQualityAssessmentDto.recommendations || [];
+      assessment.category_specific_assessment = createQualityAssessmentDto.category_specific_assessment;
+      assessment.metadata = createQualityAssessmentDto.metadata || {};
+
+      const savedAssessment = await this.qualityAssessmentRepository.save(assessment);
+      
+      // Invalidate cache for this produce's assessments
+      await this.cacheManager.del(`${this.CACHE_PREFIX}produce:${produce.id}`);
+      await this.cacheManager.del(`${this.CACHE_PREFIX}latest:${produce.id}`);
+      
+      return savedAssessment;
+    } catch (error) {
+      this.logger.error(`Failed to create quality assessment: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
+  async findByProduceId(produceId: string): Promise<QualityAssessment[]> {
+    const cacheKey = `${this.CACHE_PREFIX}produce:${produceId}`;
+    const cached = await this.cacheManager.get<QualityAssessment[]>(cacheKey);
+    
+    if (cached) {
+      return cached;
     }
 
-    const assessment = this.assessmentRepository.create({
-      ...data,
-      source: AssessmentSource.AI,
+    const assessments = await this.qualityAssessmentRepository.find({
+      where: { produce_id: produceId },
+      order: { created_at: 'DESC' }
     });
 
-    const savedAssessment = await this.assessmentRepository.save(assessment);
-
-    await this.notificationService.create({
-      user_id: produce.farmer_id,
-      type: NotificationType.QUALITY_UPDATE,
-      data: {
-        produce_id: data.produce_id,
-        assessment_id: savedAssessment.id,
-        quality_grade: data.quality_grade,
-      },
-    });
-
-    return savedAssessment;
+    await this.cacheManager.set(cacheKey, assessments, this.CACHE_TTL);
+    return assessments;
   }
 
-  async updateFromInspection(
-    produce_id: string,
-    data: {
-      quality_grade: number;
-      defects?: string[];
-      recommendations?: string[];
-      images?: string[];
-      notes?: string;
-      inspector_id?: string;
-      inspection_id?: string;
-    },
-  ): Promise<QualityAssessment> {
-    const produce = await this.produceService.findOne(produce_id);
-    if (!produce) {
-      throw new NotFoundException('Produce not found');
+  async findLatestByProduceId(produceId: string): Promise<QualityAssessment> {
+    const cacheKey = `${this.CACHE_PREFIX}latest:${produceId}`;
+    const cached = await this.cacheManager.get<QualityAssessment>(cacheKey);
+    
+    if (cached) {
+      return cached;
     }
 
-    const assessment = this.assessmentRepository.create({
-      produce_id,
-      quality_grade: data.quality_grade,
-      confidence_level: 100, // Manual inspection has 100% confidence
-      defects: data.defects,
-      recommendations: data.recommendations,
-      description: data.notes,
-      source: AssessmentSource.MANUAL_INSPECTION,
-      metadata: {
-        inspector_id: data.inspector_id,
-        inspection_id: data.inspection_id,
-        images: data.images,
-      },
+    const assessment = await this.qualityAssessmentRepository.findOne({
+      where: { produce_id: produceId },
+      order: { created_at: 'DESC' }
     });
 
-    const savedAssessment = await this.assessmentRepository.save(assessment);
+    if (!assessment) {
+      throw new NotFoundException(`No quality assessment found for produce ${produceId}`);
+    }
 
-    await this.notificationService.create({
-      user_id: produce.farmer_id,
-      type: NotificationType.QUALITY_UPDATE,
-      data: {
-        produce_id,
-        assessment_id: savedAssessment.id,
-        quality_grade: data.quality_grade,
-        is_manual_inspection: true,
-      },
-    });
-
-    return savedAssessment;
+    await this.cacheManager.set(cacheKey, assessment, this.CACHE_TTL);
+    return assessment;
   }
 
-  async findByProduce(produce_id: string): Promise<QualityAssessment[]> {
-    return this.assessmentRepository.find({
-      where: { produce_id },
+  async findAll(page = 1, limit = 10): Promise<{ items: QualityAssessment[]; total: number }> {
+    const [items, total] = await this.qualityAssessmentRepository.findAndCount({
       order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit
     });
+
+    return { items, total };
   }
 
-  async getLatestAssessment(produce_id: string): Promise<QualityAssessment> {
-    const assessments = await this.assessmentRepository.find({
-      where: { produce_id },
-      order: { created_at: 'DESC' },
-      take: 1,
+  async findOne(id: string): Promise<QualityAssessment> {
+    const cacheKey = `${this.CACHE_PREFIX}${id}`;
+    const cached = await this.cacheManager.get<QualityAssessment>(cacheKey);
+    
+    if (cached) {
+      return cached;
+    }
+
+    const assessment = await this.qualityAssessmentRepository.findOne({
+      where: { id }
     });
 
-    return assessments[0];
-  }
+    if (!assessment) {
+      throw new NotFoundException(`Quality assessment ${id} not found`);
+    }
 
-  async getLatestManualAssessment(produce_id: string): Promise<QualityAssessment> {
-    const assessments = await this.assessmentRepository.find({
-      where: {
-        produce_id,
-        source: AssessmentSource.MANUAL_INSPECTION,
-      },
-      order: { created_at: 'DESC' },
-      take: 1,
-    });
-
-    return assessments[0];
+    await this.cacheManager.set(cacheKey, assessment, this.CACHE_TTL);
+    return assessment;
   }
 }

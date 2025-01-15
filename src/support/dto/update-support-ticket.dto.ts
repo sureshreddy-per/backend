@@ -1,4 +1,5 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsEnum } from "class-validator";
+import { SupportTicketCategory, SupportTicketPriority, SupportTicketStatus } from "../entities/support-ticket.entity";
 
 export class UpdateSupportTicketDto {
   @IsString()
@@ -9,15 +10,18 @@ export class UpdateSupportTicketDto {
   @IsOptional()
   description?: string;
 
-  @IsString()
+  @IsEnum(SupportTicketCategory)
   @IsOptional()
-  category?: string;
+  category?: SupportTicketCategory;
 
-  @IsString()
+  @IsEnum(SupportTicketPriority)
   @IsOptional()
-  priority?: string;
+  priority?: SupportTicketPriority;
 
-  @IsString()
+  @IsEnum(SupportTicketStatus)
   @IsOptional()
-  status?: string;
-} 
+  status?: SupportTicketStatus;
+
+  @IsOptional()
+  attachments?: string[];
+}

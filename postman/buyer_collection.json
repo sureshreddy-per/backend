@@ -1,0 +1,491 @@
+{
+  "info": {
+    "name": "AgroChain Buyer API",
+    "description": "API collection for Buyer role in AgroChain platform",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Check Mobile",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/check-mobile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "check-mobile"]
+            }
+          }
+        },
+        {
+          "name": "Register Buyer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\",\n    \"name\": \"Buyer Name\",\n    \"email\": \"buyer@example.com\",\n    \"role\": \"BUYER\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Request OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/otp/request",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "otp", "request"]
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mobile_number\": \"+1234567890\",\n    \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/otp/verify",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "otp", "verify"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Profile",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Buyer Name\",\n    \"email\": \"updated.buyer@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/profile",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update FCM Token",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"fcm_token\": \"sample-fcm-token-123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/fcm-token",
+              "host": ["{{base_url}}"],
+              "path": ["users", "fcm-token"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Produce",
+      "item": [
+        {
+          "name": "Search Produce",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produce/search?category=VEGETABLES&min_price=10&max_price=100&location=12.9716,77.5946&radius=10",
+              "host": ["{{base_url}}"],
+              "path": ["produce", "search"],
+              "query": [
+                {
+                  "key": "category",
+                  "value": "VEGETABLES"
+                },
+                {
+                  "key": "min_price",
+                  "value": "10"
+                },
+                {
+                  "key": "max_price",
+                  "value": "100"
+                },
+                {
+                  "key": "location",
+                  "value": "12.9716,77.5946"
+                },
+                {
+                  "key": "radius",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Produce Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produce/:id",
+              "host": ["{{base_url}}"],
+              "path": ["produce", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Offers",
+      "item": [
+        {
+          "name": "Create Offer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"produce_id\": \"123\",\n    \"quantity\": 50,\n    \"price_per_unit\": 45,\n    \"notes\": \"Interested in buying your produce\",\n    \"validity_period\": 48\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/offers",
+              "host": ["{{base_url}}"],
+              "path": ["offers"]
+            }
+          }
+        },
+        {
+          "name": "Get My Offers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/offers/my",
+              "host": ["{{base_url}}"],
+              "path": ["offers", "my"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Offer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Found better price elsewhere\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/offers/:id/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["offers", ":id", "cancel"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "Get My Transactions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/my",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", "my"]
+            }
+          }
+        },
+        {
+          "name": "Get Transaction Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/:id",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Initiate Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"payment_method\": \"CARD\",\n    \"currency\": \"USD\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/transactions/:id/pay",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", ":id", "pay"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Generate Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"report_type\": \"PURCHASE_HISTORY\",\n    \"start_date\": \"2024-01-01\",\n    \"end_date\": \"2024-01-31\",\n    \"format\": \"PDF\",\n    \"filters\": {\n        \"status\": [\"COMPLETED\", \"CANCELLED\"],\n        \"min_amount\": 1000\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/reports",
+              "host": ["{{base_url}}"],
+              "path": ["reports"]
+            }
+          }
+        },
+        {
+          "name": "Get Report Status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reports/:id",
+              "host": ["{{base_url}}"],
+              "path": ["reports", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Support",
+      "item": [
+        {
+          "name": "Create Support Ticket",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"subject\": \"Issue with payment\",\n    \"description\": \"Payment failed but amount deducted\",\n    \"priority\": \"HIGH\",\n    \"category\": \"PAYMENT\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/support/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["support", "tickets"]
+            }
+          }
+        },
+        {
+          "name": "Get My Tickets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/support/tickets/my",
+              "host": ["{{base_url}}"],
+              "path": ["support", "tickets", "my"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+} 
