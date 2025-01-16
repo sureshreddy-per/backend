@@ -180,10 +180,13 @@ export class QualityController {
       quality_grade: assessment.quality_grade,
       confidence_level: assessment.confidence_level,
       detected_name: produce.name,
+      description: produce.description,
+      product_variety: produce.product_variety,
+      produce_category: produce.produce_category,
+      category_specific_attributes: assessment.category_specific_assessment,
       assessment_details: {
         defects: assessment.defects,
         recommendations: assessment.recommendations,
-        category_specific_assessment: assessment.category_specific_assessment,
         metadata: assessment.metadata
       }
     });

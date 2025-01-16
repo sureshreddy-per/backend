@@ -7,6 +7,14 @@ export default () => ({
     password: process.env.DB_PASSWORD,
     database: process.env.DB_NAME,
   },
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY?.trim(),
+    orgId: process.env.OPENAI_ORG_ID?.trim(),
+    model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+    apiEndpoint: process.env.OPENAI_API_ENDPOINT || 'https://api.openai.com/v1/chat/completions',
+    maxTokens: parseInt(process.env.OPENAI_MAX_TOKENS, 10) || 2000,
+    temperature: parseFloat(process.env.OPENAI_TEMPERATURE) || 0.7,
+  },
   jwt: {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRY || "1h",

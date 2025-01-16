@@ -8,26 +8,48 @@ import * as mime from 'mime-types';
 
 @Injectable()
 export class GcpStorageService implements StorageService {
-  private readonly storage: Storage;
   private readonly bucket: string;
+  private readonly storage: Storage;
   private readonly logger = new Logger(GcpStorageService.name);
 
   constructor(private readonly configService: ConfigService) {
-    this.bucket = this.configService.get<string>('GCP_STORAGE_BUCKET');
+    this.bucket = this.configService.get<string>('gcp.bucket');
+    const projectId = this.configService.get<string>('gcp.projectId');
+    const keyFilePath = this.configService.get<string>('gcp.keyFilePath');
+
+    this.logger.debug(`GCP Config - Bucket: ${this.bucket}, ProjectId: ${projectId}, KeyPath: ${keyFilePath}`);
+
+    if (!this.bucket || !projectId || !keyFilePath) {
+      const missing = [];
+      if (!this.bucket) missing.push('bucket');
+      if (!projectId) missing.push('projectId');
+      if (!keyFilePath) missing.push('keyFilePath');
+      this.logger.error(`Missing required GCP configuration: ${missing.join(', ')}`);
+      throw new Error(`Missing required GCP configuration: ${missing.join(', ')}`);
+    }
+
     this.storage = new Storage({
-      projectId: this.configService.get<string>('GCP_PROJECT_ID'),
-      keyFilename: this.configService.get<string>('GCP_KEY_FILE'),
+      projectId,
+      keyFilename: keyFilePath,
     });
+    
+    this.logger.debug(`Initialized GCP Storage with bucket: ${this.bucket}`);
+    this.initializeBucketAccess();
   }
 
-  private async initializeBucketAccess() {
+  private async initializeBucketAccess(): Promise<void> {
     try {
-      const bucket = this.storage.bucket(this.bucket);
-      await bucket.makePublic();
-      this.logger.log(`Successfully made bucket ${this.bucket} public`);
+      const [bucket] = await this.storage.bucket(this.bucket).get();
+      const [metadata] = await bucket.getMetadata();
+      
+      this.logger.debug(`Bucket ${this.bucket} metadata:`, metadata);
+      
+      // Don't try to modify ACLs when uniform bucket-level access is enabled
+      if (metadata.iamConfiguration?.uniformBucketLevelAccess?.enabled) {
+        this.logger.debug(`Bucket ${this.bucket} has uniform bucket-level access enabled`);
+      }
     } catch (error) {
-      this.logger.error(`Failed to make bucket public: ${error.message}`, error.stack);
-      // Don't throw error to allow service to start
+      this.logger.warn(`Note about bucket access: ${error.message}`);
     }
   }
 
@@ -43,114 +65,113 @@ export class GcpStorageService implements StorageService {
     filename: string,
     options: StorageOptions = {},
   ): Promise<StorageResponse> {
+    if (!this.bucket) {
+      throw new Error('A bucket name is needed to use Cloud Storage');
+    }
+
+    const uniqueFilename = this.generateUniqueFilename(filename);
+    const filePath = options.path ? `${options.path}/${uniqueFilename}` : uniqueFilename;
+    const gcpFile = this.storage.bucket(this.bucket).file(filePath);
+
     try {
-      const bucket = this.storage.bucket(options.bucket || this.bucket);
-      const uniqueFilename = this.generateUniqueFilename(filename);
-      const filePath = options.path ? `${options.path}/${uniqueFilename}` : uniqueFilename;
-      const blob = bucket.file(filePath);
+      // Upload the file without setting ACL
+      await new Promise<void>((resolve, reject) => {
+        const stream = gcpFile.createWriteStream({
+          metadata: {
+            contentType: options.contentType || 'application/octet-stream',
+            metadata: {
+              ...options.metadata,
+              originalName: filename,
+              uploadedAt: new Date().toISOString(),
+            },
+          },
+        });
 
-      // Set file metadata
-      const metadata = {
-        contentType: options.contentType || 'application/octet-stream',
-        metadata: {
-          ...options.metadata,
-          originalName: filename,
-          uploadedAt: new Date().toISOString(),
-        },
-      };
-
-      // Upload file
-      if (typeof file === 'string') {
-        await blob.save(file, { metadata });
-      } else {
-        await blob.save(file, { metadata });
-      }
-
-      // Always make file public since bucket is public
-      await blob.makePublic();
+        stream.on('error', reject);
+        stream.on('finish', () => resolve());
+        stream.end(typeof file === 'string' ? Buffer.from(file) : file);
+      });
 
       // Get file metadata
-      const [metadata_] = await blob.getMetadata();
+      const [metadata] = await gcpFile.getMetadata();
+
+      // Generate a public URL
+      const publicUrl = `https://storage.googleapis.com/${this.bucket}/${filePath}`;
 
       return {
-        url: this.getPublicUrl(filePath, bucket.name), // Always use public URL
+        url: publicUrl,
         key: filePath,
-        bucket: bucket.name,
-        contentType: metadata_.contentType || 'application/octet-stream',
-        size: Number(metadata_.size || 0),
-        metadata: metadata_.metadata as Record<string, string>,
+        bucket: this.bucket,
+        contentType: metadata.contentType || 'application/octet-stream',
+        size: Number(metadata.size || 0),
+        metadata: metadata.metadata as Record<string, string>,
       };
     } catch (error) {
-      this.logger.error(`Failed to upload file: ${error.message}`, error.stack);
-      throw new Error(`Failed to upload file: ${error.message}`);
+      this.logger.error(`Failed to upload file ${filename}: ${error.message}`);
+      throw error;
     }
   }
 
   async deleteFile(key: string, bucket?: string): Promise<void> {
+    if (!this.bucket) {
+      throw new Error('A bucket name is needed to use Cloud Storage');
+    }
+
     try {
-      const file = this.storage.bucket(bucket || this.bucket).file(key);
-      await file.delete();
+      await this.storage.bucket(bucket || this.bucket).file(key).delete();
     } catch (error) {
-      this.logger.error(`Failed to delete file: ${error.message}`, error.stack);
-      throw new Error(`Failed to delete file: ${error.message}`);
+      this.logger.error(`Failed to delete file ${key}: ${error.message}`, error.stack);
+      throw error;
     }
   }
 
   async getSignedUrl(
     key: string,
-    expiresIn: number = 3600,
+    expiresIn: number = 7 * 24 * 60 * 60, // 7 days in seconds
     bucket?: string,
   ): Promise<string> {
-    try {
-      const file = this.storage.bucket(bucket || this.bucket).file(key);
-      const [url] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + expiresIn * 1000,
-      });
-      return url;
-    } catch (error) {
-      this.logger.error(`Failed to get signed URL: ${error.message}`, error.stack);
-      throw new Error(`Failed to get signed URL: ${error.message}`);
+    if (!this.bucket) {
+      throw new Error('A bucket name is needed to use Cloud Storage');
     }
+
+    const file = this.storage.bucket(bucket || this.bucket).file(key);
+    const [url] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'read',
+      expires: Date.now() + expiresIn * 1000,
+    });
+
+    return url;
   }
 
   getPublicUrl(key: string, bucket?: string): string {
     const bucketName = bucket || this.bucket;
-    return `https://storage.googleapis.com/${bucketName}/${key}`;
-  }
-
-  async getFileContent(key: string, bucket?: string): Promise<Buffer> {
-    try {
-      const file = this.storage.bucket(bucket || this.bucket).file(key);
-      const [content] = await file.download();
-      return content;
-    } catch (error) {
-      this.logger.error(`Failed to get file content: ${error.message}`, error.stack);
-      throw new Error(`Failed to get file content: ${error.message}`);
+    if (!bucketName) {
+      throw new Error('A bucket name is needed to use Cloud Storage');
     }
+    return `https://storage.googleapis.com/${bucketName}/${key}`;
   }
 
   async downloadFile(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
     try {
       // Extract filename from URL
-      const filename = url.split(`${this.bucket}/`)[1];
-      if (!filename) {
-        throw new Error('Invalid GCP Storage URL');
+      const urlObj = new URL(url);
+      const key = urlObj.pathname.split('/').pop();
+      if (!key) {
+        throw new Error('Invalid URL: Could not extract filename');
       }
 
-      const bucket = this.storage.bucket(this.bucket);
-      const file = bucket.file(filename);
-
-      // Get file metadata
+      // Get file from bucket
+      const file = this.storage.bucket(this.bucket).file(key);
       const [metadata] = await file.getMetadata();
-      const mimeType = metadata.contentType || mime.lookup(filename) || 'application/octet-stream';
+      const [fileContent] = await file.download();
 
-      // Download file
-      const [buffer] = await file.download();
-
-      return { buffer, mimeType };
+      return {
+        buffer: fileContent,
+        mimeType: metadata.contentType || 'application/octet-stream',
+      };
     } catch (error) {
-      this.logger.error(`Error downloading file: ${error.message}`, error.stack);
+      this.logger.error(`Failed to get file content: ${error.message}`, error.stack);
       throw error;
     }
   }

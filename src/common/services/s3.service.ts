@@ -127,6 +127,38 @@ export class S3Service implements StorageService {
     return `https://${bucketName}.s3.amazonaws.com/${key}`;
   }
 
+  async downloadFile(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    try {
+      // Extract key and bucket from URL
+      const urlObj = new URL(url);
+      const key = urlObj.pathname.split('/').pop();
+      if (!key) {
+        throw new Error('Invalid URL: Could not extract key');
+      }
+
+      const command = new GetObjectCommand({
+        Bucket: this.defaultBucket,
+        Key: key,
+      });
+
+      const response = await this.s3Client.send(command);
+      const chunks: Buffer[] = [];
+      
+      // @ts-ignore - response.Body is a ReadableStream
+      for await (const chunk of response.Body) {
+        chunks.push(Buffer.from(chunk));
+      }
+
+      return {
+        buffer: Buffer.concat(chunks),
+        mimeType: response.ContentType || 'application/octet-stream',
+      };
+    } catch (error) {
+      this.logger.error(`Failed to download file: ${error.message}`, error.stack);
+      throw error;
+    }
+  }
+
   private sanitizeFileName(fileName: string): string {
     return fileName
       .toLowerCase()

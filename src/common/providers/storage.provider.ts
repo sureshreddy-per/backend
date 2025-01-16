@@ -9,16 +9,8 @@ export const STORAGE_SERVICE = 'STORAGE_SERVICE';
 export const StorageServiceProvider: Provider = {
   provide: STORAGE_SERVICE,
   useFactory: (configService: ConfigService, s3Service: S3Service, gcpService: GcpStorageService): StorageService => {
-    const provider = (configService.get<string>('storageProvider') || 'gcp').toLowerCase();
-
-    switch (provider) {
-      case 's3':
-        return s3Service;
-      case 'gcp':
-        return gcpService;
-      default:
-        throw new Error(`Invalid storage provider: ${provider}. Valid options are 'gcp' or 's3'.`);
-    }
+    const storageProvider = configService.get<string>('storageProvider');
+    return storageProvider === 'gcp' ? gcpService : s3Service;
   },
   inject: [ConfigService, S3Service, GcpStorageService],
 };

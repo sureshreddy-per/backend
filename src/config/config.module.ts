@@ -6,11 +6,14 @@ import { InspectionDistanceFeeConfig } from './entities/fee-config.entity';
 import { InspectionDistanceFeeController } from './controllers/fee-config.controller';
 import { SystemConfigService } from './services/system-config.service';
 import { SystemConfig } from './entities/system-config.entity';
+import configuration from './configuration';
 
 @Module({
   imports: [
     NestConfigModule.forRoot({
       isGlobal: true,
+      load: [configuration],
+      envFilePath: ['.env.development', '.env'],
     }),
     TypeOrmModule.forFeature([InspectionDistanceFeeConfig, SystemConfig]),
   ],

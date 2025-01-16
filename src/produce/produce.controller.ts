@@ -39,6 +39,13 @@ import { StorageUploadType } from "../common/enums/storage-upload-type.enum";
 import { retry } from "../common/utils/retry.util";
 import { ConfigService } from "@nestjs/config";
 import { RequestAiVerificationDto } from '../quality/dto/request-ai-verification.dto';
+import { ParseJsonPipe } from "../common/pipes/parse-json.pipe";
+
+interface CreateProduceInput extends CreateProduceDto {
+  farmer_id: string;
+  images: string[];
+  status: ProduceStatus;
+}
 
 @Controller("produce")
 @UseGuards(JwtAuthGuard)
@@ -102,15 +109,12 @@ export class ProduceController {
   private async analyzeImageWithRetry(
     file: Express.Multer.File,
   ) {
-    return retry(
-      () => this.openAIService.analyzeProduceImage(
-        file.buffer,
-        file.mimetype
-      ),
-      this.retryOptions,
-      this.logger,
-      'Analyze image with OpenAI'
-    );
+    return this.openAIService.analyzeProduceWithMultipleImages([
+      {
+        buffer: file.buffer,
+        mimeType: file.mimetype
+      }
+    ]);
   }
 
   @Post()
@@ -118,10 +122,9 @@ export class ProduceController {
     { name: 'images', maxCount: 3 },
     { name: 'video', maxCount: 1 }
   ]))
-  @UsePipes(FileValidationPipe.forType(StorageUploadType.IMAGES))
   async create(
     @UploadedFiles() files: { images?: Express.Multer.File[]; video?: Express.Multer.File[] },
-    @Body('data') createProduceDto: CreateProduceDto,
+    @Body('data', new ParseJsonPipe()) createProduceDto: Omit<CreateProduceDto, 'images'>,
     @GetUser() user: User,
   ) {
     // Validate farmer exists
@@ -135,89 +138,71 @@ export class ProduceController {
       throw new BadRequestException('At least one image is required');
     }
 
+    // Validate images
+    const fileValidationPipe = FileValidationPipe.forType(StorageUploadType.IMAGES);
+    files.images.forEach(file => fileValidationPipe.transform(file, { type: 'body', metatype: File, data: 'images' }));
+
     try {
       // Upload images in parallel and analyze the first image
       const [uploadedImages, aiAnalysis] = await Promise.all([
         // Upload all images
         Promise.all(files.images.map(async (file) => {
           try {
-            const result = await retry(
-              () => this.gcpStorageService.uploadFile(
-                file.buffer,
-                file.originalname,
-                {
-                  contentType: file.mimetype,
-                  metadata: {
-                    uploadedBy: user.id,
-                    farmerId: farmer.id,
-                    fileType: 'produce_image'
-                  }
-                }
-              ),
-              this.retryOptions,
-              this.logger,
-              'Upload image to GCP'
+            const result = await this.uploadFileWithRetry(
+              file,
+              'produce-images',
+              {
+                userId: user.id,
+                farmerId: farmer.id,
+                contentType: file.mimetype,
+              }
             );
             return result.url;
           } catch (error) {
             this.logger.error(`Failed to upload image: ${error.message}`, error.stack);
-            throw new Error(`Failed to upload image: ${error.message}`);
+            throw new InternalServerErrorException(`Failed to upload image: ${error.message}`);
           }
         })),
-        // Analyze first image with OpenAI
+        // Analyze first image
         this.analyzeImageWithRetry(files.images[0])
       ]);
 
-      // Upload video if provided
-      let videoUrl: string | undefined;
-      if (files?.video?.[0]) {
-        try {
-          const result = await retry(
-            () => this.gcpStorageService.uploadFile(
-              files.video[0].buffer,
-              files.video[0].originalname,
-              {
-                contentType: files.video[0].mimetype,
-                metadata: {
-                  uploadedBy: user.id,
-                  farmerId: farmer.id,
-                  fileType: 'produce_video'
-                }
-              }
-            ),
-            this.retryOptions,
-            this.logger,
-            'Upload video to GCP'
-          );
-          videoUrl = result.url;
-        } catch (error) {
-          this.logger.warn(`Failed to upload video, continuing without video: ${error.message}`);
-        }
-      }
-
-      // Combine everything into produce data
-      const produceData = {
+      // Create produce with uploaded image URLs
+      const produceInput: CreateProduceInput = {
         ...createProduceDto,
         farmer_id: farmer.id,
         images: uploadedImages,
-        video_url: videoUrl,
-        name: aiAnalysis.name,
-        produce_category: aiAnalysis.produce_category,
-        product_variety: aiAnalysis.product_variety,
-        description: aiAnalysis.description || createProduceDto.description,
-        quality_grade: aiAnalysis.quality_grade,
-        confidence_level: aiAnalysis.confidence_level,
-        detected_defects: aiAnalysis.detected_defects,
-        recommendations: aiAnalysis.recommendations,
-        category_specific_attributes: aiAnalysis.category_specific_attributes,
         status: ProduceStatus.PENDING_AI_ASSESSMENT
       };
 
-      // Create produce
-      return this.produceService.create(produceData);
+      const produce = await this.produceService.create(produceInput);
+
+      // Emit event for AI verification
+      this.eventEmitter.emit('quality.assessment.completed', {
+        produce_id: produce.id,
+        quality_grade: aiAnalysis.quality_grade,
+        confidence_level: aiAnalysis.confidence_level,
+        farmer_id: farmer.id,
+        image_analysis: aiAnalysis,
+        detected_name: aiAnalysis.name,
+        description: aiAnalysis.description,
+        product_variety: aiAnalysis.product_variety,
+        produce_category: aiAnalysis.produce_category,
+        category_specific_attributes: aiAnalysis.category_specific_attributes,
+        assessment_details: {
+          defects: aiAnalysis.detected_defects,
+          recommendations: aiAnalysis.recommendations
+        }
+      });
+
+      return produce;
     } catch (error) {
-      this.logger.error(`Error creating produce: ${error.message}`, error.stack);
-      throw new BadRequestException(`Failed to create produce: ${error.message}`);
+      // If any error occurs during upload or produce creation, cleanup uploaded files
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      this.logger.error(`Error creating produce: ${error.message}`);
+      throw new InternalServerErrorException('Failed to create produce');
     }
   }
 

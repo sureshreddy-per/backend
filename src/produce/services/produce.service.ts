@@ -11,6 +11,7 @@ import { AiSynonymService } from './ai-synonym.service';
 import { FarmersService } from '../../farmers/farmers.service';
 import { InspectionDistanceFeeService } from '../../config/services/fee-config.service';
 import { InspectorsService } from '../../inspectors/inspectors.service';
+import { ProduceCategory } from '../enums/produce-category.enum';
 
 @Injectable()
 export class ProduceService {
@@ -115,70 +116,102 @@ export class ProduceService {
     try {
       const produce = await this.findOne(event.produce_id);
       
-      // Update produce with AI assessment results
+      // Update all relevant fields with AI assessment results
       produce.quality_grade = event.quality_grade;
+      produce.description = event.description || produce.description;
+      produce.product_variety = event.product_variety || produce.product_variety;
+      produce.produce_category = event.produce_category ? ProduceCategory[event.produce_category as keyof typeof ProduceCategory] : produce.produce_category;
 
       // Update produce name if AI detected one
       if (event.detected_name) {
         try {
-          // STEP 1: First check existing names and synonyms
-          const existingName = await this.findExistingProduceNameFromSynonyms(event.detected_name);
-          
-          if (existingName) {
-            this.logger.log(`Found existing produce name "${existingName}" for detected name "${event.detected_name}"`);
-            produce.name = existingName;
-          } else {
-            // STEP 2: Generate AI synonyms and translations
-            this.logger.log(`No existing match found for "${event.detected_name}". Generating AI synonyms...`);
-            const aiResult = await this.aiSynonymService.generateSynonyms(event.detected_name);
-            
-            // STEP 3: Check if any of the AI-generated synonyms match existing entries
-            const allGeneratedTerms = [
-              ...aiResult.synonyms,
-              ...Object.values(aiResult.translations).flat()
-            ];
-            
-            for (const term of allGeneratedTerms) {
-              const matchingName = await this.findExistingProduceNameFromSynonyms(term);
-              if (matchingName) {
-                this.logger.log(`Found existing produce name "${matchingName}" matching AI-generated term "${term}"`);
-                produce.name = matchingName;
-                break;
-              }
-            }
+          // STEP 1: First check direct match with existing produce names
+          const existingProduce = await this.produceRepository.findOne({
+            where: { name: event.detected_name }
+          });
 
-            // If no matches found in existing or AI-generated terms, create new entry
-            if (!produce.name || produce.name === 'Unidentified Produce') {
-              this.logger.log(`No matches found. Creating new synonym entries for "${event.detected_name}"`);
+          if (existingProduce) {
+            this.logger.log(`Found direct name match with existing produce: "${event.detected_name}"`);
+            produce.name = event.detected_name;
+          } else {
+            // STEP 2: Check existing names and synonyms
+            const existingName = await this.findExistingProduceNameFromSynonyms(event.detected_name);
+            
+            if (existingName) {
+              this.logger.log(`Found existing produce name "${existingName}" for detected name "${event.detected_name}"`);
+              produce.name = existingName;
+            } else {
+              // STEP 3: Generate AI synonyms and translations
+              this.logger.log(`No existing match found for "${event.detected_name}". Generating AI synonyms...`);
+              const aiResult = await this.aiSynonymService.generateSynonyms(event.detected_name);
               
-              // Add English synonyms
-              await this.synonymService.addSynonyms(
-                event.detected_name,
-                aiResult.synonyms,
-                'en',
-                true,
-                event.confidence_level
-              );
+              // STEP 4: Check if any of the AI-generated synonyms match existing entries
+              const allGeneratedTerms = [
+                ...aiResult.synonyms,
+                ...Object.values(aiResult.translations).flat()
+              ];
               
-              // Add translations for each supported language
-              for (const [language, translations] of Object.entries(aiResult.translations)) {
-                if (translations && translations.length > 0) {
-                  await this.synonymService.addSynonyms(
-                    event.detected_name,
-                    translations as string[],
-                    language,
-                    true,
-                    event.confidence_level
-                  );
+              let matchFound = false;
+              for (const term of allGeneratedTerms) {
+                const matchingName = await this.findExistingProduceNameFromSynonyms(term);
+                if (matchingName) {
+                  this.logger.log(`Found existing produce name "${matchingName}" matching AI-generated term "${term}"`);
+                  produce.name = matchingName;
+                  matchFound = true;
+                  break;
                 }
               }
-              
-              produce.name = event.detected_name;
+
+              // If no matches found, use the AI-detected name
+              if (!matchFound) {
+                this.logger.log(`No matches found. Using AI-detected name: "${event.detected_name}"`);
+                produce.name = event.detected_name;
+
+                // Add the new name and its synonyms to the database
+                await this.synonymService.addSynonyms(
+                  event.detected_name,
+                  aiResult.synonyms,
+                  'en',
+                  true,
+                  event.confidence_level
+                );
+
+                // Add translations for each supported language
+                for (const [language, translations] of Object.entries(aiResult.translations)) {
+                  if (translations && translations.length > 0) {
+                    await this.synonymService.addSynonyms(
+                      event.detected_name,
+                      translations as string[],
+                      language,
+                      true,
+                      event.confidence_level
+                    );
+                  }
+                }
+              }
             }
           }
-        } catch (nameError) {
-          // If name processing fails, log error but continue with status update
-          this.logger.error(`Failed to process produce name: ${nameError.message}`);
+        } catch (error) {
+          this.logger.error(`Error processing AI-detected name: ${error.message}`);
+          // If name processing fails, still update with AI-detected name
+          produce.name = event.detected_name;
+        }
+      }
+
+      // Update category-specific attributes if provided by AI
+      if (event.category_specific_attributes) {
+        try {
+          const currentAssessment = produce.quality_assessments?.[0]?.category_specific_assessment || {};
+          produce.quality_assessments = [{
+            ...produce.quality_assessments?.[0],
+            category_specific_assessment: {
+              ...currentAssessment,
+              ...event.category_specific_attributes
+            }
+          }];
+        } catch (error) {
+          this.logger.error(`Error updating category-specific attributes: ${error.message}`);
+          // Don't throw - continue with other updates
         }
       }
 
@@ -193,6 +226,7 @@ export class ProduceService {
         this.logger.log(`Produce ${produce.id} marked as available with quality grade ${event.quality_grade}`);
       }
 
+      // Save all updates
       await this.produceRepository.save(produce);
       this.logger.log(`Successfully updated produce ${produce.id} after quality assessment`);
     } catch (error) {
