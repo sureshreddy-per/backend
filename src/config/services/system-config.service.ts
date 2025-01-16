@@ -46,37 +46,37 @@ export class SystemConfigService implements OnModuleInit {
     const defaultConfigs = [
       {
         key: SystemConfigKey.MAX_DAILY_PRICE_UPDATES,
-        value: "3",
+        value: process.env.MAX_DAILY_PRICE_UPDATES || "3",
         description: "Maximum number of price updates allowed per day",
       },
       {
         key: SystemConfigKey.MAX_GEOSPATIAL_RADIUS_KM,
-        value: "50",
+        value: process.env.MAX_GEOSPATIAL_RADIUS_KM || "50",
         description: "Maximum radius in kilometers for geospatial queries",
       },
       {
         key: SystemConfigKey.BASE_FEE_PERCENTAGE,
-        value: "2",
+        value: process.env.BASE_FEE_PERCENTAGE || "2",
         description: "Base fee percentage for transactions",
       },
       {
         key: SystemConfigKey.MIN_INSPECTION_FEE,
-        value: "100",
+        value: process.env.MIN_INSPECTION_FEE || "100",
         description: "Minimum inspection fee in rupees",
       },
       {
         key: SystemConfigKey.MAX_INSPECTION_FEE,
-        value: "5000",
+        value: process.env.MAX_INSPECTION_FEE || "5000",
         description: "Maximum inspection fee in rupees",
       },
       {
         key: SystemConfigKey.INSPECTION_BASE_FEE,
-        value: "500",
+        value: process.env.INSPECTION_BASE_FEE || "500",
         description: "Base inspection fee in rupees",
       },
       {
         key: SystemConfigKey.INSPECTION_FEE_PER_KM,
-        value: "5",
+        value: process.env.INSPECTION_FEE_PER_KM || "5",
         description: "Inspection fee per kilometer in rupees",
       },
     ];

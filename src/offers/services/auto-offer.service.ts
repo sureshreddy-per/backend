@@ -23,8 +23,8 @@ interface QualityAssessmentMetadata {
   category_specific_assessment: CategorySpecificAssessment;
 }
 
-const CACHE_TTL = 3600; // 1 hour
-const CACHE_PREFIX = 'auto_offer:';
+const CACHE_TTL = parseInt(process.env.AUTO_OFFER_CACHE_TTL || '3600'); // 1 hour
+const CACHE_PREFIX = process.env.AUTO_OFFER_CACHE_PREFIX || 'auto_offer:';
 
 @Injectable()
 export class AutoOfferService {

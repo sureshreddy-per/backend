@@ -28,9 +28,9 @@ import { AuditLogFilterDto } from "../dto/audit-log-filter.dto";
 import { InspectionPriority } from "../dto/assign-inspector.dto";
 import { SystemConfigKey } from "../../config/enums/system-config-key.enum";
 
-const CACHE_TTL = 3600; // 1 hour
+const CACHE_TTL = parseInt(process.env.ADMIN_CACHE_TTL || '3600'); // 1 hour
 const CACHE_PREFIX = 'admin:';
-const BATCH_SIZE = 50;
+const BATCH_SIZE = parseInt(process.env.ADMIN_BATCH_SIZE || '50');
 
 @Injectable()
 export class AdminService {

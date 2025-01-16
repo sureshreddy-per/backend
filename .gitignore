@@ -38,3 +38,7 @@ docker-compose.override.yml
 
 # TypeScript
 *.tsbuildinfo
+
+# GCP credentials
+/config/gcp-service-account-key.json
+/config/*.json

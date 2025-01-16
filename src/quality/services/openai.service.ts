@@ -28,16 +28,32 @@ export interface AIAnalysisResult {
 
 @Injectable()
 export class OpenAIService extends BaseOpenAIService {
+  private readonly visionModel: string;
+  private readonly temperature: number;
+  private readonly maxTokens: number;
+  private readonly enableAIFeatures: boolean;
+
   constructor(
     configService: ConfigService,
     httpService: HttpService,
   ) {
     super(configService, httpService, OpenAIService.name);
+
+    // Load configuration from environment variables
+    this.visionModel = configService.get<string>('OPENAI_MODEL') || 'gpt-4-vision-preview';
+    this.temperature = configService.get<number>('OPENAI_TEMPERATURE') || 0.7;
+    this.maxTokens = configService.get<number>('OPENAI_MAX_TOKENS') || 2000;
+    this.enableAIFeatures = configService.get<boolean>('ENABLE_AI_FEATURES') || false;
   }
 
   async analyzeProduceImage(imageUrl: string): Promise<AIAnalysisResult> {
+    // Check if AI features are enabled
+    if (!this.enableAIFeatures) {
+      throw new Error('AI features are disabled in the current environment');
+    }
+
     return this.makeOpenAIRequest<AIAnalysisResult>(
-      "gpt-4-vision-preview",
+      this.visionModel,
       [
         {
           role: "user",
@@ -132,7 +148,35 @@ export class OpenAIService extends BaseOpenAIService {
           ],
         },
       ],
-      { max_tokens: 1000 }
+      {
+        max_tokens: this.maxTokens,
+        temperature: this.temperature,
+      }
     );
+  }
+
+  // Add method to check API key validity
+  async checkAPIKeyValidity(): Promise<boolean> {
+    try {
+      await this.makeOpenAIRequest(
+        this.visionModel,
+        [{ role: "user", content: "Test message" }],
+        { max_tokens: 5 }
+      );
+      return true;
+    } catch (error) {
+      console.error('OpenAI API key validation failed:', error.message);
+      return false;
+    }
+  }
+
+  // Add method to get current configuration
+  getConfiguration() {
+    return {
+      model: this.visionModel,
+      temperature: this.temperature,
+      maxTokens: this.maxTokens,
+      aiEnabled: this.enableAIFeatures,
+    };
   }
 }
