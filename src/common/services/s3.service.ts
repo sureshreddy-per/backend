@@ -22,7 +22,9 @@ export class S3Service implements StorageService {
         accessKeyId: this.configService.get("aws.accessKeyId"),
         secretAccessKey: this.configService.get("aws.secretAccessKey"),
       },
-      maxAttempts: this.isProduction ? 5 : 3,
+      maxAttempts: this.isProduction ? 
+        parseInt(process.env.S3_MAX_ATTEMPTS_PROD || '5') : 
+        parseInt(process.env.S3_MAX_ATTEMPTS_DEV || '3'),
     });
     this.defaultBucket = this.configService.get<string>('aws.bucket');
   }

@@ -18,8 +18,8 @@ import { CreateAdminOfferDto } from '../dto/create-admin-offer.dto';
 import { UsersService } from "../../users/services/users.service";
 
 const CACHE_TTL = 3600; // 1 hour
-const CACHE_PREFIX = 'offer:';
-const BATCH_SIZE = 50;
+const CACHE_PREFIX = process.env.OFFERS_CACHE_PREFIX || 'offer:';
+const BATCH_SIZE = parseInt(process.env.OFFERS_BATCH_SIZE || '50');
 
 @Injectable()
 export class OffersService {

@@ -12,9 +12,9 @@ services:
       - PORT=3000
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=postgres
+      - DB_USER=farmdeva
+      - DB_PASSWORD=farmdeva@123
+      - DB_NAME=farmdeva_db
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - JWT_SECRET=your_jwt_secret_key
@@ -31,16 +31,16 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+      - POSTGRES_USER=farmdeva
+      - POSTGRES_PASSWORD=farmdeva@123
+      - POSTGRES_DB=farmdeva_db
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U farmdeva"]
       interval: 5s
       timeout: 5s
       retries: 5

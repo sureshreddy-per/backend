@@ -33,8 +33,8 @@ export class InspectionDistanceFeeService {
 
   private async createDefaultConfig(): Promise<InspectionDistanceFeeConfig> {
     const defaultConfig = this.inspectionDistanceFeeRepository.create({
-      fee_per_km: 5, // Default ₹5 per km
-      max_distance_fee: 500, // Default max ₹500
+      fee_per_km: parseInt(process.env.DEFAULT_FEE_PER_KM || '5'), // Default ₹5 per km
+      max_distance_fee: parseInt(process.env.DEFAULT_MAX_DISTANCE_FEE || '500'), // Default max ₹500
       is_active: true,
     });
 
@@ -78,7 +78,9 @@ export class InspectionDistanceFeeService {
   getDistanceFee(distance: number): number {
     if (!this.cachedConfig) {
       // Use default values if config not available
-      return Math.min(distance * 5, 500);
+      const defaultFeePerKm = parseInt(process.env.DEFAULT_FEE_PER_KM || '5');
+      const defaultMaxFee = parseInt(process.env.DEFAULT_MAX_DISTANCE_FEE || '500');
+      return Math.min(distance * defaultFeePerKm, defaultMaxFee);
     }
 
     return Math.min(

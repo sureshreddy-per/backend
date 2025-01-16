@@ -16,6 +16,7 @@ import { RedisService } from "../redis/redis.service";
 import { User, UserStatus } from "../users/entities/user.entity";
 import { UserRole } from "../enums/user-role.enum";
 import * as crypto from "crypto";
+import { TwilioService } from "../twilio/twilio.service";
 
 @Injectable()
 export class AuthService {
@@ -29,6 +30,7 @@ export class AuthService {
     private readonly farmersService: FarmersService,
     private readonly buyersService: BuyersService,
     private readonly inspectorsService: InspectorsService,
+    private readonly twilioService: TwilioService,
   ) {}
 
   private hashOtp(otp: string, mobile_number: string): string {
@@ -114,24 +116,22 @@ export class AuthService {
       });
     }
 
-    // Generate OTP and request ID
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate request ID
     const requestId = Math.random().toString(36).substring(2, 15);
 
-    // Hash OTP before storing
-    const hashedOtp = this.hashOtp(otp, userData.mobile_number);
+    // Generate OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Store hashed OTP in Redis with expiration
-    await this.redisService.set(
-      `otp:${userData.mobile_number}`,
-      hashedOtp,
-      300,
-    ); // 5 minutes expiry
+    // Send OTP using Twilio
+    const otpSent = await this.twilioService.sendOTP(userData.mobile_number, otp);
 
-    // For development, include OTP in message
+    if (!otpSent) {
+      throw new InternalServerErrorException("Failed to send OTP");
+    }
+
     return {
       requestId,
-      message: `User registered successfully. OTP sent: ${otp}`,
+      message: `User registered successfully. OTP sent to ${userData.mobile_number}`,
     };
   }
 
@@ -171,20 +171,12 @@ export class AuthService {
     mobile_number: string,
     otp: string,
   ): Promise<{ token: string; user: User }> {
-    const storedHashedOtp = await this.redisService.get(`otp:${mobile_number}`);
+    // Verify OTP using Twilio
+    const isValid = await this.twilioService.verifyOTP(mobile_number, otp);
 
-    if (!storedHashedOtp) {
-      throw new UnauthorizedException("OTP expired or not found");
-    }
-
-    // Hash the received OTP and compare with stored hash
-    const hashedInputOtp = this.hashOtp(otp, mobile_number);
-    if (hashedInputOtp !== storedHashedOtp) {
+    if (!isValid) {
       throw new UnauthorizedException("Invalid OTP");
     }
-
-    // Delete the used OTP
-    await this.redisService.del(`otp:${mobile_number}`);
 
     try {
       const user = await this.usersService.findByMobileNumber(mobile_number);
