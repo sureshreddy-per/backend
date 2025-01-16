@@ -1,4 +1,4 @@
-import { IsString, IsUUID, IsNumber, IsOptional } from "class-validator";
+import { IsString, IsUUID, IsNumber, IsOptional, Matches } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 
 export class CreateFarmDto {
@@ -25,9 +25,12 @@ export class CreateFarmDto {
   @IsOptional()
   address?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: "Location in format 'latitude,longitude' (e.g. '12.9716,77.5946')" })
   @IsString()
   @IsOptional()
+  @Matches(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/, {
+    message: "Location must be in format: latitude,longitude (e.g. 12.9716,77.5946)",
+  })
   location?: string;
 
   @ApiPropertyOptional()
