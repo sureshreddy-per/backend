@@ -44,3 +44,4 @@ docker-compose.override.yml
 # GCP credentials
 /config/gcp-service-account-key.json
 /config/*.json
+src/config/gcp-service-account-key.json
