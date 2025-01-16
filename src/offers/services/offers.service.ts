@@ -1,25 +1,24 @@
-import { Injectable, Logger, Inject, NotFoundException, forwardRef, ConflictException, BadRequestException } from "@nestjs/common";
-import { InjectRepository } from "@nestjs/typeorm";
-import { Repository, In } from "typeorm";
-import { CACHE_MANAGER } from "@nestjs/cache-manager";
-import { Cache } from "cache-manager";
-import { Offer } from "../entities/offer.entity";
-import { OfferStatus } from "../enums/offer-status.enum";
-import { CreateOfferDto } from "../dto/create-offer.dto";
-import { NotificationService } from "../../notifications/services/notification.service";
-import { NotificationType } from "../../notifications/enums/notification-type.enum";
-import { PaginatedResponse } from "../../common/interfaces/paginated-response.interface";
-import { EventEmitter2 } from "@nestjs/event-emitter";
-import { ProduceService } from "../../produce/services/produce.service";
-import { BuyersService } from "../../buyers/buyers.service";
-import { DailyPriceService } from "./daily-price.service";
-import { AutoOfferService } from "./auto-offer.service";
-import { CreateAdminOfferDto } from '../dto/create-admin-offer.dto';
-import { UsersService } from "../../users/services/users.service";
+import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
-const CACHE_TTL = 3600; // 1 hour
-const CACHE_PREFIX = process.env.OFFERS_CACHE_PREFIX || 'offer:';
-const BATCH_SIZE = parseInt(process.env.OFFERS_BATCH_SIZE || '50');
+import { Offer } from '../entities/offer.entity';
+import { CreateOfferDto } from '../dto/create-offer.dto';
+import { CreateAdminOfferDto } from '../dto/create-admin-offer.dto';
+import { ProduceService } from '../../produce/services/produce.service';
+import { BuyersService } from '../../buyers/buyers.service';
+import { NotificationService } from '../../notifications/services/notification.service';
+import { AutoOfferService } from './auto-offer.service';
+import { NotificationType } from '../../notifications/enums/notification-type.enum';
+import { OfferStatus } from '../enums/offer-status.enum';
+import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
+import { UsersService } from '../../users/services/users.service';
+
+const CACHE_PREFIX = 'offers:';
+const CACHE_TTL = 300; // 5 minutes
 
 @Injectable()
 export class OffersService {
@@ -31,7 +30,6 @@ export class OffersService {
     private readonly produceService: ProduceService,
     private readonly buyersService: BuyersService,
     private readonly notificationService: NotificationService,
-    private readonly dailyPriceService: DailyPriceService,
     @Inject(forwardRef(() => AutoOfferService))
     private readonly autoOfferService: AutoOfferService,
     private readonly eventEmitter: EventEmitter2,

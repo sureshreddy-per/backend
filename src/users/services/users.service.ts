@@ -5,7 +5,8 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, FindManyOptions, LessThanOrEqual } from "typeorm";
-import { User, UserStatus } from "../entities/user.entity";
+import { User } from "../entities/user.entity";
+import { UserStatus } from "../enums/user-status.enum";
 import { UserRole } from "../../enums/user-role.enum";
 import { CreateUserDto } from "../dto/create-user.dto";
 import { UpdateUserDto } from "../dto/update-user.dto";

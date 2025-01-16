@@ -50,10 +50,6 @@ export class BuyersService {
   async createBuyer(userId: string, buyerData: CreateBuyerDto): Promise<Buyer> {
     try {
       this.logger.debug(`Creating buyer for user ${userId}`);
-      // Convert hyphen-separated lat_lng to comma-separated format if present
-      if (buyerData.lat_lng) {
-        buyerData.lat_lng = buyerData.lat_lng.replace('-', ',');
-      }
 
       const buyer = this.buyerRepository.create({
         user_id: userId,
@@ -87,11 +83,6 @@ export class BuyersService {
       throw new NotFoundException(`Buyer not found for user ${userId}`);
     }
 
-    // Ensure response uses comma format
-    if (buyer.lat_lng) {
-      buyer.lat_lng = buyer.lat_lng.replace('-', ',');
-    }
-
     return buyer;
   }
 
@@ -101,18 +92,8 @@ export class BuyersService {
       throw new NotFoundException(`Buyer not found for user ${userId}`);
     }
 
-    // Convert hyphen-separated lat_lng to comma-separated format if present
-    if (updateData.lat_lng) {
-      updateData.lat_lng = updateData.lat_lng.replace('-', ',');
-    }
-
     Object.assign(buyer, updateData);
     const result = await this.buyerRepository.save(buyer);
-
-    // Ensure response uses comma format
-    if (result.lat_lng) {
-      result.lat_lng = result.lat_lng.replace('-', ',');
-    }
 
     return result;
   }
@@ -126,11 +107,6 @@ export class BuyersService {
 
     if (!buyer) {
       throw new NotFoundException(`Buyer not found for offer ${offerId}`);
-    }
-
-    // Ensure response uses comma format
-    if (buyer.lat_lng) {
-      buyer.lat_lng = buyer.lat_lng.replace('-', ',');
     }
 
     return buyer;
@@ -154,12 +130,9 @@ export class BuyersService {
 
       const nearbyBuyers = buyers.filter((buyer) => {
         try {
-          if (!buyer.lat_lng) return false;
+          if (!buyer.location) return false;
 
-          // Convert hyphen to comma format if needed
-          buyer.lat_lng = buyer.lat_lng.replace('-', ',');
-
-          const [buyerLat, buyerLng] = buyer.lat_lng.split(",").map((coord) => {
+          const [buyerLat, buyerLng] = buyer.location.split(",").map((coord) => {
             const parsed = parseFloat(coord);
             if (isNaN(parsed)) throw new Error("Invalid coordinates format");
             return parsed;

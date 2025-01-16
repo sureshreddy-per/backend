@@ -1,5 +1,4 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { NotificationType } from '../enums/notification-type.enum';
 
 @Entity('notification_preferences')
 export class NotificationPreferences {
@@ -20,13 +19,11 @@ export class NotificationPreferences {
 
   @Column({
     name: 'notification_types',
-    type: 'enum',
-    enum: NotificationType,
-    enumName: 'notification_type_enum',
+    type: 'text',
     array: true,
     default: []
   })
-  notification_types: NotificationType[];
+  notification_types: string[];
 
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;

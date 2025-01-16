@@ -1,44 +1,43 @@
-import { Module, forwardRef } from "@nestjs/common";
-import { TypeOrmModule } from "@nestjs/typeorm";
-import { CacheModule } from "@nestjs/cache-manager";
-import { Offer } from "./entities/offer.entity";
-import { OffersService } from "./services/offers.service";
-import { OffersController } from "./controllers/offers.controller";
-import { DailyPrice } from "./entities/daily-price.entity";
-import { DailyPriceService } from "./services/daily-price.service";
-import { DailyPriceController } from "./controllers/daily-price.controller";
-import { BuyersModule } from "../buyers/buyers.module";
-import { ProduceModule } from "../produce/produce.module";
-import { AutoOfferService } from "./services/auto-offer.service";
-import { NotificationsModule } from "../notifications/notifications.module";
-import { QualityModule } from "../quality/quality.module";
-import { ConfigModule } from "../config/config.module";
-import { UsersModule } from "../users/users.module";
-import { Buyer } from "../buyers/entities/buyer.entity";
-import { QualityAssessment } from "../quality/entities/quality-assessment.entity";
-import { Produce } from "../produce/entities/produce.entity";
-import { AutoOfferGeneratorTask } from "./tasks/auto-offer-generator.task";
-import { OfferNotificationListener } from "./listeners/offer-notification.listener";
+import { Module, forwardRef } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { CacheModule } from '@nestjs/cache-manager';
+import { OffersService } from './services/offers.service';
+import { OffersController } from './controllers/offers.controller';
+import { Offer } from './entities/offer.entity';
+import { AutoOfferService } from './services/auto-offer.service';
+import { DailyPrice } from './entities/daily-price.entity';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ProduceModule } from '../produce/produce.module';
+import { BuyersModule } from '../buyers/buyers.module';
+import { UsersModule } from '../users/users.module';
+import { ConfigModule } from '../config/config.module';
+import { DailyPriceCalculationService } from './services/daily-price-calculation.service';
+import { QualityAssessment } from '../quality/entities/quality-assessment.entity';
+import { Produce } from '../produce/entities/produce.entity';
+import { Buyer } from '../buyers/entities/buyer.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Offer, DailyPrice, QualityAssessment, Produce, Buyer]),
-    forwardRef(() => BuyersModule),
-    ProduceModule,
-    NotificationsModule,
-    forwardRef(() => QualityModule),
-    ConfigModule,
-    UsersModule,
+    TypeOrmModule.forFeature([
+      Offer, 
+      DailyPrice, 
+      QualityAssessment,
+      Produce,
+      Buyer
+    ]),
     CacheModule.register(),
+    NotificationsModule,
+    ProduceModule,
+    forwardRef(() => BuyersModule),
+    UsersModule,
+    ConfigModule,
   ],
+  controllers: [OffersController],
   providers: [
     OffersService,
-    DailyPriceService,
     AutoOfferService,
-    AutoOfferGeneratorTask,
-    OfferNotificationListener,
+    DailyPriceCalculationService,
   ],
-  controllers: [OffersController, DailyPriceController],
-  exports: [OffersService, DailyPriceService, AutoOfferService],
+  exports: [OffersService, AutoOfferService],
 })
 export class OffersModule {}

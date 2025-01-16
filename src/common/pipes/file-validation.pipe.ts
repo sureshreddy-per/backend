@@ -1,11 +1,13 @@
 import { PipeTransform, Injectable, BadRequestException, ArgumentMetadata } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { StorageUploadType } from "../services/gcp-storage.service";
+import { StorageUploadType } from "../enums/storage-upload-type.enum";
+import * as mime from 'mime-types';
 
 @Injectable()
 export class FileValidationPipe implements PipeTransform {
   private readonly maxSizes: Record<StorageUploadType, number>;
   private readonly allowedTypes: Record<StorageUploadType, string[]>;
+  private readonly allowedMimeTypes: Record<StorageUploadType, string[]>;
   private readonly type: StorageUploadType;
 
   constructor(
@@ -34,7 +36,7 @@ export class FileValidationPipe implements PipeTransform {
 
     this.allowedTypes = {
       [StorageUploadType.IMAGES]: this.getTypesArray(
-        this.configService.get<string>("ALLOWED_IMAGE_TYPES", "jpg,jpeg,png,gif"),
+        this.configService.get<string>("ALLOWED_IMAGE_TYPES", "jpg,jpeg,png,gif,heic,heif"),
       ),
       [StorageUploadType.VIDEOS]: this.getTypesArray(
         this.configService.get<string>("ALLOWED_VIDEO_TYPES", "mp4,mov,avi"),
@@ -48,6 +50,33 @@ export class FileValidationPipe implements PipeTransform {
       [StorageUploadType.DOCUMENTS]: this.getTypesArray(
         this.configService.get<string>("ALLOWED_DOCUMENT_TYPES", "pdf,doc,docx"),
       ),
+    };
+
+    this.allowedMimeTypes = {
+      [StorageUploadType.IMAGES]: [
+        'image/jpeg',
+        'image/png',
+        'image/gif',
+        'image/heic',
+        'image/heif'
+      ],
+      [StorageUploadType.VIDEOS]: [
+        'video/mp4',
+        'video/quicktime',
+        'video/x-msvideo'
+      ],
+      [StorageUploadType.THUMBNAILS]: [
+        'image/jpeg',
+        'image/png'
+      ],
+      [StorageUploadType.REPORTS]: [
+        'application/pdf'
+      ],
+      [StorageUploadType.DOCUMENTS]: [
+        'application/pdf',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      ],
     };
   }
 
@@ -77,6 +106,7 @@ export class FileValidationPipe implements PipeTransform {
       throw new BadRequestException("No file uploaded");
     }
 
+    // Check file extension
     const fileExtension = file.originalname.split(".").pop()?.toLowerCase();
     if (!fileExtension || !this.allowedTypes[this.type].includes(fileExtension)) {
       throw new BadRequestException(
@@ -84,6 +114,14 @@ export class FileValidationPipe implements PipeTransform {
       );
     }
 
+    // Check MIME type
+    if (!this.allowedMimeTypes[this.type].includes(file.mimetype)) {
+      throw new BadRequestException(
+        `Invalid MIME type. Must be one of: ${this.allowedMimeTypes[this.type].join(", ")}`,
+      );
+    }
+
+    // Check file size
     if (file.size > this.maxSizes[this.type]) {
       throw new BadRequestException(
         `File size exceeds the maximum limit of ${this.maxSizes[this.type] / (1024 * 1024)}MB`,

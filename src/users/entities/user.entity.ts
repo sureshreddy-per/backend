@@ -5,15 +5,6 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
 } from "typeorm";
-import { UserRole } from "../../enums/user-role.enum";
-
-export enum UserStatus {
-  PENDING_VERIFICATION = "PENDING_VERIFICATION",
-  ACTIVE = "ACTIVE",
-  INACTIVE = "INACTIVE",
-  BLOCKED = "BLOCKED",
-  DELETED = "DELETED",
-}
 
 @Entity("users")
 export class User {
@@ -30,20 +21,16 @@ export class User {
   mobile_number: string;
 
   @Column({
-    type: "enum",
-    enum: UserRole,
-    enumName: "user_role_enum",
-    default: UserRole.BUYER,
+    type: "text",
+    default: "BUYER"
   })
-  role: UserRole;
+  role: string;
 
   @Column({
-    type: "enum",
-    enum: UserStatus,
-    enumName: "user_status_enum",
-    default: UserStatus.PENDING_VERIFICATION,
+    type: "text",
+    default: "PENDING_VERIFICATION",
   })
-  status: UserStatus;
+  status: string;
 
   @Column({ nullable: true })
   block_reason: string;

@@ -13,7 +13,13 @@ import {
   Patch,
   ParseFloatPipe,
   BadRequestException,
+  UseInterceptors,
+  UploadedFiles,
+  UsePipes,
+  Logger,
+  InternalServerErrorException,
 } from "@nestjs/common";
+import { FileFieldsInterceptor } from "@nestjs/platform-express";
 import { ProduceService } from "./services/produce.service";
 import { CreateProduceDto } from "./dto/create-produce.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -26,46 +32,193 @@ import { UpdateProduceDto } from "./dto/update-produce.dto";
 import { FarmersService } from "../farmers/farmers.service";
 import { ProduceStatus } from "./enums/produce-status.enum";
 import { EventEmitter2 } from "@nestjs/event-emitter";
-import { RequestAiVerificationDto } from "./dto/request-ai-verification.dto";
+import { GcpStorageService } from "../common/services/gcp-storage.service";
+import { OpenAIService } from "../quality/services/openai.service";
+import { FileValidationPipe } from "../common/pipes/file-validation.pipe";
+import { StorageUploadType } from "../common/enums/storage-upload-type.enum";
+import { retry } from "../common/utils/retry.util";
+import { ConfigService } from "@nestjs/config";
+import { RequestAiVerificationDto } from '../quality/dto/request-ai-verification.dto';
 
 @Controller("produce")
 @UseGuards(JwtAuthGuard)
 export class ProduceController {
+  private readonly logger = new Logger(ProduceController.name);
+  private readonly retryOptions: { maxAttempts: number };
+
   constructor(
     private readonly produceService: ProduceService,
     private readonly farmerService: FarmersService,
     private readonly eventEmitter: EventEmitter2,
-  ) {}
+    private readonly gcpStorageService: GcpStorageService,
+    private readonly openAIService: OpenAIService,
+    private readonly configService: ConfigService,
+  ) {
+    this.retryOptions = {
+      maxAttempts: this.configService.get<number>('S3_MAX_ATTEMPTS_PROD', 5),
+    };
+  }
+
+  private async cleanupUploadedFiles(fileKeys: string[]) {
+    try {
+      await Promise.all(
+        fileKeys.map(key => 
+          retry(
+            () => this.gcpStorageService.deleteFile(key),
+            this.retryOptions,
+            this.logger,
+            `Delete file ${key}`
+          ).catch(error => {
+            this.logger.error(`Failed to delete file ${key} after retries: ${error.message}`);
+          })
+        )
+      );
+    } catch (error) {
+      this.logger.error(`Error during file cleanup: ${error.message}`);
+    }
+  }
+
+  private async uploadFileWithRetry(
+    file: Express.Multer.File,
+    path: string,
+    metadata: Record<string, string>,
+  ) {
+    return retry(
+      () => this.gcpStorageService.uploadFile(
+        file.buffer,
+        file.originalname,
+        {
+          contentType: file.mimetype,
+          path,
+          metadata,
+        }
+      ),
+      this.retryOptions,
+      this.logger,
+      `Upload file ${file.originalname}`
+    );
+  }
+
+  private async analyzeImageWithRetry(
+    file: Express.Multer.File,
+  ) {
+    return retry(
+      () => this.openAIService.analyzeProduceImage(
+        file.buffer,
+        file.mimetype
+      ),
+      this.retryOptions,
+      this.logger,
+      'Analyze image with OpenAI'
+    );
+  }
 
   @Post()
+  @UseInterceptors(FileFieldsInterceptor([
+    { name: 'images', maxCount: 3 },
+    { name: 'video', maxCount: 1 }
+  ]))
+  @UsePipes(FileValidationPipe.forType(StorageUploadType.IMAGES))
   async create(
+    @UploadedFiles() files: { images?: Express.Multer.File[]; video?: Express.Multer.File[] },
+    @Body('data') createProduceDto: CreateProduceDto,
     @GetUser() user: User,
-    @Body() createProduceDto: CreateProduceDto,
   ) {
+    // Validate farmer exists
     const farmer = await this.farmerService.findByUserId(user.id);
     if (!farmer) {
-      throw new BadRequestException('User is not a farmer');
+      throw new BadRequestException('Farmer not found');
     }
 
-    const produceData = {
-      ...createProduceDto,
-      farmer_id: farmer.id,
-      status: ProduceStatus.PENDING_AI_ASSESSMENT,
-    };
-    
-    // Create produce with PENDING_AI_ASSESSMENT status
-    const produce = await this.produceService.create(produceData);
-    
-    // Emit produce.created event for AI assessment
-    if (produce.images && produce.images.length > 0) {
-      await this.eventEmitter.emit('produce.created', {
-        produce_id: produce.id,
-        image_url: produce.images[0], // Use first image for AI assessment
-        location: produce.location,
-      });
+    // Validate at least one image is uploaded
+    if (!files?.images || files.images.length === 0) {
+      throw new BadRequestException('At least one image is required');
     }
-    
-    return produce;
+
+    try {
+      // Upload images in parallel and analyze the first image
+      const [uploadedImages, aiAnalysis] = await Promise.all([
+        // Upload all images
+        Promise.all(files.images.map(async (file) => {
+          try {
+            const result = await retry(
+              () => this.gcpStorageService.uploadFile(
+                file.buffer,
+                file.originalname,
+                {
+                  contentType: file.mimetype,
+                  metadata: {
+                    uploadedBy: user.id,
+                    farmerId: farmer.id,
+                    fileType: 'produce_image'
+                  }
+                }
+              ),
+              this.retryOptions,
+              this.logger,
+              'Upload image to GCP'
+            );
+            return result.url;
+          } catch (error) {
+            this.logger.error(`Failed to upload image: ${error.message}`, error.stack);
+            throw new Error(`Failed to upload image: ${error.message}`);
+          }
+        })),
+        // Analyze first image with OpenAI
+        this.analyzeImageWithRetry(files.images[0])
+      ]);
+
+      // Upload video if provided
+      let videoUrl: string | undefined;
+      if (files?.video?.[0]) {
+        try {
+          const result = await retry(
+            () => this.gcpStorageService.uploadFile(
+              files.video[0].buffer,
+              files.video[0].originalname,
+              {
+                contentType: files.video[0].mimetype,
+                metadata: {
+                  uploadedBy: user.id,
+                  farmerId: farmer.id,
+                  fileType: 'produce_video'
+                }
+              }
+            ),
+            this.retryOptions,
+            this.logger,
+            'Upload video to GCP'
+          );
+          videoUrl = result.url;
+        } catch (error) {
+          this.logger.warn(`Failed to upload video, continuing without video: ${error.message}`);
+        }
+      }
+
+      // Combine everything into produce data
+      const produceData = {
+        ...createProduceDto,
+        farmer_id: farmer.id,
+        images: uploadedImages,
+        video_url: videoUrl,
+        name: aiAnalysis.name,
+        produce_category: aiAnalysis.produce_category,
+        product_variety: aiAnalysis.product_variety,
+        description: aiAnalysis.description || createProduceDto.description,
+        quality_grade: aiAnalysis.quality_grade,
+        confidence_level: aiAnalysis.confidence_level,
+        detected_defects: aiAnalysis.detected_defects,
+        recommendations: aiAnalysis.recommendations,
+        category_specific_attributes: aiAnalysis.category_specific_attributes,
+        status: ProduceStatus.PENDING_AI_ASSESSMENT
+      };
+
+      // Create produce
+      return this.produceService.create(produceData);
+    } catch (error) {
+      this.logger.error(`Error creating produce: ${error.message}`, error.stack);
+      throw new BadRequestException(`Failed to create produce: ${error.message}`);
+    }
   }
 
   @Get()

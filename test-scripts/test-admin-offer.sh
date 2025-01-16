@@ -293,7 +293,7 @@ main() {
     BUYER_PROFILE_DATA='{
         "business_name": "Test Buyer Business",
         "address": "123 Test Street, Test City",
-        "lat_lng": "12.9716,77.5946"
+        "location": "12.9716,77.5946"
     }'
     
     BUYER_PROFILE_RESPONSE=$(make_request "POST" "buyers" "$BUYER_PROFILE_DATA" "$BUYER_TOKEN")

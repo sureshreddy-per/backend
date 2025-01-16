@@ -6,16 +6,6 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 
-export enum AdminActionType {
-  BLOCK_USER = "BLOCK_USER",
-  UNBLOCK_USER = "UNBLOCK_USER",
-  DELETE_PRODUCE = "DELETE_PRODUCE",
-  CANCEL_OFFER = "CANCEL_OFFER",
-  CANCEL_TRANSACTION = "CANCEL_TRANSACTION",
-  ASSIGN_INSPECTOR = "ASSIGN_INSPECTOR",
-  UPDATE_SYSTEM_CONFIG = "UPDATE_SYSTEM_CONFIG",
-}
-
 @Entity("admin_audit_logs")
 export class AdminAuditLog {
   @PrimaryGeneratedColumn("uuid")
@@ -25,10 +15,9 @@ export class AdminAuditLog {
   admin_id: string;
 
   @Column({
-    type: "enum",
-    enum: AdminActionType,
+    type: "text"
   })
-  action: AdminActionType;
+  action: string;
 
   @Column("uuid")
   entity_id: string;

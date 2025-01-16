@@ -1,7 +1,4 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from "typeorm";
-import { ReportType } from "../enums/report-type.enum";
-import { ReportFormat } from "../enums/report-format.enum";
-import { ReportStatus } from "../enums/report-status.enum";
 
 @Entity()
 export class Report {
@@ -12,23 +9,20 @@ export class Report {
   user_id: string;
 
   @Column({
-    type: "enum",
-    enum: ReportType,
+    type: "text"
   })
-  type: ReportType;
+  type: string;
 
   @Column({
-    type: "enum",
-    enum: ReportFormat,
+    type: "text"
   })
-  format: ReportFormat;
+  format: string;
 
   @Column({
-    type: "enum",
-    enum: ReportStatus,
-    default: ReportStatus.QUEUED,
+    type: "text",
+    default: "QUEUED",
   })
-  status: ReportStatus;
+  status: string;
 
   @Column("jsonb", { nullable: true })
   parameters: any;

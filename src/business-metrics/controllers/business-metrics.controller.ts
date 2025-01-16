@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Body, Query, UseGuards } from "@nestjs/common";
 import { BusinessMetricsService } from "../services/business-metrics.service";
-import { BusinessMetric, MetricType, MetricCategory } from "../entities/business-metric.entity";
+import { BusinessMetric } from "../entities/business-metric.entity";
+import { MetricType, MetricCategory } from "../enums/metric-type.enum";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import { Roles } from "../../auth/decorators/roles.decorator";

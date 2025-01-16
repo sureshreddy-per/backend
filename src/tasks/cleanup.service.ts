@@ -1,8 +1,9 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
 import { InjectRepository } from "@nestjs/typeorm";
-import { LessThan, Repository } from "typeorm";
-import { User, UserStatus } from "../users/entities/user.entity";
+import { Repository, LessThanOrEqual } from "typeorm";
+import { User } from "../users/entities/user.entity";
+import { UserStatus } from "../users/enums/user-status.enum";
 
 @Injectable()
 export class CleanupService {
@@ -22,7 +23,7 @@ export class CleanupService {
       const usersToDelete = await this.userRepository.find({
         where: {
           status: UserStatus.DELETED,
-          scheduled_for_deletion_at: LessThan(now),
+          scheduled_for_deletion_at: LessThanOrEqual(now),
         },
       });
 

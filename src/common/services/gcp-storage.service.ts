@@ -4,19 +4,31 @@ import { Storage } from '@google-cloud/storage';
 import { StorageService, StorageOptions, StorageResponse } from '../interfaces/storage.interface';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as mime from 'mime-types';
 
 @Injectable()
 export class GcpStorageService implements StorageService {
   private readonly storage: Storage;
+  private readonly bucket: string;
   private readonly logger = new Logger(GcpStorageService.name);
-  private readonly defaultBucket: string;
 
   constructor(private readonly configService: ConfigService) {
+    this.bucket = this.configService.get<string>('GCP_STORAGE_BUCKET');
     this.storage = new Storage({
-      projectId: this.configService.get<string>('gcp.projectId'),
-      keyFilename: this.configService.get<string>('gcp.keyFilePath'),
+      projectId: this.configService.get<string>('GCP_PROJECT_ID'),
+      keyFilename: this.configService.get<string>('GCP_KEY_FILE'),
     });
-    this.defaultBucket = this.configService.get<string>('gcp.bucket');
+  }
+
+  private async initializeBucketAccess() {
+    try {
+      const bucket = this.storage.bucket(this.bucket);
+      await bucket.makePublic();
+      this.logger.log(`Successfully made bucket ${this.bucket} public`);
+    } catch (error) {
+      this.logger.error(`Failed to make bucket public: ${error.message}`, error.stack);
+      // Don't throw error to allow service to start
+    }
   }
 
   private generateUniqueFilename(originalFilename: string): string {
@@ -32,7 +44,7 @@ export class GcpStorageService implements StorageService {
     options: StorageOptions = {},
   ): Promise<StorageResponse> {
     try {
-      const bucket = this.storage.bucket(options.bucket || this.defaultBucket);
+      const bucket = this.storage.bucket(options.bucket || this.bucket);
       const uniqueFilename = this.generateUniqueFilename(filename);
       const filePath = options.path ? `${options.path}/${uniqueFilename}` : uniqueFilename;
       const blob = bucket.file(filePath);
@@ -54,16 +66,14 @@ export class GcpStorageService implements StorageService {
         await blob.save(file, { metadata });
       }
 
-      // Make file public if requested
-      if (options.isPublic) {
-        await blob.makePublic();
-      }
+      // Always make file public since bucket is public
+      await blob.makePublic();
 
       // Get file metadata
       const [metadata_] = await blob.getMetadata();
 
       return {
-        url: options.isPublic ? this.getPublicUrl(filePath, bucket.name) : await this.getSignedUrl(filePath, 3600, bucket.name),
+        url: this.getPublicUrl(filePath, bucket.name), // Always use public URL
         key: filePath,
         bucket: bucket.name,
         contentType: metadata_.contentType || 'application/octet-stream',
@@ -78,7 +88,7 @@ export class GcpStorageService implements StorageService {
 
   async deleteFile(key: string, bucket?: string): Promise<void> {
     try {
-      const file = this.storage.bucket(bucket || this.defaultBucket).file(key);
+      const file = this.storage.bucket(bucket || this.bucket).file(key);
       await file.delete();
     } catch (error) {
       this.logger.error(`Failed to delete file: ${error.message}`, error.stack);
@@ -92,7 +102,7 @@ export class GcpStorageService implements StorageService {
     bucket?: string,
   ): Promise<string> {
     try {
-      const file = this.storage.bucket(bucket || this.defaultBucket).file(key);
+      const file = this.storage.bucket(bucket || this.bucket).file(key);
       const [url] = await file.getSignedUrl({
         action: 'read',
         expires: Date.now() + expiresIn * 1000,
@@ -105,7 +115,43 @@ export class GcpStorageService implements StorageService {
   }
 
   getPublicUrl(key: string, bucket?: string): string {
-    const bucketName = bucket || this.defaultBucket;
+    const bucketName = bucket || this.bucket;
     return `https://storage.googleapis.com/${bucketName}/${key}`;
+  }
+
+  async getFileContent(key: string, bucket?: string): Promise<Buffer> {
+    try {
+      const file = this.storage.bucket(bucket || this.bucket).file(key);
+      const [content] = await file.download();
+      return content;
+    } catch (error) {
+      this.logger.error(`Failed to get file content: ${error.message}`, error.stack);
+      throw new Error(`Failed to get file content: ${error.message}`);
+    }
+  }
+
+  async downloadFile(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    try {
+      // Extract filename from URL
+      const filename = url.split(`${this.bucket}/`)[1];
+      if (!filename) {
+        throw new Error('Invalid GCP Storage URL');
+      }
+
+      const bucket = this.storage.bucket(this.bucket);
+      const file = bucket.file(filename);
+
+      // Get file metadata
+      const [metadata] = await file.getMetadata();
+      const mimeType = metadata.contentType || mime.lookup(filename) || 'application/octet-stream';
+
+      // Download file
+      const [buffer] = await file.download();
+
+      return { buffer, mimeType };
+    } catch (error) {
+      this.logger.error(`Error downloading file: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 }

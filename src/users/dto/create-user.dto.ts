@@ -4,10 +4,11 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
 } from "class-validator";
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { UserRole } from "../../enums/user-role.enum";
-import { UserStatus } from "../entities/user.entity";
+import { UserStatus } from "../enums/user-status.enum";
 
 export class CreateUserDto {
   @ApiProperty({ example: "+1234567890" })

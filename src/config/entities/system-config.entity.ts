@@ -1,5 +1,4 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-import { SystemConfigKey } from '../enums/system-config-key.enum';
 
 @Entity('system_configs')
 export class SystemConfig {
@@ -7,11 +6,10 @@ export class SystemConfig {
   id: string;
 
   @Column({
-    type: 'enum',
-    enum: SystemConfigKey,
+    type: 'text',
     unique: true
   })
-  key: SystemConfigKey;
+  key: string;
 
   @Column('text')
   value: string;

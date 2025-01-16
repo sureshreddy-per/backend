@@ -10,7 +10,7 @@ NC='\033[0m'
 TEST_MOBILE="+1234567890"
 TEST_BUSINESS="Test Business"
 TEST_ADDRESS="123 Test St"
-TEST_LAT_LNG="12.9716,77.5946"
+TEST_LOCATION="12.9716,77.5946"
 
 # Utility functions
 print_step() {
@@ -120,7 +120,7 @@ print_success "Got initial buyer details"
 # Update buyer profile
 print_step "Updating buyer profile"
 UPDATE_RESPONSE=$(make_request "PUT" "/buyers/me" "$BUYER_TOKEN" \
-    "{\"business_name\":\"$TEST_BUSINESS\",\"address\":\"$TEST_ADDRESS\",\"lat_lng\":\"$TEST_LAT_LNG\"}")
+    "{\"business_name\":\"$TEST_BUSINESS\",\"address\":\"$TEST_ADDRESS\",\"location\":\"$TEST_LOCATION\"}")
 print_debug "Update profile response: $UPDATE_RESPONSE"
 check_error "$UPDATE_RESPONSE" "Failed to update buyer profile"
 

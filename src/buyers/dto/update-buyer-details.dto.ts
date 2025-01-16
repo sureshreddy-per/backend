@@ -7,14 +7,13 @@ export class UpdateBuyerDetailsDto {
   @IsString()
   address?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: "Location in 'latitude,longitude' format (e.g., '12.9716,77.5946')" })
   @IsOptional()
   @IsString()
-  @Matches(/^-?\d+\.\d+,-?\d+\.\d+$/, {
-    message:
-      'lat_lng must be in format "latitude,longitude" (e.g., "12.9716,77.5946")',
+  @Matches(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/, {
+    message: "Location must be in format: latitude,longitude (e.g., 12.9716,77.5946)",
   })
-  lat_lng?: string;
+  location?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

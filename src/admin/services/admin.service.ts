@@ -11,14 +11,13 @@ import { CACHE_MANAGER } from "@nestjs/cache-manager";
 import { Cache } from "cache-manager";
 import {
   AdminAuditLog,
-  AdminActionType,
 } from "../entities/admin-audit-log.entity";
 import { SystemConfig } from "../../config/entities/system-config.entity";
 import { UsersService } from "../../users/services/users.service";
 import { ProduceService } from "../../produce/services/produce.service";
 import { OffersService } from "../../offers/services/offers.service";
 import { TransactionService } from "../../transactions/services/transaction.service";
-import { UserStatus } from "../../users/entities/user.entity";
+import { UserStatus } from "../../users/enums/user-status.enum";
 import { UserRole } from "../../enums/user-role.enum";
 import { ProduceStatus } from "../../produce/enums/produce-status.enum";
 import { OfferStatus } from "../../offers/enums/offer-status.enum";
@@ -27,6 +26,7 @@ import { UpdateSystemConfigDto } from "../dto/update-system-config.dto";
 import { AuditLogFilterDto } from "../dto/audit-log-filter.dto";
 import { InspectionPriority } from "../dto/assign-inspector.dto";
 import { SystemConfigKey } from "../../config/enums/system-config-key.enum";
+import { AdminActionType } from "../enums/admin-action-type.enum";
 
 const CACHE_TTL = parseInt(process.env.ADMIN_CACHE_TTL || '3600'); // 1 hour
 const CACHE_PREFIX = 'admin:';

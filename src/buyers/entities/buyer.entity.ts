@@ -32,8 +32,11 @@ export class Buyer {
   @Column({ nullable: true })
   registration_number: string;
 
-  @Column({ nullable: true })
-  lat_lng: string;
+  @Column({ 
+    nullable: true, 
+    comment: "Location in 'latitude,longitude' format (e.g., '12.9716,77.5946')" 
+  })
+  location: string;
 
   @Column({ nullable: true })
   location_name: string;

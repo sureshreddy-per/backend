@@ -133,7 +133,7 @@ print_test_header "Creating Buyer Profile"
 BUYER_PROFILE_RESPONSE=$(make_request "POST" "/buyers/profile" '{
     "business_name": "Test Buyer Business",
     "address": "123 Test Street, Test City",
-    "lat_lng": "12.9716-77.5946"
+    "location": "12.9716,77.5946"
 }' "$BUYER_TOKEN")
 
 if [ $? -ne 0 ]; then
