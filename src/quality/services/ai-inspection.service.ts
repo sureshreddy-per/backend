@@ -17,7 +17,9 @@ export class AIInspectionService {
       const { buffer, mimeType } = await this.storageService.downloadFile(event.image_url);
       
       // Analyze the image using OpenAI
-      const analysis = await this.openaiService.analyzeProduceImage(buffer, mimeType);
+      const analysis = await this.openaiService.analyzeProduceWithMultipleImages([
+        { buffer, mimeType }
+      ]);
       
       return analysis;
     } catch (error) {

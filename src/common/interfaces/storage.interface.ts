@@ -27,4 +27,6 @@ export interface StorageService {
   getSignedUrl(key: string, expiresIn?: number, bucket?: string): Promise<string>;
 
   getPublicUrl(key: string, bucket?: string): string;
+
+  downloadFile(url: string): Promise<{ buffer: Buffer; mimeType: string }>;
 }

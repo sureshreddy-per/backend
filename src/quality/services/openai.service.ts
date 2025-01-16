@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { HttpService } from '@nestjs/axios';
 import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 import { firstValueFrom } from 'rxjs';
+import sharp from 'sharp';
+import heicConvert from 'heic-convert';
 
 export interface AIAnalysisResult {
   name: string;
@@ -16,58 +18,184 @@ export interface AIAnalysisResult {
   category_specific_attributes: Record<string, any>;
 }
 
+export interface ImageData {
+  buffer: Buffer;
+  mimeType: string;
+}
+
 @Injectable()
 export class OpenAIService {
   private readonly logger = new Logger(OpenAIService.name);
   private readonly apiKey: string;
+  private readonly orgId: string;
   private readonly apiEndpoint: string;
+  private readonly model: string;
+  private readonly maxTokens: number;
+  private readonly temperature: number;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
   ) {
-    this.apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    this.apiEndpoint = this.configService.get<string>('OPENAI_API_ENDPOINT', 'https://api.openai.com/v1/chat/completions');
+    // Load API key directly from environment and other configs from configuration service
+    this.apiKey = process.env.OPENAI_API_KEY;
+    this.orgId = this.configService.get<string>('openai.orgId');
+    this.model = this.configService.get<string>('openai.model');
+    this.apiEndpoint = this.configService.get<string>('openai.apiEndpoint');
+    this.maxTokens = this.configService.get<number>('openai.maxTokens', 2000);
+    this.temperature = this.configService.get<number>('openai.temperature', 0.7);
+    
+    // Debug logging for API key
+    this.logger.debug('Raw API Key from env:', {
+      keyExists: !!process.env.OPENAI_API_KEY,
+      rawLength: process.env.OPENAI_API_KEY?.length,
+      rawStart: process.env.OPENAI_API_KEY?.substring(0, 8),
+      rawEnd: process.env.OPENAI_API_KEY?.slice(-4),
+      envKeys: Object.keys(process.env).filter(key => key.includes('OPENAI'))
+    });
+    
+    if (!this.apiKey) {
+      this.logger.error('OpenAI API key not configured');
+      throw new Error('OpenAI API key not configured');
+    }
+
+    // Log configuration for debugging (safely)
+    this.logger.debug('OpenAI Service Configuration:', {
+      endpoint: this.apiEndpoint,
+      model: this.model,
+      maxTokens: this.maxTokens,
+      temperature: this.temperature,
+      orgId: this.orgId,
+      apiKeyLength: this.apiKey?.length,
+      apiKeyStart: this.apiKey?.substring(0, 8),
+      apiKeyEnd: this.apiKey?.slice(-4)
+    });
   }
 
-  async analyzeProduceImage(fileBuffer: Buffer, mimeType: string): Promise<AIAnalysisResult> {
+  private async convertHeicToJpeg(buffer: Buffer): Promise<Buffer> {
     try {
-      const base64Image = fileBuffer.toString('base64');
+      const jpegBuffer = await heicConvert({
+        buffer: buffer,
+        format: 'JPEG',
+        quality: 0.9
+      });
+      return Buffer.from(jpegBuffer);
+    } catch (error) {
+      this.logger.error(`Error converting HEIC to JPEG: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private async processImageBuffer(buffer: Buffer, mimeType: string): Promise<{ buffer: Buffer, mimeType: string }> {
+    try {
+      if (mimeType.toLowerCase().includes('heic')) {
+        const jpegBuffer = await this.convertHeicToJpeg(buffer);
+        return { buffer: jpegBuffer, mimeType: 'image/jpeg' };
+      }
+
+      // For other formats, ensure they're in a supported format and optimize
+      const image = sharp(buffer);
+      const metadata = await image.metadata();
+
+      // If not in a supported format, convert to JPEG
+      if (!['png', 'jpeg', 'jpg', 'gif', 'webp'].includes(metadata.format?.toLowerCase())) {
+        const jpegBuffer = await image.jpeg({ quality: 90 }).toBuffer();
+        return { buffer: jpegBuffer, mimeType: 'image/jpeg' };
+      }
+
+      return { buffer, mimeType };
+    } catch (error) {
+      this.logger.error(`Error processing image: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private cleanJsonResponse(content: string): string {
+    // Remove markdown code block markers and 'json' language identifier
+    return content
+      .replace(/```json\n/g, '')  // Remove opening ```json
+      .replace(/```\n/g, '')      // Remove opening ``` without json
+      .replace(/\n```/g, '')      // Remove closing ```
+      .replace(/```/g, '')        // Remove any remaining ```
+      .trim();                    // Remove any extra whitespace
+  }
+
+  async analyzeProduceWithMultipleImages(images: ImageData[]): Promise<AIAnalysisResult> {
+    try {
+      this.logger.debug(`Making OpenAI API request with ${images.length} images...`);
+      const headers: Record<string, string> = {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+        ...(this.orgId && { 'OpenAI-Organization': this.orgId }),
+      };
+
+      // Process all images to ensure they're in a supported format
+      const processedImages = await Promise.all(
+        images.map(async img => {
+          const processed = await this.processImageBuffer(img.buffer, img.mimeType);
+          return {
+            type: 'image_url',
+            image_url: {
+              url: `data:${processed.mimeType};base64,${processed.buffer.toString('base64')}`,
+            }
+          };
+        })
+      );
+
+      const requestBody = {
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Analyze these images of the same agricultural produce from different angles and provide comprehensive details about its quality, category, and characteristics. Consider all images to make a more accurate assessment. Return ONLY a JSON object with the following structure (no markdown, no explanations): name, produce_category (from enum: VEGETABLES, FRUITS, FOOD_GRAINS, OILSEEDS, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS), product_variety, description, quality_grade (1-10), confidence_level (1-100), detected_defects (array), recommendations (array), and category_specific_attributes (object with relevant metrics).',
+              },
+              ...processedImages
+            ],
+          },
+        ],
+        max_tokens: this.maxTokens,
+        temperature: this.temperature,
+      };
+
+      this.logger.debug('OpenAI request configuration:', {
+        endpoint: this.apiEndpoint,
+        model: this.model,
+        headers: { ...headers, Authorization: 'Bearer [REDACTED]' },
+        imageCount: images.length,
+      });
+
       const response = await firstValueFrom(
         this.httpService.post(
           this.apiEndpoint,
+          requestBody,
           {
-            model: 'gpt-4-vision-preview',
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'text',
-                    text: 'Analyze this agricultural produce image and provide details about its quality, category, and characteristics. Format the response as a JSON object with the following structure: name, produce_category (from enum: VEGETABLES, FRUITS, FOOD_GRAINS, OILSEEDS, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS), product_variety, description, quality_grade (1-10), confidence_level (1-100), detected_defects (array), recommendations (array), and category_specific_attributes (object with relevant metrics).',
-                  },
-                  {
-                    type: 'image',
-                    image_url: {
-                      url: `data:${mimeType};base64,${base64Image}`,
-                    },
-                  },
-                ],
-              },
-            ],
-            max_tokens: 1000,
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${this.apiKey}`,
-            },
+            headers,
+            timeout: 30000, // 30 seconds timeout
           },
         ),
       );
 
+      this.logger.debug('Received OpenAI API response');
       const content = response.data.choices[0].message.content;
-      const result = JSON.parse(content);
+      
+      // Clean and parse the response
+      const cleanedContent = this.cleanJsonResponse(content);
+      this.logger.debug('Cleaned content:', cleanedContent);
+      
+      let result;
+      try {
+        result = JSON.parse(cleanedContent);
+      } catch (parseError) {
+        this.logger.error('Failed to parse OpenAI response:', {
+          originalContent: content,
+          cleanedContent,
+          error: parseError.message
+        });
+        throw new Error('Failed to parse AI analysis result');
+      }
 
       // Validate and transform the response
       return {
@@ -82,7 +210,14 @@ export class OpenAIService {
         category_specific_attributes: result.category_specific_attributes || {},
       };
     } catch (error) {
-      this.logger.error(`Error analyzing produce image: ${error.message}`, error.stack);
+      this.logger.error(`Error analyzing produce with multiple images: ${error.message}`, error.stack);
+      if (error.response) {
+        this.logger.error('OpenAI API error details:', {
+          status: error.response.status,
+          statusText: error.response.statusText,
+          data: error.response.data,
+        });
+      }
       throw error;
     }
   }

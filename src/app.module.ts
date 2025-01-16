@@ -29,11 +29,14 @@ import { MetricsModule } from "./metrics/metrics.module";
 import { BusinessMetricsModule } from "./business-metrics/business-metrics.module";
 import type { RedisClientOptions } from "redis";
 import { LoggerService } from "./common/services/logger.service";
+import configuration from "./config/configuration";
 
 @Module({
   imports: [
     NestConfigModule.forRoot({
       isGlobal: true,
+      load: [configuration],
+      envFilePath: ['.env.development', '.env'],
     }),
     TypeOrmModule.forRoot(typeOrmConfig),
     EventEmitterModule.forRoot(),
