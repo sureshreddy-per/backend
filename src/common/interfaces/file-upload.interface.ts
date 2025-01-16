@@ -1,4 +1,4 @@
-import { StorageUploadType } from "../services/gcp-storage.service";
+import { StorageUploadType } from "../enums/storage-upload-type.enum";
 import { ApiProperty } from "@nestjs/swagger";
 
 export interface FileUploadConfig {

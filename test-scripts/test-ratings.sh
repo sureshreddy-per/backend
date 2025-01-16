@@ -93,7 +93,7 @@ BUYER_ID=$(echo "$BUYER_RESPONSE" | jq -r '.user.id')
 
 # Update buyer location if needed
 print_test_header "Updating Buyer Location"
-BUYER_UPDATE_RESPONSE=$(make_request "PUT" "/api/buyers/me" "{\"lat_lng\":\"12.9716,77.5946\",\"business_name\":\"Test Buyer\",\"address\":\"Test Address\"}" "$BUYER_TOKEN")
+BUYER_UPDATE_RESPONSE=$(make_request "PUT" "/api/buyers/me" "{\"location\":\"12.9716,77.5946\",\"business_name\":\"Test Buyer\",\"address\":\"Test Address\"}" "$BUYER_TOKEN")
 if [ $? -ne 0 ]; then
     print_warning "Failed to update buyer location, continuing..."
 else

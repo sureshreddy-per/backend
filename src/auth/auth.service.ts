@@ -13,7 +13,8 @@ import { BuyersService } from "../buyers/buyers.service";
 import { InspectorsService } from "../inspectors/inspectors.service";
 import { FarmersService } from "../farmers/farmers.service";
 import { RedisService } from "../redis/redis.service";
-import { User, UserStatus } from "../users/entities/user.entity";
+import { User } from "../users/entities/user.entity";
+import { UserStatus } from "../users/enums/user-status.enum";
 import { UserRole } from "../enums/user-role.enum";
 import * as crypto from "crypto";
 import { TwilioService } from "../twilio/twilio.service";
@@ -276,22 +277,15 @@ export class AuthService {
 
   async createBuyerAccount(user: User, userData: any): Promise<User> {
     try {
-      // Create buyer profile
       await this.buyersService.createBuyer(user.id, {
-        business_name: userData.business_name || userData.name,
-        lat_lng: userData.lat_lng,
-        location_name: userData.location_name,
-        address: userData.address
+        business_name: userData.business_name,
+        address: userData.address,
+        location: userData.location,
       });
-
-      // Update user role
-      user.role = UserRole.BUYER;
-      await this.usersService.update(user.id, user);
-
       return user;
     } catch (error) {
-      this.logger.error(`Failed to create buyer account: ${error.message}`);
-      throw new InternalServerErrorException('Failed to create buyer account');
+      this.logger.error(`Error creating buyer account: ${error.message}`, error.stack);
+      throw error;
     }
   }
 }

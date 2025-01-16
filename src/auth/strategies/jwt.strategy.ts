@@ -4,7 +4,7 @@ import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { UsersService } from "../../users/services/users.service";
 import { AuthService } from "../auth.service";
-import { UserStatus } from "../../users/entities/user.entity";
+import { UserStatus } from "../../users/enums/user-status.enum";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {

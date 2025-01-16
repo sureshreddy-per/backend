@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { FileValidator } from '../validators/file.validator';
 import sharp from 'sharp';
 import { Express } from 'express';
+import convert from 'heic-convert';
 
 // Extend Express.Multer.File to include metadata
 interface FileWithMetadata extends Express.Multer.File {
@@ -46,7 +47,33 @@ export class FileUploadInterceptor implements NestInterceptor {
     // Process image if applicable
     if (file.mimetype.startsWith('image/')) {
       try {
-        const imageProcessor = sharp(file.buffer);
+        let imageBuffer = file.buffer;
+        
+        // Convert HEIC/HEIF to JPEG if needed
+        if (file.mimetype === 'image/heic' || file.mimetype === 'image/heif') {
+          try {
+            const convertedBuffer = await convert({
+              buffer: file.buffer,
+              format: 'JPEG',
+              quality: 0.9
+            });
+            
+            // Convert ArrayBuffer to Buffer
+            imageBuffer = Buffer.from(convertedBuffer);
+            
+            // Update file metadata
+            file.mimetype = 'image/jpeg';
+            const newFilename = file.originalname.replace(/\.(heic|heif)$/i, '.jpg');
+            file.originalname = newFilename;
+            file.metadata.mimeType = 'image/jpeg';
+          } catch (error) {
+            console.error('Error converting HEIC/HEIF to JPEG:', error);
+            // Continue with original buffer if conversion fails
+            imageBuffer = file.buffer;
+          }
+        }
+
+        const imageProcessor = sharp(imageBuffer);
         const metadata = await imageProcessor.metadata();
 
         if (metadata.width && metadata.height) {
@@ -63,6 +90,8 @@ export class FileUploadInterceptor implements NestInterceptor {
             .jpeg({ quality: 80 })
             .toBuffer();
           file.buffer = optimizedBuffer;
+        } else {
+          file.buffer = imageBuffer;
         }
       } catch (error) {
         console.error('Error processing image:', error);

@@ -13,7 +13,7 @@ import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { UserRole } from "../../enums/user-role.enum";
-import { AdminActionType } from "../entities/admin-audit-log.entity";
+import { AdminActionType } from "../enums/admin-action-type.enum";
 import { UpdateSystemConfigDto } from "../dto/update-system-config.dto";
 import { AssignInspectorDto } from "../dto/assign-inspector.dto";
 import { AdminActionDto } from "../dto/admin-action.dto";

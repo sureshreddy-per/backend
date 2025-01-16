@@ -13,7 +13,6 @@ import { NotificationService } from "../../notifications/services/notification.s
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
 import { OfferStatus } from "../enums/offer-status.enum";
 import { InspectionDistanceFeeService } from "../../config/services/fee-config.service";
-import { DailyPriceService } from "./daily-price.service";
 import { CategorySpecificAssessment } from "../../quality/interfaces/category-assessments.interface";
 
 interface QualityAssessmentMetadata {
@@ -41,7 +40,6 @@ export class AutoOfferService {
     private readonly qualityAssessmentRepository: Repository<QualityAssessment>,
     private readonly notificationService: NotificationService,
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
-    private readonly dailyPriceService: DailyPriceService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
@@ -86,10 +84,15 @@ export class AutoOfferService {
     maxPrice: number,
     qualityGrade: number,
     attributes?: any,
+    buyerPreferences?: { min_price: number; max_price: number } | null,
   ): number {
+    // Use buyer preferences if available, otherwise use daily price
+    const effectiveMinPrice = buyerPreferences?.min_price ?? minPrice;
+    const effectiveMaxPrice = buyerPreferences?.max_price ?? maxPrice;
+
     // Base price calculation based on quality grade
     const qualityPercentage = qualityGrade / 10;
-    let basePrice = minPrice + (maxPrice - minPrice) * qualityPercentage;
+    let basePrice = effectiveMinPrice + (effectiveMaxPrice - effectiveMinPrice) * qualityPercentage;
 
     // Apply attribute-based adjustments if available
     if (attributes) {
@@ -98,7 +101,7 @@ export class AutoOfferService {
     }
 
     // Ensure price stays within min-max range
-    return Math.min(Math.max(basePrice, minPrice), maxPrice);
+    return Math.min(Math.max(basePrice, effectiveMinPrice), effectiveMaxPrice);
   }
 
   private calculateAttributeMultiplier(attributes: any): number {
@@ -128,85 +131,21 @@ export class AutoOfferService {
     return { lat, lng };
   }
 
-  async generateOffersForProduce(produce: Produce): Promise<void> {
-    this.logger.debug(`Starting offer generation for produce ${produce.id}`);
-    this.logger.debug(`Produce details: name=${produce.name}, location=${produce.location}`);
-
-    const latestAssessment = await this.qualityAssessmentRepository.findOne({
-      where: { produce_id: produce.id },
-      order: { created_at: "DESC" },
-    });
-
-    if (!latestAssessment) {
-      this.logger.warn(`No quality assessment found for produce ${produce.id}`);
-      return;
-    }
-    this.logger.debug(`Found quality assessment: grade=${latestAssessment.quality_grade}, confidence=${latestAssessment.confidence_level}`);
-
+  async generateAutoOffers(produce: any, latestAssessment: any, validBuyers: any[]) {
     const produceLoc = this.parseLatLng(produce.location);
-    this.logger.debug(`Parsed produce location: lat=${produceLoc.lat}, lng=${produceLoc.lng}`);
-
-    // Find active buyers with matching produce name in their preferences
-    const buyers = await this.buyerRepository.find({
-      where: {
-        is_active: true,
-      },
-      relations: ['user', 'preferences'],
-    });
-
-    // Filter buyers based on preferences
-    const buyersWithMatchingPreferences = buyers.filter(buyer => 
-      buyer.preferences?.produce_names?.includes(produce.name)
-    );
-
-    if (buyersWithMatchingPreferences.length === 0) {
-      this.logger.warn(`No active buyers found for produce ${produce.name}`);
+    if (!produceLoc) {
+      this.logger.debug(`Invalid produce location for produce ${produce.id}`);
       return;
     }
-
-    this.logger.log(`Found ${buyersWithMatchingPreferences.length} potential buyers for produce ${produce.id}`);
-    this.logger.debug(`Buyer details: ${JSON.stringify(buyersWithMatchingPreferences.map(b => ({ id: b.id, location: b.lat_lng, active: b.is_active })))}`);
-
-    // Filter buyers by distance and validate location
-    const validBuyers = buyersWithMatchingPreferences.filter((buyer) => {
-      if (!buyer.lat_lng) {
-        this.logger.warn(`Buyer ${buyer.id} skipped: No location information`);
-        return false;
-      }
-
-      if (!buyer.is_active) {
-        this.logger.warn(`Buyer ${buyer.id} skipped: Account inactive`);
-        return false;
-      }
-
-      const buyerLoc = this.parseLatLng(buyer.lat_lng);
-      const distance = this.calculateDistance(
-        produceLoc.lat,
-        produceLoc.lng,
-        buyerLoc.lat,
-        buyerLoc.lng,
-      );
-
-      this.logger.debug(`Calculated distance for buyer ${buyer.id}: ${distance}km`);
-
-      if (distance > 100) {
-        this.logger.debug(`Buyer ${buyer.id} skipped: Distance ${distance}km exceeds 100km limit`);
-        return false;
-      }
-
-      return true;
-    });
-
-    if (validBuyers.length === 0) {
-      this.logger.warn(`No valid buyers found within 100km radius for produce ${produce.id}`);
-      return;
-    }
-
-    this.logger.log(`Generating offers for ${validBuyers.length} valid buyers`);
 
     for (const buyer of validBuyers) {
       try {
-        const buyerLoc = this.parseLatLng(buyer.lat_lng);
+        if (!buyer.location) {
+          this.logger.debug(`No location found for buyer ${buyer.id}`);
+          continue;
+        }
+
+        const buyerLoc = this.parseLatLng(buyer.location);
         const distance = this.calculateDistance(
           produceLoc.lat,
           produceLoc.lng,
@@ -214,25 +153,27 @@ export class AutoOfferService {
           buyerLoc.lng,
         );
 
-        // Get latest daily price for the produce name
-        const dailyPrice = await this.dailyPriceService.findLatestByProduceName(produce.name);
+        // Get buyer's price preferences for this produce
+        const buyerPricePreference = buyer.preferences?.produce_price_preferences?.find(
+          pref => pref.produce_name === produce.name
+        );
 
-        if (!dailyPrice) {
-          this.logger.debug(`No active daily price found for produce ${produce.name}`);
+        if (!buyerPricePreference) {
+          this.logger.debug(`No price preferences found for buyer ${buyer.id} and produce ${produce.name}`);
           continue;
         }
-        this.logger.debug(`Found daily price for produce ${produce.name}: min=${dailyPrice.min_price}, max=${dailyPrice.max_price}`);
 
         // Calculate inspection fee
         const inspectionFee = this.inspectionDistanceFeeService.getDistanceFee(distance);
         this.logger.debug(`Calculated inspection fee for buyer ${buyer.id}: ${inspectionFee}`);
 
-        // Calculate offer price using quality grade and attributes
+        // Calculate offer price using quality grade, attributes, and buyer preferences
         const offerPrice = this.calculateOfferPrice(
-          dailyPrice.min_price,
-          dailyPrice.max_price,
+          buyerPricePreference.min_price,
+          buyerPricePreference.max_price,
           latestAssessment.quality_grade,
           latestAssessment.category_specific_assessment,
+          buyerPricePreference,
         );
         this.logger.debug(`Calculated offer price for buyer ${buyer.id}: ${offerPrice}`);
 
@@ -244,15 +185,14 @@ export class AutoOfferService {
           quantity: produce.quantity,
           status: OfferStatus.PENDING,
           is_auto_generated: true,
-          buyer_min_price: dailyPrice.min_price,
-          buyer_max_price: dailyPrice.max_price,
+          buyer_min_price: buyerPricePreference.min_price,
+          buyer_max_price: buyerPricePreference.max_price,
           quality_grade: latestAssessment.quality_grade,
           distance_km: distance,
           inspection_fee: inspectionFee,
           valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000),
           metadata: {
             auto_generated: true,
-            daily_price_id: dailyPrice.id,
             quality_assessment_id: latestAssessment.id,
             price: offerPrice,
             quality_grade: latestAssessment.quality_grade,
@@ -263,6 +203,8 @@ export class AutoOfferService {
             valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000),
             distance_km: distance,
             category_specific_assessment: latestAssessment.category_specific_assessment,
+            price_source: 'buyer_preference',
+            last_price_updated: buyer.preferences.last_price_updated,
           },
         });
 
@@ -288,7 +230,6 @@ export class AutoOfferService {
             inspection_fee: inspectionFee,
             valid_until: offer.valid_until,
             distance_km: distance,
-            daily_price_id: dailyPrice.id,
           },
         });
       } catch (error) {
@@ -395,7 +336,7 @@ export class AutoOfferService {
     this.logger.log('Processing auto offers for active buyers');
     const buyers = await this.buyerRepository.find({ 
       where: { is_active: true },
-      relations: ['user'] 
+      relations: ['user', 'preferences'] 
     });
     
     for (const buyer of buyers) {
@@ -451,125 +392,199 @@ export class AutoOfferService {
           }
         });
       } catch (error) {
-        this.logger.error(`Failed to expire offer ${offer.id}: ${error.message}`);
-      }
-    }
-  }
-
-  async recalculateOffersForBuyer(buyer: Buyer): Promise<void> {
-    this.logger.log(`Recalculating offers for buyer ${buyer.id}`);
-    
-    // Load buyer with preferences
-    const buyerWithPrefs = await this.buyerRepository.findOne({
-      where: { id: buyer.id },
-      relations: ['preferences']
-    });
-
-    if (!buyerWithPrefs) {
-      throw new NotFoundException(`Buyer ${buyer.id} not found`);
-    }
-
-    if (!buyerWithPrefs.preferences) {
-      this.logger.warn(`No preferences found for buyer ${buyer.id}`);
-      return;
-    }
-    
-    const pendingOffers = await this.offerRepository.find({
-      where: {
-        buyer_id: buyer.id,
-        status: OfferStatus.PENDING
-      },
-      relations: ['produce', 'produce.farmer']
-    });
-
-    for (const offer of pendingOffers) {
-      try {
-        // Check if produce name is still in buyer preferences
-        if (!buyerWithPrefs.preferences.produce_names?.includes(offer.produce.name)) {
-          this.logger.debug(`Cancelling offer ${offer.id} as produce ${offer.produce.name} is no longer in buyer preferences`);
-          
-          offer.status = OfferStatus.CANCELLED;
-          if (!offer.metadata) {
-            offer.metadata = {};
-          }
-          offer.metadata.cancellation_reason = 'Produce removed from buyer preferences';
-          offer.metadata.cancelled_at = new Date();
-          
-          await this.offerRepository.save(offer);
-          
-          // Notify farmer about cancellation
-          await this.notificationService.create({
-            user_id: offer.produce.farmer.user_id,
-            type: NotificationType.OFFER_STATUS_UPDATE,
-            data: {
-              offer_id: offer.id,
-              produce_id: offer.produce_id,
-              old_status: OfferStatus.PENDING,
-              new_status: OfferStatus.CANCELLED,
-              reason: 'Buyer removed produce from preferences'
-            }
-          });
-          
-          continue;
-        }
-
-        const dailyPrice = await this.dailyPriceService.findLatestByProduceName(
-          offer.produce.name
-        );
-
-        if (!dailyPrice) {
-          this.logger.warn(`No active daily price found for produce ${offer.produce.name}`);
-          continue;
-        }
-
-        // Recalculate price based on current daily price
-        const newPrice = this.calculateOfferPrice(
-          dailyPrice.min_price,
-          dailyPrice.max_price,
-          offer.quality_grade,
-          (offer.metadata?.quality_assessment as QualityAssessmentMetadata)?.category_specific_assessment
-        );
-
-        // Update offer if price has changed
-        if (newPrice !== offer.price_per_unit) {
-          offer.price_per_unit = newPrice;
-          offer.buyer_min_price = dailyPrice.min_price;
-          offer.buyer_max_price = dailyPrice.max_price;
-          
-          // Add to price history
-          if (!offer.metadata) {
-            offer.metadata = { price_history: [] };
-          } else if (!offer.metadata.price_history) {
-            offer.metadata.price_history = [];
-          }
-          
-          offer.metadata.price_history.push({
-            price: newPrice,
-            timestamp: new Date(),
-            reason: 'Auto-recalculated based on updated daily price'
-          });
-
-          await this.offerRepository.save(offer);
-          
-          // Notify buyer of price update
-          await this.notificationService.create({
-            user_id: buyerWithPrefs.user_id,
-            type: NotificationType.OFFER_PRICE_UPDATE,
-            data: {
-              offer_id: offer.id,
-              produce_id: offer.produce_id,
-              old_price: offer.price_per_unit,
-              new_price: newPrice,
-              daily_price_id: dailyPrice.id
-            }
-          });
-        }
-      } catch (error) {
         this.logger.error(
-          `Failed to recalculate offer ${offer.id} for buyer ${buyer.id}: ${error.message}`,
+          `Failed to handle expired offer ${offer.id}: ${error.message}`,
           error.stack
         );
       }
     }
+  }
+
+  async recalculateOffersForBuyer(buyer: any): Promise<void> {
+    try {
+      const buyerWithPrefs = await this.buyerRepository.findOne({
+        where: { id: buyer.id },
+        relations: ['user', 'preferences', 'offers', 'offers.produce'],
+      });
+
+      if (!buyerWithPrefs?.preferences?.produce_price_preferences?.length) {
+        this.logger.debug(`No price preferences found for buyer ${buyer.id}`);
+        return;
+      }
+
+      const activeOffers = await this.offerRepository.find({
+        where: {
+          buyer_id: buyer.id,
+          status: OfferStatus.PENDING,
+        },
+        relations: ['produce'],
+      });
+
+      for (const offer of activeOffers) {
+        try {
+          if (!offer.produce) {
+            this.logger.warn(`No produce found for offer ${offer.id}`);
+            continue;
+          }
+
+          // Get buyer's price preferences for this produce
+          const buyerPricePreference = buyerWithPrefs.preferences.produce_price_preferences?.find(
+            pref => pref.produce_name === offer.produce.name
+          );
+
+          if (!buyerPricePreference) {
+            this.logger.debug(`No price preferences found for produce ${offer.produce.name}`);
+            continue;
+          }
+
+          // Recalculate price based on buyer preferences
+          const newPrice = this.calculateOfferPrice(
+            buyerPricePreference.min_price,
+            buyerPricePreference.max_price,
+            offer.quality_grade,
+            (offer.metadata?.quality_assessment as QualityAssessmentMetadata)?.category_specific_assessment,
+            buyerPricePreference
+          );
+
+          // Update offer if price has changed
+          if (newPrice !== offer.price_per_unit) {
+            offer.price_per_unit = newPrice;
+            offer.buyer_min_price = buyerPricePreference.min_price;
+            offer.buyer_max_price = buyerPricePreference.max_price;
+            
+            // Add to price history
+            if (!offer.metadata) {
+              offer.metadata = { price_history: [] };
+            } else if (!offer.metadata.price_history) {
+              offer.metadata.price_history = [];
+            }
+            
+            offer.metadata.price_history.push({
+              price: newPrice,
+              timestamp: new Date(),
+              reason: 'Auto-recalculated based on buyer price preferences'
+            });
+
+            await this.offerRepository.save(offer);
+            
+            // Notify buyer of price update
+            await this.notificationService.create({
+              user_id: buyerWithPrefs.user_id,
+              type: NotificationType.OFFER_PRICE_UPDATE,
+              data: {
+                offer_id: offer.id,
+                produce_id: offer.produce_id,
+                old_price: offer.price_per_unit,
+                new_price: newPrice,
+                price_source: 'buyer_preference'
+              }
+            });
+          }
+        } catch (error) {
+          this.logger.error(
+            `Failed to recalculate offer ${offer.id} for buyer ${buyer.id}: ${error.message}`,
+            error.stack
+          );
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Failed to process buyer ${buyer.id}: ${error.message}`, error.stack);
+    }
+  }
+
+  async generateOffersForProduce(produce: Produce): Promise<void> {
+    this.logger.debug(`Starting offer generation for produce ${produce.id}`);
+    this.logger.debug(`Produce details: name=${produce.name}, location=${produce.location}`);
+
+    const latestAssessment = await this.qualityAssessmentRepository.findOne({
+      where: { produce_id: produce.id },
+      order: { created_at: "DESC" },
+    });
+
+    if (!latestAssessment) {
+      this.logger.warn(`No quality assessment found for produce ${produce.id}`);
+      return;
+    }
+    this.logger.debug(`Found quality assessment: grade=${latestAssessment.quality_grade}, confidence=${latestAssessment.confidence_level}`);
+
+    const produceLoc = this.parseLatLng(produce.location);
+    this.logger.debug(`Parsed produce location: lat=${produceLoc.lat}, lng=${produceLoc.lng}`);
+
+    // Find active buyers with matching produce name in their preferences
+    const buyers = await this.buyerRepository.find({
+      where: {
+        is_active: true,
+      },
+      relations: ['user', 'preferences'],
+    });
+
+    // Filter buyers based on preferences and price update time
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const buyersWithMatchingPreferences = buyers.filter(buyer => {
+      // Check if buyer has matching produce name
+      if (!buyer.preferences?.produce_names?.includes(produce.name)) {
+        return false;
+      }
+
+      // Check if buyer has price preferences
+      if (!buyer.preferences.produce_price_preferences?.length) {
+        this.logger.debug(`Buyer ${buyer.id} skipped: No price preferences set`);
+        return false;
+      }
+
+      // Check if prices were updated within last 24 hours
+      if (!buyer.preferences.last_price_updated || 
+          buyer.preferences.last_price_updated < twentyFourHoursAgo) {
+        this.logger.debug(`Buyer ${buyer.id} skipped: Prices not updated in last 24 hours`);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (buyersWithMatchingPreferences.length === 0) {
+      this.logger.warn(`No active buyers found for produce ${produce.name}`);
+      return;
+    }
+
+    this.logger.log(`Found ${buyersWithMatchingPreferences.length} potential buyers for produce ${produce.id}`);
+
+    // Filter buyers by distance and validate location
+    const validBuyers = buyersWithMatchingPreferences.filter((buyer) => {
+      if (!buyer.location) {
+        this.logger.warn(`Buyer ${buyer.id} skipped: No location information`);
+        return false;
+      }
+
+      if (!buyer.is_active) {
+        this.logger.warn(`Buyer ${buyer.id} skipped: Account inactive`);
+        return false;
+      }
+
+      const buyerLoc = this.parseLatLng(buyer.location);
+      const distance = this.calculateDistance(
+        produceLoc.lat,
+        produceLoc.lng,
+        buyerLoc.lat,
+        buyerLoc.lng,
+      );
+
+      this.logger.debug(`Calculated distance for buyer ${buyer.id}: ${distance}km`);
+
+      if (distance > 100) {
+        this.logger.debug(`Buyer ${buyer.id} skipped: Distance ${distance}km exceeds 100km limit`);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (validBuyers.length === 0) {
+      this.logger.warn(`No valid buyers found within 100km radius for produce ${produce.id}`);
+      return;
+    }
+
+    this.logger.log(`Generating offers for ${validBuyers.length} valid buyers`);
+    await this.generateAutoOffers(produce, latestAssessment, validBuyers);
   }
 }

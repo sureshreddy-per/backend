@@ -38,4 +38,7 @@ export enum NotificationType {
   // Payment related
   PAYMENT_REQUIRED = "PAYMENT_REQUIRED",
   PAYMENT_RECEIVED = "PAYMENT_RECEIVED",
+
+  // Account related
+  ACCOUNT_STATUS_UPDATE = "ACCOUNT_STATUS_UPDATE",
 }

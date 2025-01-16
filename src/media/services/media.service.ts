@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Media, MediaType } from '../entities/media.entity';
+import { Media } from '../entities/media.entity';
+import { MediaType } from '../enums/media-type.enum';
 import { ConfigService } from '@nestjs/config';
 import { StorageService } from '../../common/interfaces/storage.interface';
 import { STORAGE_SERVICE } from '../../common/providers/storage.provider';

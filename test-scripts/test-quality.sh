@@ -108,10 +108,7 @@ main() {
     print_header "Testing Create Farm and Produce"
     FARM_DATA='{
         "name": "Quality Test Farm",
-        "location": {
-            "type": "Point",
-            "coordinates": [73.123456, 18.123456]
-        },
+        "location": "12.9716,77.5946",
         "address": "Test Farm Address",
         "size": 10.5,
         "size_unit": "ACRES"

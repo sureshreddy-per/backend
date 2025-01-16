@@ -1,9 +1,8 @@
-import { Injectable } from "@nestjs/common";
-import { ConfigService } from "@nestjs/config";
-import { HttpService } from "@nestjs/axios";
-import { BaseOpenAIService } from "../../common/services/base-openai.service";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
-import { FoodGrainsFilterDto, OilseedsFilterDto, FruitsFilterDto, VegetablesFilterDto, SpicesFilterDto, FibersFilterDto, SugarcaneFilterDto, FlowersFilterDto, MedicinalPlantsFilterDto } from "../../produce/dto/category-filters.dto";
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { HttpService } from '@nestjs/axios';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
+import { firstValueFrom } from 'rxjs';
 
 export interface AIAnalysisResult {
   name: string;
@@ -14,169 +13,77 @@ export interface AIAnalysisResult {
   confidence_level: number;
   detected_defects: string[];
   recommendations: string[];
-  category_specific_attributes:
-    | FoodGrainsFilterDto
-    | OilseedsFilterDto
-    | FruitsFilterDto
-    | VegetablesFilterDto
-    | SpicesFilterDto
-    | FibersFilterDto
-    | SugarcaneFilterDto
-    | FlowersFilterDto
-    | MedicinalPlantsFilterDto;
+  category_specific_attributes: Record<string, any>;
 }
 
 @Injectable()
-export class OpenAIService extends BaseOpenAIService {
-  private readonly visionModel: string;
-  private readonly temperature: number;
-  private readonly maxTokens: number;
-  private readonly enableAIFeatures: boolean;
+export class OpenAIService {
+  private readonly logger = new Logger(OpenAIService.name);
+  private readonly apiKey: string;
+  private readonly apiEndpoint: string;
 
   constructor(
-    configService: ConfigService,
-    httpService: HttpService,
+    private readonly configService: ConfigService,
+    private readonly httpService: HttpService,
   ) {
-    super(configService, httpService, OpenAIService.name);
-
-    // Load configuration from environment variables
-    this.visionModel = configService.get<string>('OPENAI_MODEL') || 'gpt-4-vision-preview';
-    this.temperature = configService.get<number>('OPENAI_TEMPERATURE') || 0.7;
-    this.maxTokens = configService.get<number>('OPENAI_MAX_TOKENS') || 2000;
-    this.enableAIFeatures = configService.get<boolean>('ENABLE_AI_FEATURES') || false;
+    this.apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    this.apiEndpoint = this.configService.get<string>('OPENAI_API_ENDPOINT', 'https://api.openai.com/v1/chat/completions');
   }
 
-  async analyzeProduceImage(imageUrl: string): Promise<AIAnalysisResult> {
-    // Check if AI features are enabled
-    if (!this.enableAIFeatures) {
-      throw new Error('AI features are disabled in the current environment');
-    }
-
-    return this.makeOpenAIRequest<AIAnalysisResult>(
-      this.visionModel,
-      [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: `Analyze this agricultural produce image and provide a detailed assessment in the following JSON format:
-              {
-                "name": "produce name",
-                "produce_category": "one of [FOOD_GRAINS, OILSEEDS, FRUITS, VEGETABLES, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS]",
-                "product_variety": "specific variety name",
-                "description": "detailed description",
-                "quality_grade": "number between 1-10",
-                "confidence_level": "number between 0-100",
-                "detected_defects": ["list of defects"],
-                "recommendations": ["list of recommendations"],
-                "category_specific_attributes": {
-                  // For FOOD_GRAINS:
-                  "variety": "string",
-                  "moisture_content": "number (0-100)",
-                  "foreign_matter": "number (0-100)",
-                  "protein_content": "number (0-100)",
-                  "wastage": "number (0-100)",
-
-                  // For OILSEEDS:
-                  "oil_content": "number (0-100)",
-                  "moisture_content": "number (0-100)",
-                  "foreign_matter": "number (0-100)",
-                  "seed_size": "string",
-                  "seed_color": "string",
-
-                  // For FRUITS:
-                  "sweetness_brix": "number (0-100)",
-                  "size": "string (small/medium/large)",
-                  "color": "string",
-                  "ripeness": "string (ripe/unripe)",
-
-                  // For VEGETABLES:
-                  "freshness_level": "string (fresh/slightly wilted)",
-                  "size": "string (small/medium/large)",
-                  "color": "string",
-                  "moisture_content": "number (0-100)",
-                  "foreign_matter": "number (0-100)",
-
-                  // For SPICES:
-                  "essential_oil": "number (0-100)",
-                  "moisture_content": "number (0-100)",
-                  "foreign_matter": "number (0-100)",
-                  "aroma_quality": "string",
-                  "color_intensity": "string",
-
-                  // For FIBERS:
-                  "fiber_length": "number (min: 0)",
-                  "fiber_strength": "number (min: 0)",
-                  "micronaire": "number (0-10)",
-                  "uniformity": "number (0-100)",
-                  "trash_content": "number (0-100)",
-
-                  // For SUGARCANE:
-                  "brix_value": "number (0-100)",
-                  "pol_reading": "number (0-100)",
-                  "purity": "number (0-100)",
-                  "fiber_content": "number (0-100)",
-                  "juice_quality": "string",
-
-                  // For FLOWERS:
-                  "freshness": "string",
-                  "color_intensity": "string",
-                  "stem_length": "number (min: 0)",
-                  "bud_size": "string",
-                  "fragrance_quality": "string",
-
-                  // For MEDICINAL_PLANTS:
-                  "active_compounds": "number (0-100)",
-                  "moisture_content": "number (0-100)",
-                  "foreign_matter": "number (0-100)",
-                  "potency": "string",
-                  "purity": "number (0-100)"
-                }
-              }
-              
-              Important notes:
-              1. Include ONLY the category-specific attributes that match the detected produce_category
-              2. All numeric values should be within their specified ranges
-              3. String enums must match exactly as specified (e.g., "fresh"/"slightly wilted" for vegetables freshness_level)
-              4. All required fields for the detected category must be included`,
-            },
-            {
-              type: "image_url",
-              image_url: imageUrl,
-            },
-          ],
-        },
-      ],
-      {
-        max_tokens: this.maxTokens,
-        temperature: this.temperature,
-      }
-    );
-  }
-
-  // Add method to check API key validity
-  async checkAPIKeyValidity(): Promise<boolean> {
+  async analyzeProduceImage(fileBuffer: Buffer, mimeType: string): Promise<AIAnalysisResult> {
     try {
-      await this.makeOpenAIRequest(
-        this.visionModel,
-        [{ role: "user", content: "Test message" }],
-        { max_tokens: 5 }
+      const base64Image = fileBuffer.toString('base64');
+      const response = await firstValueFrom(
+        this.httpService.post(
+          this.apiEndpoint,
+          {
+            model: 'gpt-4-vision-preview',
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'text',
+                    text: 'Analyze this agricultural produce image and provide details about its quality, category, and characteristics. Format the response as a JSON object with the following structure: name, produce_category (from enum: VEGETABLES, FRUITS, FOOD_GRAINS, OILSEEDS, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS), product_variety, description, quality_grade (1-10), confidence_level (1-100), detected_defects (array), recommendations (array), and category_specific_attributes (object with relevant metrics).',
+                  },
+                  {
+                    type: 'image',
+                    image_url: {
+                      url: `data:${mimeType};base64,${base64Image}`,
+                    },
+                  },
+                ],
+              },
+            ],
+            max_tokens: 1000,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${this.apiKey}`,
+            },
+          },
+        ),
       );
-      return true;
-    } catch (error) {
-      console.error('OpenAI API key validation failed:', error.message);
-      return false;
-    }
-  }
 
-  // Add method to get current configuration
-  getConfiguration() {
-    return {
-      model: this.visionModel,
-      temperature: this.temperature,
-      maxTokens: this.maxTokens,
-      aiEnabled: this.enableAIFeatures,
-    };
+      const content = response.data.choices[0].message.content;
+      const result = JSON.parse(content);
+
+      // Validate and transform the response
+      return {
+        name: result.name || 'Unknown',
+        produce_category: result.produce_category || ProduceCategory.VEGETABLES,
+        product_variety: result.product_variety || 'Unknown',
+        description: result.description || '',
+        quality_grade: Math.min(Math.max(result.quality_grade || 5, 1), 10),
+        confidence_level: Math.min(Math.max(result.confidence_level || 50, 1), 100),
+        detected_defects: Array.isArray(result.detected_defects) ? result.detected_defects : [],
+        recommendations: Array.isArray(result.recommendations) ? result.recommendations : [],
+        category_specific_attributes: result.category_specific_attributes || {},
+      };
+    } catch (error) {
+      this.logger.error(`Error analyzing produce image: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 }

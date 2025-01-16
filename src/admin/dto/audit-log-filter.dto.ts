@@ -1,5 +1,5 @@
 import { IsDateString, IsOptional, IsEnum, IsUUID } from "class-validator";
-import { AdminActionType } from "../entities/admin-audit-log.entity";
+import { AdminActionType } from "../enums/admin-action-type.enum";
 
 export class AuditLogFilterDto {
   @IsDateString()

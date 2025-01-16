@@ -1,37 +1,19 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
 
-export enum MetricType {
-  DAILY = "DAILY",
-  WEEKLY = "WEEKLY",
-  MONTHLY = "MONTHLY",
-  YEARLY = "YEARLY"
-}
-
-export enum MetricCategory {
-  REVENUE = "REVENUE",
-  TRANSACTIONS = "TRANSACTIONS",
-  USERS = "USERS",
-  PRODUCE = "PRODUCE",
-  INSPECTIONS = "INSPECTIONS",
-  OFFERS = "OFFERS"
-}
-
 @Entity("business_metrics")
 export class BusinessMetric {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
   @Column({
-    type: "enum",
-    enum: MetricType
+    type: "text"
   })
-  type: MetricType;
+  type: string;
 
   @Column({
-    type: "enum",
-    enum: MetricCategory
+    type: "text"
   })
-  category: MetricCategory;
+  category: string;
 
   @Column("jsonb")
   data: {

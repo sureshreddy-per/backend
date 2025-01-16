@@ -6,9 +6,18 @@ import { OffersService } from '../../offers/services/offers.service';
 import { NotificationService } from '../../notifications/services/notification.service';
 import { NotificationType } from '../../notifications/enums/notification-type.enum';
 import { OfferStatus } from '../../offers/enums/offer-status.enum';
+import { ProduceService } from '../../produce/services/produce.service';
+import { AutoOfferService } from '../../offers/services/auto-offer.service';
+import { Buyer } from '../entities/buyer.entity';
+import { ProduceStatus } from '../../produce/enums/produce-status.enum';
 
 export interface UpdateBuyerPreferencesDto {
   produce_names?: string[];
+  produce_price_preferences?: Array<{
+    produce_name: string;
+    min_price: number;
+    max_price: number;
+  }>;
   notification_enabled?: boolean;
   notification_methods?: string[];
 }
@@ -20,6 +29,8 @@ export class BuyerPreferencesService {
     private readonly buyerPreferencesRepository: Repository<BuyerPreferences>,
     private readonly offersService: OffersService,
     private readonly notificationService: NotificationService,
+    private readonly produceService: ProduceService,
+    private readonly autoOfferService: AutoOfferService,
   ) {}
 
   private async handlePendingOffers(buyerId: string, oldPreferences: string[], newPreferences: string[]): Promise<void> {
@@ -46,6 +57,38 @@ export class BuyerPreferencesService {
     }
   }
 
+  private async generateOffersForNearbyProduce(buyer: Buyer, produceNames: string[]) {
+    if (!buyer.location) {
+      return;
+    }
+
+    // Parse buyer location
+    const [buyerLat, buyerLng] = buyer.location.split(',').map(Number);
+
+    // Find nearby available produce within 100km radius
+    const nearbyProduce = await this.produceService.findNearby(
+      buyerLat,
+      buyerLng,
+      100 // 100km radius
+    );
+
+    // Filter by status and produce names
+    const filteredProduce = nearbyProduce.filter(produce => 
+      produce.status === ProduceStatus.ASSESSED && 
+      produceNames.includes(produce.name)
+    );
+
+    // Generate offers for each filtered produce
+    for (const produce of filteredProduce) {
+      try {
+        await this.autoOfferService.generateOffersForProduce(produce);
+      } catch (error) {
+        // Log error but continue with next produce
+        console.error(`Failed to generate offer for produce ${produce.id}:`, error);
+      }
+    }
+  }
+
   async findByBuyerId(buyerId: string): Promise<BuyerPreferences> {
     const preferences = await this.buyerPreferencesRepository.findOne({
       where: { buyer_id: buyerId }
@@ -59,19 +102,34 @@ export class BuyerPreferencesService {
   }
 
   async setPreferences(buyerId: string, data: UpdateBuyerPreferencesDto): Promise<BuyerPreferences> {
-    let preferences = await this.buyerPreferencesRepository.findOne({ where: { buyer_id: buyerId } });
+    let preferences = await this.buyerPreferencesRepository.findOne({ 
+      where: { buyer_id: buyerId },
+      relations: ['buyer']
+    });
     const oldPreferences = preferences?.produce_names || [];
 
     if (!preferences) {
-      preferences = this.buyerPreferencesRepository.create({
-        buyer_id: buyerId,
-        produce_names: [],
-      });
+      throw new NotFoundException(`Preferences not found for buyer ${buyerId}`);
     }
+
+    let shouldGenerateOffers = false;
+    let updatedProduceNames = preferences.produce_names;
 
     if (data.produce_names) {
       preferences.produce_names = data.produce_names;
+      updatedProduceNames = data.produce_names;
       await this.handlePendingOffers(buyerId, oldPreferences, data.produce_names);
+      shouldGenerateOffers = true;
+    }
+
+    if (data.produce_price_preferences) {
+      preferences.produce_price_preferences = data.produce_price_preferences;
+      preferences.last_price_updated = new Date();
+      updatedProduceNames = Array.from(new Set([
+        ...updatedProduceNames,
+        ...data.produce_price_preferences.map(pref => pref.produce_name)
+      ]));
+      shouldGenerateOffers = true;
     }
 
     if (data.notification_enabled !== undefined) {
@@ -82,6 +140,17 @@ export class BuyerPreferencesService {
       preferences.notification_methods = data.notification_methods;
     }
 
-    return this.buyerPreferencesRepository.save(preferences);
+    // Save preferences first
+    preferences = await this.buyerPreferencesRepository.save(preferences);
+
+    // Generate offers if needed
+    if (shouldGenerateOffers && preferences.buyer) {
+      await this.generateOffersForNearbyProduce(
+        preferences.buyer,
+        updatedProduceNames
+      );
+    }
+
+    return preferences;
   }
 } 

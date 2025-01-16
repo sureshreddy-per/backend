@@ -1,7 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, Between, FindManyOptions } from "typeorm";
-import { BusinessMetric, MetricType, MetricCategory } from "../entities/business-metric.entity";
+import { BusinessMetric } from "../entities/business-metric.entity";
+import { MetricType, MetricCategory } from "../enums/metric-type.enum";
 
 @Injectable()
 export class BusinessMetricsService {

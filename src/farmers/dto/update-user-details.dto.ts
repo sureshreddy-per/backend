@@ -1,6 +1,6 @@
-import { IsString, IsEmail, IsOptional, IsEnum } from "class-validator";
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { UserStatus } from "../../users/entities/user.entity";
+import { IsString, IsOptional, IsEnum } from "class-validator";
+import { ApiPropertyOptional } from "@nestjs/swagger";
+import { UserStatus } from "../../users/enums/user-status.enum";
 
 export class UpdateUserDetailsDto {
   @ApiPropertyOptional()
@@ -9,7 +9,7 @@ export class UpdateUserDetailsDto {
   name?: string;
 
   @ApiPropertyOptional()
-  @IsEmail()
+  @IsString()
   @IsOptional()
   email?: string;
 
@@ -18,7 +18,7 @@ export class UpdateUserDetailsDto {
   @IsOptional()
   profile_picture?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ enum: UserStatus })
   @IsEnum(UserStatus)
   @IsOptional()
   status?: UserStatus;

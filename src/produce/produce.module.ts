@@ -15,6 +15,8 @@ import { FarmersModule } from '../farmers/farmers.module';
 import { InspectionDistanceFeeService } from '../config/services/fee-config.service';
 import { InspectorsModule } from '../inspectors/inspectors.module';
 import { ConfigModule } from '../config/config.module';
+import { CommonModule } from '../common/common.module';
+import { QualityModule } from '../quality/quality.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { ConfigModule } from '../config/config.module';
     HttpModule,
     FarmersModule,
     InspectorsModule,
+    CommonModule,
+    QualityModule,
   ],
   controllers: [ProduceController, ProduceSynonymController],
   providers: [

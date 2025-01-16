@@ -4,7 +4,6 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
 } from "typeorm";
-import { NotificationType } from "../enums/notification-type.enum";
 
 @Entity("notifications")
 export class Notification {
@@ -15,11 +14,9 @@ export class Notification {
   user_id: string;
 
   @Column({
-    type: "enum",
-    enum: NotificationType,
-    enumName: "notification_type_enum",
+    type: "text"
   })
-  type: NotificationType;
+  type: string;
 
   @Column({ type: "jsonb" })
   data: Record<string, any>;

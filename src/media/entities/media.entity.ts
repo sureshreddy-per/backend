@@ -1,11 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn } from "typeorm";
 
-export enum MediaType {
-  IMAGE = "IMAGE",
-  VIDEO = "VIDEO",
-  DOCUMENT = "DOCUMENT"
-}
-
 @Entity("media")
 export class Media {
   @PrimaryGeneratedColumn("uuid")
@@ -15,11 +9,10 @@ export class Media {
   url: string;
 
   @Column({
-    type: "enum",
-    enum: MediaType,
-    default: MediaType.IMAGE
+    type: "text",
+    default: "IMAGE"
   })
-  type: MediaType;
+  type: string;
 
   @Column({ nullable: true })
   mime_type: string;

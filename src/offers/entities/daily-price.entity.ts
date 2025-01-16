@@ -18,10 +18,22 @@ export class DailyPrice {
   average_price: number;
 
   @Column({ type: 'text', nullable: true })
-  market_name: string;
+  market_name?: string;
 
   @Column({ type: 'text', nullable: true })
-  location: string;
+  location?: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  metadata?: {
+    h3_index?: string;
+    buyer_count?: number;
+    calculation_type?: string;
+    radius_km?: number;
+    center_location?: {
+      lat: number;
+      lng: number;
+    };
+  };
 
   @CreateDateColumn()
   created_at: Date;

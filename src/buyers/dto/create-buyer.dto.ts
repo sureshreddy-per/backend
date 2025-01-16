@@ -1,4 +1,4 @@
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, Matches } from 'class-validator';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 
 export class CreateBuyerDto {
@@ -6,10 +6,13 @@ export class CreateBuyerDto {
   @IsString()
   business_name: string;
 
-  @ApiPropertyOptional({ description: 'Location in format "lat,lng"' })
+  @ApiPropertyOptional({ description: "Location in 'latitude,longitude' format (e.g., '12.9716,77.5946')" })
   @IsString()
   @IsOptional()
-  lat_lng?: string;
+  @Matches(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/, {
+    message: "Location must be in format: latitude,longitude (e.g., 12.9716,77.5946)",
+  })
+  location?: string;
 
   @ApiPropertyOptional({ description: 'Name of the location' })
   @IsString()

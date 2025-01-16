@@ -1,17 +1,4 @@
--- First, handle the user_role_enum dependencies
-DO $$ 
-BEGIN
-    -- Only attempt to modify if the columns exist
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'role') THEN
-        ALTER TABLE users ALTER COLUMN role DROP DEFAULT;
-        ALTER TABLE users ALTER COLUMN role TYPE VARCHAR(50);
-    END IF;
-    
-    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'roles') THEN
-        ALTER TABLE users ALTER COLUMN roles DROP DEFAULT;
-        ALTER TABLE users ALTER COLUMN roles TYPE VARCHAR(50)[];
-    END IF;
-END $$;
+-- First, handle enum dependencies
 
 -- First, drop all tables in reverse order of dependencies
 DROP TABLE IF EXISTS inspection_base_fee_config CASCADE;
@@ -43,7 +30,6 @@ DROP TABLE IF EXISTS farmers CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- Drop all enums with CASCADE to ensure all dependencies are removed
-DROP TYPE IF EXISTS user_role_enum CASCADE;
 DROP TYPE IF EXISTS user_status_enum CASCADE;
 DROP TYPE IF EXISTS produce_category_enum CASCADE;
 DROP TYPE IF EXISTS produce_status_enum CASCADE;
@@ -70,242 +56,6 @@ DROP TYPE IF EXISTS inspection_request_status_enum CASCADE;
 DROP TYPE IF EXISTS metric_type_enum CASCADE;
 DROP TYPE IF EXISTS metric_category_enum CASCADE;
 
--- Create all enums
-CREATE TYPE user_role_enum AS ENUM (
-  'ADMIN',
-  'FARMER',
-  'BUYER',
-  'INSPECTOR'
-);
-
-CREATE TYPE user_status_enum AS ENUM (
-  'PENDING_VERIFICATION',
-  'ACTIVE',
-  'INACTIVE',
-  'BLOCKED',
-  'DELETED'
-);
-
-CREATE TYPE produce_category_enum AS ENUM (
-  'FOOD_GRAINS',
-  'OILSEEDS',
-  'FRUITS',
-  'VEGETABLES',
-  'SPICES',
-  'FIBERS',
-  'SUGARCANE',
-  'FLOWERS',
-  'MEDICINAL_PLANTS'
-);
-
-CREATE TYPE produce_status_enum AS ENUM (
-  'AVAILABLE',
-  'PENDING',
-  'PENDING_AI_ASSESSMENT',
-  'PENDING_INSPECTION',
-  'ASSESSED',
-  'ASSESSMENT_FAILED',
-  'IN_PROGRESS',
-  'FINAL_PRICE',
-  'COMPLETED',
-  'SOLD',
-  'REJECTED',
-  'CANCELLED'
-);
-
-CREATE TYPE assessment_source_enum AS ENUM (
-  'AI',
-  'MANUAL_INSPECTION'
-);
-
-CREATE TYPE admin_action_type_enum AS ENUM (
-  'BLOCK_USER',
-  'UNBLOCK_USER',
-  'DELETE_PRODUCE',
-  'CANCEL_OFFER',
-  'CANCEL_TRANSACTION',
-  'ASSIGN_INSPECTOR',
-  'UPDATE_SYSTEM_CONFIG'
-);
-
-CREATE TYPE offers_status_enum AS ENUM (
-  'PENDING',
-  'ACTIVE',
-  'PRICE_MODIFIED',
-  'ACCEPTED',
-  'REJECTED',
-  'CANCELLED',
-  'EXPIRED'
-);
-
-CREATE TYPE transactions_status_enum AS ENUM (
-  'PENDING',
-  'IN_PROGRESS',
-  'COMPLETED',
-  'CANCELLED',
-  'FAILED'
-);
-
-CREATE TYPE media_type_enum AS ENUM (
-  'IMAGE',
-  'VIDEO',
-  'DOCUMENT'
-);
-
-CREATE TYPE media_category_enum AS ENUM (
-  'PRODUCE',
-  'PROFILE',
-  'INSPECTION',
-  'QUALITY_ASSESSMENT'
-);
-
-CREATE TYPE notification_type_enum AS ENUM (
-  'QUALITY_UPDATE',
-  'QUALITY_ASSESSMENT_COMPLETED',
-  'NEW_OFFER',
-  'NEW_AUTO_OFFER',
-  'OFFER_ACCEPTED',
-  'OFFER_REJECTED',
-  'OFFER_MODIFIED',
-  'OFFER_PRICE_MODIFIED',
-  'OFFER_APPROVED',
-  'OFFER_EXPIRED',
-  'OFFER_PRICE_UPDATE',
-  'OFFER_STATUS_UPDATE',
-  'INSPECTION_REQUEST',
-  'INSPECTION_REQUESTED',
-  'INSPECTION_COMPLETED',
-  'INSPECTION_CANCELLED',
-  'DELIVERY_WINDOW_STARTED',
-  'DELIVERY_WINDOW_EXPIRED',
-  'DELIVERY_CONFIRMED',
-  'RATING_REQUIRED',
-  'RATING_RECEIVED',
-  'TRANSACTION_UPDATE',
-  'TRANSACTION_COMPLETED',
-  'TRANSACTION_CANCELLED',
-  'PAYMENT_REQUIRED',
-  'PAYMENT_RECEIVED'
-);
-
-CREATE TYPE report_type_enum AS ENUM (
-  'USER_ACTIVITY',
-  'TRANSACTION_SUMMARY',
-  'PRODUCE_ANALYTICS',
-  'QUALITY_METRICS',
-  'MARKET_TRENDS',
-  'FINANCIAL_SUMMARY',
-  'INSPECTION_SUMMARY',
-  'CUSTOM'
-);
-
-CREATE TYPE report_format_enum AS ENUM (
-  'PDF',
-  'CSV',
-  'EXCEL',
-  'JSON'
-);
-
-CREATE TYPE report_status_enum AS ENUM (
-  'DRAFT',
-  'IN_PROGRESS',
-  'COMPLETED',
-  'FAILED'
-);
-
-CREATE TYPE support_status_enum AS ENUM (
-    'OPEN',
-    'IN_PROGRESS',
-    'RESOLVED',
-    'CLOSED'
-);
-
-CREATE TYPE support_priority_enum AS ENUM (
-    'LOW',
-    'MEDIUM',
-    'HIGH',
-    'URGENT'
-);
-
-CREATE TYPE support_category_enum AS ENUM (
-    'GENERAL',
-    'TECHNICAL',
-    'BILLING',
-    'ACCOUNT',
-    'ORDER',
-    'OTHER'
-);
-
-CREATE TYPE business_metric_type_enum AS ENUM (
-  'USER_REGISTRATION',
-  'USER_LOGIN',
-  'USER_VERIFICATION',
-  'PRODUCE_LISTED',
-  'PRODUCE_SOLD',
-  'OFFER_CREATED',
-  'OFFER_ACCEPTED',
-  'TRANSACTION_COMPLETED',
-  'INSPECTION_COMPLETED'
-);
-
-CREATE TYPE system_config_key_enum AS ENUM (
-  'max_daily_price_updates',
-  'max_geospatial_radius_km',
-  'base_fee_percentage',
-  'min_inspection_fee',
-  'max_inspection_fee',
-  'inspection_base_fee',
-  'inspection_fee_per_km'
-);
-
-CREATE TYPE verified_status_enum AS ENUM (
-  'PENDING',
-  'VERIFIED',
-  'REJECTED'
-);
-
-CREATE TYPE ticket_type_enum AS ENUM (
-  'SUPPORT',
-  'COMPLAINT',
-  'FEEDBACK',
-  'INQUIRY',
-  'TECHNICAL'
-);
-
-CREATE TYPE transaction_event_enum AS ENUM (
-  'STATUS_CHANGED',
-  'DELIVERY_WINDOW_STARTED',
-  'DELIVERY_CONFIRMED',
-  'INSPECTION_COMPLETED',
-  'RATING_SUBMITTED',
-  'PAYMENT_PROCESSED',
-  'NOTE_ADDED'
-);
-
-CREATE TYPE inspection_request_status_enum AS ENUM (
-    'PENDING',
-    'SCHEDULED',
-    'IN_PROGRESS',
-    'COMPLETED',
-    'CANCELLED'
-);
-
-CREATE TYPE metric_type_enum AS ENUM (
-    'DAILY',
-    'WEEKLY',
-    'MONTHLY',
-    'YEARLY'
-);
-
-CREATE TYPE metric_category_enum AS ENUM (
-    'REVENUE',
-    'TRANSACTIONS',
-    'USERS',
-    'PRODUCE',
-    'INSPECTIONS',
-    'OFFERS'
-);
-
 -- Create all tables first (in dependency order)
 DROP TABLE IF EXISTS users CASCADE;
 
@@ -314,8 +64,8 @@ CREATE TABLE users (
     name TEXT NOT NULL,
     email TEXT,
     mobile_number TEXT UNIQUE NOT NULL,
-    role user_role_enum NOT NULL DEFAULT 'BUYER',
-    status user_status_enum NOT NULL DEFAULT 'PENDING_VERIFICATION',
+    role TEXT NOT NULL DEFAULT 'FARMER',
+    status TEXT NOT NULL DEFAULT 'PENDING_VERIFICATION',
     block_reason TEXT,
     fcm_token TEXT,
     avatar_url TEXT,
@@ -407,7 +157,7 @@ CREATE TABLE produce (
     name TEXT NOT NULL,
     description TEXT,
     product_variety TEXT,
-    produce_category produce_category_enum,
+    produce_category TEXT,
     quantity DECIMAL(10,2) NOT NULL,
     unit TEXT,
     price_per_unit DECIMAL(10,2),
@@ -418,7 +168,7 @@ CREATE TABLE produce (
     inspection_requested_by UUID REFERENCES users(id),
     inspection_requested_at TIMESTAMP WITH TIME ZONE,
     images TEXT[] NOT NULL,
-    status produce_status_enum DEFAULT 'PENDING_AI_ASSESSMENT',
+    status TEXT DEFAULT 'PENDING_AI_ASSESSMENT',
     harvested_at TIMESTAMP WITH TIME ZONE,
     expiry_date TIMESTAMP WITH TIME ZONE,
     quality_grade INTEGER DEFAULT 0,
@@ -462,7 +212,7 @@ CREATE TABLE inspection_requests (
   inspector_id UUID REFERENCES users(id),
   location TEXT NOT NULL,
   inspection_fee DECIMAL(10,2) NOT NULL,
-  status inspection_request_status_enum NOT NULL DEFAULT 'PENDING',
+  status TEXT NOT NULL DEFAULT 'PENDING',
   scheduled_at TIMESTAMP,
   assigned_at TIMESTAMP,
   completed_at TIMESTAMP,
@@ -500,9 +250,9 @@ CREATE TABLE quality_assessments (
     defects TEXT[] DEFAULT '{}',
     recommendations TEXT[] DEFAULT '{}',
     description TEXT,
-    category produce_category_enum NOT NULL,
+    category TEXT NOT NULL,
     category_specific_assessment JSONB NOT NULL,
-    source assessment_source_enum NOT NULL DEFAULT 'AI',
+    source TEXT NOT NULL DEFAULT 'AI',
     inspector_id UUID REFERENCES users(id),
     inspection_request_id UUID REFERENCES inspection_requests(id),
     metadata JSONB,
@@ -539,7 +289,7 @@ CREATE TABLE buyers (
   gst TEXT,
   business_name TEXT NOT NULL,
   registration_number TEXT,
-  lat_lng TEXT,
+  location TEXT,
   location_name TEXT,
   address TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
@@ -550,13 +300,20 @@ CREATE TABLE buyers (
 CREATE INDEX idx_buyers_user_id ON buyers(user_id);
 CREATE INDEX idx_buyers_business_name ON buyers(business_name);
 CREATE INDEX idx_buyers_is_active ON buyers(is_active);
+CREATE INDEX idx_buyers_location ON buyers(location);
+
+-- Add constraint to ensure location uses comma format
+ALTER TABLE buyers
+ADD CONSTRAINT check_location_format CHECK (location ~ '^-?\d+(\.\d+)?,-?\d+(\.\d+)?$');
 
 CREATE TABLE buyer_preferences (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   buyer_id UUID NOT NULL REFERENCES buyers(id) ON DELETE CASCADE,
   produce_names TEXT[] DEFAULT '{}',
+  produce_price_preferences JSONB DEFAULT '[]',
   notification_enabled BOOLEAN DEFAULT true,
   notification_methods TEXT[] DEFAULT '{"PUSH"}',
+  last_price_updated TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT unique_buyer_preferences UNIQUE (buyer_id)
@@ -564,6 +321,7 @@ CREATE TABLE buyer_preferences (
 
 CREATE INDEX idx_buyer_preferences_buyer_id ON buyer_preferences(buyer_id);
 CREATE INDEX idx_buyer_preferences_produce_names ON buyer_preferences USING GIN (produce_names);
+CREATE INDEX idx_buyer_preferences_price_preferences ON buyer_preferences USING GIN (produce_price_preferences);
 
 CREATE OR REPLACE FUNCTION update_buyers_updated_at()
 RETURNS TRIGGER AS $$
@@ -600,7 +358,7 @@ CREATE TABLE offers (
     farmer_id UUID NOT NULL REFERENCES farmers(id),
     price_per_unit DECIMAL(10,2) NOT NULL,
     quantity DECIMAL(10,2) NOT NULL,
-    status offers_status_enum NOT NULL DEFAULT 'PENDING',
+    status TEXT NOT NULL DEFAULT 'PENDING',
     valid_until TIMESTAMP,
     is_auto_generated BOOLEAN DEFAULT false,
     buyer_min_price DECIMAL(10,2) NOT NULL,
@@ -658,7 +416,7 @@ CREATE TABLE transactions (
     farmer_id UUID NOT NULL REFERENCES farmers(id),
     final_price DECIMAL(10,2) NOT NULL,
     final_quantity DECIMAL(10,2) NOT NULL,
-    status transactions_status_enum NOT NULL DEFAULT 'PENDING',
+    status TEXT NOT NULL DEFAULT 'PENDING',
     delivery_window_starts_at TIMESTAMP,
     delivery_window_ends_at TIMESTAMP,
     delivery_confirmed_at TIMESTAMP,
@@ -736,7 +494,7 @@ CREATE TABLE media (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     url TEXT NOT NULL,
     key TEXT NOT NULL,
-    type media_type_enum NOT NULL DEFAULT 'IMAGE',
+    type TEXT NOT NULL DEFAULT 'IMAGE',
     mime_type TEXT,
     size INTEGER,
     original_name TEXT,
@@ -765,12 +523,41 @@ CREATE TRIGGER update_media_updated_at
 CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL,
-  type notification_type_enum NOT NULL,
+  type TEXT NOT NULL,
   data JSONB NOT NULL,
   is_read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   read_at TIMESTAMP,
-  CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT check_valid_notification_type CHECK (type IN (
+    'QUALITY_UPDATE',
+    'QUALITY_ASSESSMENT_COMPLETED',
+    'NEW_OFFER',
+    'NEW_AUTO_OFFER',
+    'OFFER_ACCEPTED',
+    'OFFER_REJECTED',
+    'OFFER_MODIFIED',
+    'OFFER_PRICE_MODIFIED',
+    'OFFER_APPROVED',
+    'OFFER_EXPIRED',
+    'OFFER_PRICE_UPDATE',
+    'OFFER_STATUS_UPDATE',
+    'INSPECTION_REQUEST',
+    'INSPECTION_REQUESTED',
+    'INSPECTION_COMPLETED',
+    'INSPECTION_CANCELLED',
+    'DELIVERY_WINDOW_STARTED',
+    'DELIVERY_WINDOW_EXPIRED',
+    'DELIVERY_CONFIRMED',
+    'RATING_REQUIRED',
+    'RATING_RECEIVED',
+    'TRANSACTION_UPDATE',
+    'TRANSACTION_COMPLETED',
+    'TRANSACTION_CANCELLED',
+    'PAYMENT_REQUIRED',
+    'PAYMENT_RECEIVED',
+    'ACCOUNT_STATUS_UPDATE'
+  ))
 );
 
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
@@ -797,16 +584,46 @@ CREATE TRIGGER update_notifications_read_at
     EXECUTE FUNCTION update_notifications_updated_at();
 
 CREATE TABLE notification_preferences (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL,
-  email_enabled BOOLEAN DEFAULT true,
-  sms_enabled BOOLEAN DEFAULT true,
-  push_enabled BOOLEAN DEFAULT true,
-  notification_types notification_type_enum[] DEFAULT ARRAY[]::notification_type_enum[],
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_notification_preferences_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT unique_user_preferences UNIQUE (user_id)
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  notification_types TEXT[] DEFAULT ARRAY[]::TEXT[],
+  email_enabled BOOLEAN DEFAULT TRUE,
+  sms_enabled BOOLEAN DEFAULT TRUE,
+  push_enabled BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unique_user_notification_preferences UNIQUE (user_id),
+  CONSTRAINT check_valid_notification_types CHECK (
+    notification_types <@ ARRAY[
+      'QUALITY_UPDATE',
+      'QUALITY_ASSESSMENT_COMPLETED',
+      'NEW_OFFER',
+      'NEW_AUTO_OFFER',
+      'OFFER_ACCEPTED',
+      'OFFER_REJECTED',
+      'OFFER_MODIFIED',
+      'OFFER_PRICE_MODIFIED',
+      'OFFER_APPROVED',
+      'OFFER_EXPIRED',
+      'OFFER_PRICE_UPDATE',
+      'OFFER_STATUS_UPDATE',
+      'INSPECTION_REQUEST',
+      'INSPECTION_REQUESTED',
+      'INSPECTION_COMPLETED',
+      'INSPECTION_CANCELLED',
+      'DELIVERY_WINDOW_STARTED',
+      'DELIVERY_WINDOW_EXPIRED',
+      'DELIVERY_CONFIRMED',
+      'RATING_REQUIRED',
+      'RATING_RECEIVED',
+      'TRANSACTION_UPDATE',
+      'TRANSACTION_COMPLETED',
+      'TRANSACTION_CANCELLED',
+      'PAYMENT_REQUIRED',
+      'PAYMENT_RECEIVED',
+      'ACCOUNT_STATUS_UPDATE'
+    ]::TEXT[]
+  )
 );
 
 CREATE INDEX idx_notification_preferences_user_id ON notification_preferences(user_id);
@@ -828,9 +645,9 @@ CREATE TRIGGER update_notification_preferences_updated_at
 CREATE TABLE reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id),
-  type report_type_enum NOT NULL,
-  format report_format_enum NOT NULL,
-  status report_status_enum NOT NULL DEFAULT 'DRAFT',
+  type TEXT NOT NULL,
+  format TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'DRAFT',
   parameters JSONB,
   file_url TEXT,
   file_size INTEGER,
@@ -846,9 +663,9 @@ CREATE TABLE support_tickets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   title TEXT NOT NULL,
   description TEXT NOT NULL,
-  status support_status_enum NOT NULL DEFAULT 'OPEN',
-  priority support_priority_enum NOT NULL DEFAULT 'MEDIUM',
-  category support_category_enum NOT NULL,
+  status TEXT NOT NULL DEFAULT 'OPEN',
+  priority TEXT NOT NULL DEFAULT 'MEDIUM',
+  category TEXT NOT NULL,
   user_id UUID NOT NULL REFERENCES users(id),
   attachments TEXT[] DEFAULT '{}',
   metadata JSONB,
@@ -884,20 +701,23 @@ CREATE TABLE daily_prices (
     average_price DECIMAL(10,2) NOT NULL,
     market_name TEXT,
     location TEXT,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    metadata JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_min_price CHECK (min_price >= 0),
     CONSTRAINT check_max_price CHECK (max_price >= min_price),
     CONSTRAINT check_average_price CHECK (average_price >= min_price AND average_price <= max_price)
 );
 
 CREATE INDEX idx_daily_prices_produce_name ON daily_prices(produce_name);
-CREATE INDEX idx_daily_prices_created_at ON daily_prices(created_at DESC);
+CREATE INDEX idx_daily_prices_market_name ON daily_prices(market_name);
+CREATE INDEX idx_daily_prices_created_at ON daily_prices(created_at);
+CREATE INDEX idx_daily_prices_metadata ON daily_prices USING gin(metadata);
 
 CREATE TABLE business_metrics (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    type metric_type_enum NOT NULL,
-    category metric_category_enum NOT NULL,
+    type TEXT NOT NULL,
+    category TEXT NOT NULL,
     data JSONB NOT NULL,
     period_start TIMESTAMP NOT NULL,
     period_end TIMESTAMP NOT NULL,
@@ -1264,8 +1084,8 @@ CREATE TRIGGER update_business_metrics_updated_at
 
 -- Update media table
 ALTER TABLE media
-ADD COLUMN type media_type_enum NOT NULL DEFAULT 'IMAGE',
-ADD COLUMN entity_category media_category_enum;
+ADD COLUMN type TEXT NOT NULL DEFAULT 'IMAGE',
+ADD COLUMN entity_category TEXT;
 
 -- Update notifications table
 ALTER TABLE notifications
@@ -1273,21 +1093,9 @@ ADD COLUMN read_at TIMESTAMP;
 
 -- Update support_tickets table
 ALTER TABLE support_tickets
-ADD COLUMN priority support_priority_enum NOT NULL DEFAULT 'MEDIUM',
-ADD COLUMN category support_category_enum NOT NULL,
+ADD COLUMN priority TEXT NOT NULL DEFAULT 'MEDIUM',
+ADD COLUMN category TEXT NOT NULL,
 ADD COLUMN attachments TEXT[] DEFAULT ARRAY[]::TEXT[];
-
--- Update users table
-ALTER TABLE users
-ADD COLUMN metadata JSONB,
-ADD COLUMN profile JSONB,
-ADD COLUMN roles user_role_enum[] DEFAULT ARRAY['BUYER']::user_role_enum[],
-ADD COLUMN is_verified BOOLEAN DEFAULT FALSE,
-ADD COLUMN is_blocked BOOLEAN DEFAULT FALSE,
-ADD COLUMN is_farmer BOOLEAN DEFAULT FALSE,
-ADD COLUMN is_buyer BOOLEAN DEFAULT FALSE,
-ADD COLUMN is_admin BOOLEAN DEFAULT FALSE,
-ADD COLUMN is_quality_inspector BOOLEAN DEFAULT FALSE;
 
 -- Add missing indexes
 CREATE INDEX idx_media_type ON media(type);
@@ -1307,9 +1115,9 @@ CREATE INDEX idx_users_is_quality_inspector ON users(is_quality_inspector);
 CREATE TABLE transaction_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-  event transaction_event_enum NOT NULL,
-  old_status transactions_status_enum,
-  new_status transactions_status_enum,
+  event TEXT NOT NULL,
+  old_status TEXT,
+  new_status TEXT,
   user_id UUID NOT NULL REFERENCES users(id),
   metadata JSONB,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1363,7 +1171,7 @@ CREATE TRIGGER update_produce_synonyms_updated_at
 
 CREATE TABLE inspection_base_fee_config (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    produce_category produce_category_enum NOT NULL,
+    produce_category TEXT NOT NULL,
     inspection_base_fee DECIMAL(10,2) NOT NULL,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -1392,7 +1200,7 @@ DROP TABLE IF EXISTS system_configs CASCADE;
 
 CREATE TABLE system_configs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    key system_config_key_enum NOT NULL UNIQUE,
+    key TEXT NOT NULL UNIQUE,
     value TEXT NOT NULL,
     description TEXT NOT NULL,
     is_active BOOLEAN DEFAULT true,
@@ -1422,7 +1230,7 @@ DROP TABLE IF EXISTS admin_audit_logs CASCADE;
 
 CREATE TABLE config_audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    config_key system_config_key_enum NOT NULL,
+    config_key TEXT NOT NULL,
     old_value JSONB,
     new_value JSONB NOT NULL,
     updated_by UUID NOT NULL REFERENCES users(id),
@@ -1430,14 +1238,10 @@ CREATE TABLE config_audit_logs (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_config_audit_logs_config_key ON config_audit_logs(config_key);
-CREATE INDEX idx_config_audit_logs_updated_by ON config_audit_logs(updated_by);
-CREATE INDEX idx_config_audit_logs_created_at ON config_audit_logs(created_at);
-
 CREATE TABLE admin_audit_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     admin_id UUID NOT NULL REFERENCES users(id),
-    action admin_action_type_enum NOT NULL,
+    action TEXT NOT NULL,
     entity_id UUID NOT NULL,
     details JSONB NOT NULL,
     entity_type TEXT,
@@ -1445,25 +1249,6 @@ CREATE TABLE admin_audit_logs (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_admin_audit_logs_admin_id ON admin_audit_logs(admin_id);
-CREATE INDEX idx_admin_audit_logs_action ON admin_audit_logs(action);
-CREATE INDEX idx_admin_audit_logs_entity_id ON admin_audit_logs(entity_id);
-CREATE INDEX idx_admin_audit_logs_entity_type ON admin_audit_logs(entity_type);
-CREATE INDEX idx_admin_audit_logs_created_at ON admin_audit_logs(created_at);
-
-CREATE OR REPLACE FUNCTION update_admin_audit_logs_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_admin_audit_logs_updated_at
-    BEFORE UPDATE ON admin_audit_logs
-    FOR EACH ROW
-    EXECUTE FUNCTION update_admin_audit_logs_updated_at();
 
 -- Create inspectors table
 CREATE TABLE inspectors (
@@ -1481,9 +1266,9 @@ CREATE TABLE inspectors (
 CREATE TABLE IF NOT EXISTS report (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id),
-  report_type report_type_enum NOT NULL,
-  format report_format_enum NOT NULL,
-  status report_status_enum NOT NULL DEFAULT 'DRAFT',
+  report_type TEXT NOT NULL,
+  format TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'DRAFT',
   parameters JSONB,
   file_url VARCHAR(255),
   file_size INTEGER,
@@ -1511,31 +1296,6 @@ CREATE TABLE IF NOT EXISTS request_metrics (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- End of file
-
--- Finally, if we had converted any columns to VARCHAR, convert them back to the enum type
-DO $$ 
-BEGIN
-    -- Only attempt to modify if the columns exist and are VARCHAR
-    IF EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_name = 'users' 
-        AND column_name = 'role'
-        AND data_type = 'character varying'
-    ) THEN
-        ALTER TABLE users ALTER COLUMN role TYPE user_role_enum USING role::user_role_enum;
-        ALTER TABLE users ALTER COLUMN role SET DEFAULT 'BUYER'::user_role_enum;
-    END IF;
-    
-    IF EXISTS (
-        SELECT 1 
-        FROM information_schema.columns 
-        WHERE table_name = 'users' 
-        AND column_name = 'roles'
-        AND data_type = 'ARRAY'
-    ) THEN
-        ALTER TABLE users ALTER COLUMN roles TYPE user_role_enum[] USING array[roles[1]::user_role_enum];
-        ALTER TABLE users ALTER COLUMN roles SET DEFAULT ARRAY['BUYER'::user_role_enum];
-    END IF;
-END $$;
+-- Add constraint to ensure lat_lng uses comma format
+ALTER TABLE buyers
+ADD CONSTRAINT check_lat_lng_format CHECK (lat_lng !~ '-');

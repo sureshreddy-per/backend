@@ -1,6 +1,6 @@
 import { UseInterceptors, applyDecorators, UsePipes } from "@nestjs/common";
 import { FileInterceptor, FilesInterceptor } from "@nestjs/platform-express";
-import { StorageUploadType } from "../services/gcp-storage.service";
+import { StorageUploadType } from "../enums/storage-upload-type.enum";
 import { FileValidationPipe } from "../pipes/file-validation.pipe";
 
 export function ValidateFile(type: StorageUploadType) {

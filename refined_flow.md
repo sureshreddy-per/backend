@@ -646,3 +646,172 @@ For each category, **AI** (or **manual** inspection) must capture the following 
 ### Conclusion
 
 This **Final PRD** encapsulates all requirements for a robust, AI-driven agricultural marketplace that **strictly** enforces category-specific quality parameters, automates offer creation and recalculation, supports multi-language functionality, and tracks transactions from listing to completion. The system aims to **simplify** produce trading for farmers and **streamline** the buying process by providing immediate, transparent offers aligned with each buyer's daily price thresholds.
+
+## Enhanced Produce Creation Flow
+
+### 1. File Upload & Initial Validation
+- **File Requirements**:
+  - Images: 1-3 images (at least 1 required)
+  - Video: Optional, 1 max
+  - File Validations:
+    * Images: jpg/jpeg/png/gif, max 5MB each
+    * Video: mp4/mov/avi, max 100MB
+    * Total files per request: 5 max
+
+### 2. File Processing & AI Analysis
+- **Parallel Processing**:
+  1. Upload files to GCP Storage:
+     * Store in `produce/{farmer_id}` directory
+     * Add metadata: uploadedBy, farmerId, fileType
+     * Generate public URLs
+     * Track uploaded files for cleanup if needed
+  
+  2. AI Analysis (using first image):
+     * Detect produce name
+     * Determine category
+     * Assess quality (grade 1-10)
+     * Calculate confidence level
+     * Identify defects
+     * Generate recommendations
+     * Extract category-specific attributes
+
+### 3. Data Compilation & Storage
+- **Combine Data**:
+  - User provided data (CreateProduceDto)
+  - Uploaded file URLs
+  - AI analysis results:
+    * Name (fallback: user input or "Unidentified Produce")
+    * Category
+    * Quality grade
+    * Confidence level
+    * Detected defects
+    * Category-specific attributes
+
+### 4. Error Handling & Cleanup
+- **Robust Error Management**:
+  - File validation errors → Reject immediately
+  - Upload failures → Retry up to 5 times
+  - AI analysis failures → Retry with exponential backoff
+  - Database errors → Clean up uploaded files
+  - Partial success → Clean up successful uploads
+
+### 5. Status Management
+- Set initial status as `PENDING_AI_ASSESSMENT`
+- Update based on AI confidence:
+  * ≥80%: `AVAILABLE`
+  * <80%: `PENDING_INSPECTION`
+  * Analysis Failed: `ASSESSMENT_FAILED`
+
+### 6. Retry Mechanism
+- **Configurable Retry Options**:
+  - Max attempts: 5 (configurable)
+  - Operations with retry:
+    * File uploads
+    * AI analysis
+    * File cleanup
+  - Proper error logging at each attempt
+
+### 7. Security & Validation
+- **Security Measures**:
+  - Validate user is registered farmer
+  - Verify file integrity
+  - Sanitize file names
+  - Validate metadata
+  - Check permissions
+
+### 8. Response
+- Return created produce with:
+  - Generated IDs
+  - Public URLs
+  - AI assessment results
+  - Status
+  - Timestamps
+  - Error details if any
+
+This enhanced flow ensures:
+- Direct file uploads instead of URL-based
+- Automatic AI-based quality assessment
+- Robust error handling and cleanup
+- Parallel processing for better performance
+- Configurable file validation
+- Proper organization in cloud storage
+- Comprehensive logging and monitoring
+
+## Buyer Price Update & Offer Generation Flow
+
+### 1. Buyer Price Update Trigger
+- **Price Update Events**:
+  - Manual update of min/max prices
+  - Daily price preferences update
+  - New produce price preferences added
+
+### 2. Price Update Validation
+- **Validation Checks**:
+  - Min price ≤ Max price
+  - Prices ≥ 0
+  - Valid produce names (against synonym service)
+  - Update frequency within limits
+  - Price ranges within market thresholds
+
+### 3. Preference Processing
+- **Update Steps**:
+  1. Save new price preferences
+  2. Update last_price_updated timestamp
+  3. Combine produce names from:
+     * Existing produce preferences
+     * New price preference produce names
+  4. Mark for offer generation if prices changed
+
+### 4. Offer Generation Process
+- **Location-Based Filtering**:
+  1. Get buyer's location (lat/lng)
+  2. Find all produce within 100km radius
+  3. Filter produce by:
+     * Status = ASSESSED
+     * Name matches buyer's preferences
+     * Active and available
+
+### 5. Auto-Offer Creation
+- **For Each Matching Produce**:
+  1. Calculate offer price based on:
+     * Buyer's min/max price
+     * Produce quality grade
+     * Distance-based fees
+  2. Generate offer with:
+     * Status = ACTIVE
+     * Valid price and quantity
+     * Inspection fees included
+     * 24-hour validity period
+
+### 6. Error Handling
+- **Robust Error Management**:
+  - Skip invalid produce entries
+  - Log failed offer generations
+  - Continue processing remaining produce
+  - Notify admin of systematic failures
+  - Maintain audit trail of all operations
+
+### 7. Notification System
+- **Event Notifications**:
+  - Price update confirmations
+  - New offer notifications to farmers
+  - Error notifications to admins
+  - Daily price update reminders
+  - Offer expiry warnings
+
+### 8. Performance Considerations
+- **Optimization Strategies**:
+  - Batch process offers
+  - Use geospatial indexing
+  - Cache frequent queries
+  - Implement rate limiting
+  - Background job processing
+
+This flow ensures:
+- Real-time price updates
+- Accurate offer generation
+- Efficient produce matching
+- Proper error handling
+- Scalable processing
+- Comprehensive notifications
+- Audit trail maintenance

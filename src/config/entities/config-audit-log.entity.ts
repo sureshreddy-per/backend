@@ -4,8 +4,6 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
 } from "typeorm";
-import { UserRole } from "../../enums/user-role.enum";
-import { SystemConfigKey } from "../enums/system-config-key.enum";
 
 @Entity("config_audit_logs")
 export class ConfigAuditLog {
@@ -13,10 +11,9 @@ export class ConfigAuditLog {
   id: string;
 
   @Column({
-    type: "enum",
-    enum: SystemConfigKey,
+    type: "text"
   })
-  config_key: SystemConfigKey;
+  config_key: string;
 
   @Column("jsonb", { nullable: true })
   old_value: any;

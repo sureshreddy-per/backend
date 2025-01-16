@@ -1,23 +1,6 @@
-import { Injectable, Logger, BadRequestException, InternalServerErrorException } from "@nestjs/common";
-import { OpenAIService, AIAnalysisResult } from "./openai.service";
-import { OnEvent } from "@nestjs/event-emitter";
-import { EventEmitter2 } from "@nestjs/event-emitter";
-import { QualityAssessmentService } from "./quality-assessment.service";
-import { ProduceCategory } from "../../produce/enums/produce-category.enum";
-import { CategorySpecificAssessment } from "../interfaces/category-specific-assessment.interface";
-import { CreateQualityAssessmentDto } from "../dto/create-quality-assessment.dto";
-
-interface AIAssessmentMetadata {
-  source: 'AI_ASSESSMENT';
-  ai_model_version: string;
-  assessment_parameters: {
-    name: string;
-    product_variety: string;
-    description: string;
-  };
-  location: string;
-  images: string[];
-}
+import { Injectable, Logger } from '@nestjs/common';
+import { OpenAIService } from './openai.service';
+import { GcpStorageService } from '../../common/services/gcp-storage.service';
 
 @Injectable()
 export class AIInspectionService {
@@ -25,84 +8,20 @@ export class AIInspectionService {
 
   constructor(
     private readonly openaiService: OpenAIService,
-    private readonly qualityAssessmentService: QualityAssessmentService,
-    private readonly eventEmitter: EventEmitter2,
+    private readonly storageService: GcpStorageService,
   ) {}
 
-  @OnEvent('produce.created')
-  async handleProduceCreated(event: { produce_id: string; image_url: string; location: string }) {
-    this.logger.log(`Received produce.created event for produce ${event.produce_id}`);
-    
+  async analyzeImage(event: { image_url: string }): Promise<any> {
     try {
-      // Validate input
-      if (!event.image_url) {
-        throw new BadRequestException('Image URL is required for AI assessment');
-      }
-
-      // Analyze image using OpenAI
-      const analysis = await this.openaiService.analyzeProduceImage(event.image_url)
-        .catch(error => {
-          this.logger.error(`OpenAI analysis failed: ${error.message}`);
-          throw new InternalServerErrorException('AI analysis failed', error.message);
-        });
+      // Download the image from GCP
+      const { buffer, mimeType } = await this.storageService.downloadFile(event.image_url);
       
-      // Create quality assessment from AI results
-      const assessmentData: CreateQualityAssessmentDto = {
-        produce_id: event.produce_id,
-        quality_grade: analysis.quality_grade,
-        confidence_level: analysis.confidence_level,
-        defects: analysis.detected_defects,
-        recommendations: analysis.recommendations,
-        category_specific_assessment: analysis.category_specific_attributes as CategorySpecificAssessment,
-        metadata: {
-          source: 'AI_ASSESSMENT',
-          ai_model_version: "gpt-4-vision-preview",
-          assessment_parameters: {
-            name: analysis.name,
-            product_variety: analysis.product_variety,
-            description: analysis.description
-          },
-          location: event.location,
-          images: [event.image_url]
-        } as AIAssessmentMetadata
-      };
-
-      const assessment = await this.qualityAssessmentService.create(assessmentData)
-        .catch(error => {
-          this.logger.error(`Failed to create quality assessment: ${error.message}`);
-          throw new InternalServerErrorException('Failed to save assessment', error.message);
-        });
+      // Analyze the image using OpenAI
+      const analysis = await this.openaiService.analyzeProduceImage(buffer, mimeType);
       
-      this.logger.log(`Created AI assessment for produce ${event.produce_id}`);
-      
-      // Emit success event with all required fields
-      await this.eventEmitter.emit('quality.assessment.completed', {
-        produce_id: event.produce_id,
-        quality_grade: assessment.quality_grade,
-        confidence_level: assessment.confidence_level,
-        detected_name: analysis.name,
-        assessment_details: {
-          product_variety: analysis.product_variety,
-          description: analysis.description,
-          category_specific_attributes: analysis.category_specific_attributes
-        }
-      });
-      
-      return assessment;
-      
+      return analysis;
     } catch (error) {
-      this.logger.error(`Failed to process AI assessment for produce ${event.produce_id}: ${error.message}`);
-      
-      // Only emit failure if it's a real error, not just low confidence
-      if (!(error instanceof BadRequestException)) {
-        await this.eventEmitter.emit('produce.status.update', {
-          produce_id: event.produce_id,
-          status: 'ASSESSMENT_FAILED',
-          error: error.message,
-          source: 'AI_ASSESSMENT'
-        });
-      }
-      
+      this.logger.error(`Error analyzing image: ${error.message}`, error.stack);
       throw error;
     }
   }

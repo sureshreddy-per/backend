@@ -523,7 +523,7 @@ CREATE TABLE buyers (
   gst TEXT,
   business_name TEXT NOT NULL,
   registration_number TEXT,
-  lat_lng TEXT,
+  location TEXT,
   location_name TEXT,
   address TEXT NOT NULL,
   is_active BOOLEAN DEFAULT true,
@@ -534,6 +534,7 @@ CREATE TABLE buyers (
 CREATE INDEX idx_buyers_user_id ON buyers(user_id);
 CREATE INDEX idx_buyers_business_name ON buyers(business_name);
 CREATE INDEX idx_buyers_is_active ON buyers(is_active);
+CREATE INDEX idx_buyers_location ON buyers(location);
 
 CREATE TABLE buyer_preferences (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
