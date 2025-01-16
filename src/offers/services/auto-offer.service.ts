@@ -173,7 +173,7 @@ export class AutoOfferService {
           buyerPricePreference.max_price,
           latestAssessment.quality_grade,
           latestAssessment.category_specific_assessment,
-          buyerPricePreference,
+          buyerPricePreference
         );
         this.logger.debug(`Calculated offer price for buyer ${buyer.id}: ${offerPrice}`);
 
@@ -201,8 +201,6 @@ export class AutoOfferService {
               distance_km: distance
             },
             valid_until: new Date(Date.now() + 24 * 60 * 60 * 1000),
-            distance_km: distance,
-            category_specific_assessment: latestAssessment.category_specific_assessment,
             price_source: 'buyer_preference',
             last_price_updated: buyer.preferences.last_price_updated,
           },
@@ -235,7 +233,7 @@ export class AutoOfferService {
       } catch (error) {
         this.logger.error(
           `Failed to create offer for buyer ${buyer.id}: ${error.message}`,
-          error.stack,
+          error.stack
         );
         continue;
       }
@@ -404,7 +402,7 @@ export class AutoOfferService {
     try {
       const buyerWithPrefs = await this.buyerRepository.findOne({
         where: { id: buyer.id },
-        relations: ['user', 'preferences', 'offers', 'offers.produce'],
+        relations: ['user', 'preferences'],
       });
 
       if (!buyerWithPrefs?.preferences?.produce_price_preferences?.length) {
@@ -412,6 +410,7 @@ export class AutoOfferService {
         return;
       }
 
+      // Get active offers directly from offer repository instead of relying on relation
       const activeOffers = await this.offerRepository.find({
         where: {
           buyer_id: buyer.id,
@@ -419,6 +418,11 @@ export class AutoOfferService {
         },
         relations: ['produce'],
       });
+
+      if (!activeOffers.length) {
+        this.logger.debug(`No active offers found for buyer ${buyer.id}`);
+        return;
+      }
 
       for (const offer of activeOffers) {
         try {

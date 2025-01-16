@@ -7,9 +7,11 @@ import {
   ManyToOne,
   JoinColumn,
   OneToOne,
+  OneToMany,
 } from "typeorm";
 import { User } from "../../users/entities/user.entity";
 import { BuyerPreferences } from "./buyer-preferences.entity";
+import { Offer } from "../../offers/entities/offer.entity";
 
 @Entity("buyers")
 export class Buyer {
@@ -49,6 +51,9 @@ export class Buyer {
 
   @OneToOne(() => BuyerPreferences, preferences => preferences.buyer)
   preferences: BuyerPreferences;
+
+  @OneToMany(() => Offer, offer => offer.buyer)
+  offers: Offer[];
 
   @CreateDateColumn({ name: "created_at" })
   created_at: Date;
