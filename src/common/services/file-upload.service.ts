@@ -1,62 +1,43 @@
 import { Injectable, BadRequestException } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { promises as fs } from "fs";
-import { join } from "path";
-import { v4 as uuidv4 } from "uuid";
+import { GcpStorageService, StorageUploadType } from "./gcp-storage.service";
 
 @Injectable()
 export class FileUploadService {
-  private readonly uploadDir: string;
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly gcpStorageService: GcpStorageService,
+  ) {}
 
-  constructor(private readonly configService: ConfigService) {
-    this.uploadDir = this.configService.get<string>("UPLOAD_DIR") || "uploads";
-    this.ensureUploadDirExists();
-  }
-
-  private async ensureUploadDirExists() {
-    try {
-      await fs.access(this.uploadDir);
-    } catch {
-      await fs.mkdir(this.uploadDir, { recursive: true });
-    }
-  }
-
-  async saveFile(file: Express.Multer.File): Promise<string> {
+  async uploadFile(
+    file: Express.Multer.File,
+    type: StorageUploadType = StorageUploadType.IMAGES,
+  ): Promise<{ url: string; filename: string }> {
     if (!file) {
       throw new BadRequestException("No file provided");
     }
 
-    const fileExtension = file.originalname.split(".").pop();
-    const fileName = `${uuidv4()}.${fileExtension}`;
-    const filePath = join(this.uploadDir, fileName);
-
     try {
-      await fs.writeFile(filePath, file.buffer);
-      return fileName;
+      const result = await this.gcpStorageService.uploadFile(file, type);
+      return result;
     } catch (error) {
-      throw new BadRequestException("Failed to save file");
+      throw new BadRequestException(`Failed to upload file: ${error.message}`);
     }
   }
 
-  async deleteFile(fileName: string): Promise<void> {
-    const filePath = join(this.uploadDir, fileName);
-
+  async deleteFile(filename: string): Promise<void> {
     try {
-      await fs.access(filePath);
-      await fs.unlink(filePath);
+      await this.gcpStorageService.deleteFile(filename);
     } catch (error) {
-      throw new BadRequestException("File not found or could not be deleted");
+      throw new BadRequestException(`Failed to delete file: ${error.message}`);
     }
   }
 
-  async getFilePath(fileName: string): Promise<string> {
-    const filePath = join(this.uploadDir, fileName);
-
+  async generateSignedUrl(fileName: string, expiresInMinutes = 15): Promise<string> {
     try {
-      await fs.access(filePath);
-      return filePath;
-    } catch {
-      throw new BadRequestException("File not found");
+      return await this.gcpStorageService.generateSignedUrl(fileName, expiresInMinutes);
+    } catch (error) {
+      throw new BadRequestException(`Failed to generate signed URL: ${error.message}`);
     }
   }
 }

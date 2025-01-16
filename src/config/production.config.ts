@@ -55,7 +55,7 @@ export default registerAs('production', () => ({
     maxImageSize: parseInt(process.env.MAX_IMAGE_SIZE_MB, 10) || 5,
     maxVideoSize: parseInt(process.env.MAX_VIDEO_SIZE_MB, 10) || 50,
     maxDocumentSize: parseInt(process.env.MAX_DOCUMENT_SIZE_MB, 10) || 10,
-    storage: 's3', // Force S3 storage in production
+    storage: 'gcp',
   },
 
   // Performance Optimization

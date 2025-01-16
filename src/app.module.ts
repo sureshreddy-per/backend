@@ -25,6 +25,8 @@ import { MediaModule } from "./media/media.module";
 import { ReportsModule } from "./reports/reports.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { BusinessMetricsModule } from "./business-metrics/business-metrics.module";
+import { CommonModule } from "./common/common.module";
+import { RedisModule } from "./redis/redis.module";
 import type { RedisClientOptions } from "redis";
 
 @Module({
@@ -51,6 +53,7 @@ import type { RedisClientOptions } from "redis";
         limit: 10,
       },
     ]),
+    RedisModule,
     AuthModule,
     UsersModule,
     ProduceModule,
@@ -71,6 +74,7 @@ import type { RedisClientOptions } from "redis";
     ReportsModule,
     MetricsModule,
     BusinessMetricsModule,
+    CommonModule,
   ],
 })
 export class AppModule {}

@@ -7,5 +7,6 @@ export * from "./interfaces/paginated-response.interface";
 export * from "./dto/pagination-query.dto";
 export * from "./common.module";
 export * from "./services/file-upload.service";
-export * from "./services/s3.service";
-export * from "./services/geospatial.service";
+export * from "./services/gcp-storage.service";
+export * from "./controllers/file-upload.controller";
+export * from "./pipes/file-validation.pipe";

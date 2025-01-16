@@ -23,8 +23,7 @@
     "recreate-tables": "ts-node scripts/recreate-tables.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.525.0",
-    "@aws-sdk/lib-storage": "^3.525.0",
+    "@google-cloud/storage": "^7.7.0",
     "@nestjs/axios": "^3.0.2",
     "@nestjs/cache-manager": "^2.3.0",
     "@nestjs/common": "^10.3.3",

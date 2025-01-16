@@ -1,98 +1,215 @@
 #!/bin/bash
 
-# Source utilities
-source "$(dirname "$0")/utils.sh"
+# Configuration
+BASE_URL="${API_URL:-"http://localhost:3000/api"}"
+TEST_FILES_DIR="/tmp/test_files"
+MAX_FILE_SIZE_MB=5
+TEST_IMAGE_SIZE="500x500"
 
-print_test_header "File Upload Endpoints"
+# Storage upload types
+STORAGE_TYPE_IMAGES="images"
+STORAGE_TYPE_VIDEOS="videos"
+STORAGE_TYPE_THUMBNAILS="thumbnails"
+STORAGE_TYPE_REPORTS="reports"
+STORAGE_TYPE_DOCUMENTS="documents"
 
-# Get tokens for different roles
-FARMER_TOKEN=$(get_auth_token "+1111222270" "FARMER")
-ADMIN_TOKEN=$(get_auth_token "+1111222271" "ADMIN")
+# User configuration
+ADMIN_MOBILE="+919876543210"
+ADMIN_NAME="Test Admin"
+ADMIN_ROLE="ADMIN"
 
-# Create a temporary test file
-echo "Test content for file upload" > test_file.txt
+# Test token (valid for 24 hours)
+TEST_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2ZWM3ODZlYi1hOWUzLTQ4NTMtYmFiYS1lZTc0M2I2Yzc3YzIiLCJtb2JpbGVfbnVtYmVyIjoiKzkxOTg3NjU0MzIxMCIsInJvbGUiOiJBRE1JTiIsImlhdCI6MTczNjk3NjA0NiwiZXhwIjoxNzM3MDYyNDQ2fQ.opmwVQoii7NhBWbNNyvxJrPpByPcthVJP3mYk_WQWzk"
 
-# Test 1: Upload file
-print_test_header "Upload File"
-UPLOAD_RESPONSE=$(curl -X POST \
-    -H "Authorization: Bearer $FARMER_TOKEN" \
-    -F "file=@test_file.txt" \
-    -F "type=DOCUMENT" \
-    -F "category=CERTIFICATION" \
-    "${BASE_URL}/files/upload")
+# Export GCP environment variables
+export GCP_PROJECT_ID=sapient-torch-447917-k7
+export GCP_BUCKET_NAME=farmdeva-dev-001-asia
+export GCP_SERVICE_ACCOUNT_KEY=src/config/gcp-service-account-key.json
 
-FILE_ID=$(echo $UPLOAD_RESPONSE | jq -r '.id')
+# Get the absolute path of the script directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$( cd "$SCRIPT_DIR/.." && pwd )"
 
-# Test 2: Get file metadata
-print_test_header "Get File Metadata"
-make_request "GET" "/files/$FILE_ID/metadata" "$FARMER_TOKEN"
+# Set GCP service account key path relative to project root
+GCP_KEY_PATH="$PROJECT_ROOT/src/config/gcp-service-account-key.json"
 
-# Test 3: Get file download URL
-print_test_header "Get File Download URL"
-make_request "GET" "/files/$FILE_ID/download-url" "$FARMER_TOKEN"
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
-# Test 4: Update file metadata
-print_test_header "Update File Metadata"
-make_request "PATCH" "/files/$FILE_ID/metadata" "$FARMER_TOKEN" '{
-    "name": "updated_test_file.txt",
-    "description": "Updated test file description",
-    "tags": ["test", "document"]
-}'
+# Print functions
+print_error() {
+    echo -e "${RED}ERROR: $1${NC}"
+}
 
-# Test 5: Upload multiple files
-print_test_header "Upload Multiple Files"
-echo "Test content for file 2" > test_file2.txt
-echo "Test content for file 3" > test_file3.txt
+print_success() {
+    echo -e "${GREEN}SUCCESS: $1${NC}"
+}
 
-MULTI_UPLOAD_RESPONSE=$(curl -X POST \
-    -H "Authorization: Bearer $FARMER_TOKEN" \
-    -F "files[]=@test_file2.txt" \
-    -F "files[]=@test_file3.txt" \
-    -F "type=DOCUMENT" \
-    -F "category=CERTIFICATION" \
-    "${BASE_URL}/files/upload-multiple")
+print_test_header() {
+    echo -e "\n${YELLOW}=== $1 ===${NC}"
+}
 
-# Test 6: Get files by category
-print_test_header "Get Files by Category"
-make_request "GET" "/files?category=CERTIFICATION" "$FARMER_TOKEN"
+# Create test files
+create_test_files() {
+    print_test_header "Creating test files"
+    
+    # Create test directory
+    mkdir -p $TEST_FILES_DIR
+    
+    # Create test images using magick command
+    magick -size $TEST_IMAGE_SIZE xc:white -draw "text 250,300 'Test Image 1'" "$TEST_FILES_DIR/test_image1.jpg"
+    magick -size $TEST_IMAGE_SIZE xc:white -draw "text 250,300 'Test Image 2'" "$TEST_FILES_DIR/test_image2.jpg"
+    
+    # Create test file for type validation
+    echo "Test text file" > "$TEST_FILES_DIR/test_file.txt"
+    
+    # Create oversized file for size validation
+    dd if=/dev/zero of="$TEST_FILES_DIR/oversized.jpg" bs=1M count=$((MAX_FILE_SIZE_MB + 1))
+    
+    print_success "Created test files"
+}
 
-# Test 7: Get files by type
-print_test_header "Get Files by Type"
-make_request "GET" "/files?type=DOCUMENT" "$FARMER_TOKEN"
+# Cleanup test files
+cleanup_test_files() {
+    print_test_header "Cleaning up test files"
+    rm -rf $TEST_FILES_DIR
+    print_success "Cleaned up test files"
+}
 
-# Test 8: Delete file
-print_test_header "Delete File"
-make_request "DELETE" "/files/$FILE_ID" "$FARMER_TOKEN"
+# Add cleanup on script exit
+cleanup_on_exit() {
+    if [ -d "$TEST_FILES_DIR" ]; then
+        cleanup_test_files
+    fi
+}
 
-# Test 9: Upload profile picture
-print_test_header "Upload Profile Picture"
-echo "Test content for profile picture" > profile_pic.jpg
-PROFILE_PIC_RESPONSE=$(curl -X POST \
-    -H "Authorization: Bearer $FARMER_TOKEN" \
-    -F "file=@profile_pic.jpg" \
-    -F "type=IMAGE" \
-    -F "category=PROFILE" \
-    "${BASE_URL}/files/upload")
+# Set up trap for cleanup
+trap cleanup_on_exit EXIT
 
-# Test 10: Upload produce images
-print_test_header "Upload Produce Images"
-echo "Test content for produce image" > produce_image.jpg
-PRODUCE_IMAGE_RESPONSE=$(curl -X POST \
-    -H "Authorization: Bearer $FARMER_TOKEN" \
-    -F "file=@produce_image.jpg" \
-    -F "type=IMAGE" \
-    -F "category=PRODUCE" \
-    "${BASE_URL}/files/upload")
+# Test single image upload
+test_single_image_upload() {
+    print_test_header "Testing single image upload"
+    
+    echo "Uploading single image..."
+    local response=$(curl -s -X POST \
+        -H "Authorization: Bearer ${TEST_TOKEN}" \
+        -F "file=@${TEST_FILES_DIR}/test_image1.jpg" \
+        "${BASE_URL}/upload/${STORAGE_TYPE_IMAGES}")
+    
+    echo "Upload response: $response"
+    
+    if [[ $response =~ "Internal server error" ]]; then
+        print_error "Failed to upload image: Internal server error"
+        return 1
+    fi
 
-# Test 11: Get file storage metrics (Admin only)
-print_test_header "Get File Storage Metrics"
-make_request "GET" "/files/metrics" "$ADMIN_TOKEN"
+    local url=$(echo "$response" | jq -r '.url')
+    local filename=$(echo "$response" | jq -r '.filename')
+    
+    if [[ -z "$url" || "$url" == "null" || -z "$filename" || "$filename" == "null" ]]; then
+        print_error "Failed to get image URL and filename from response"
+        return 1
+    fi
 
-# Test 12: Get file usage by user (Admin only)
-print_test_header "Get File Usage by User"
-make_request "GET" "/files/usage" "$ADMIN_TOKEN"
+    IMAGE_URL="$url"
+    IMAGE_FILENAME="$filename"
+    print_success "Successfully uploaded image"
+    echo "URL: $url"
+    echo "Filename: $filename"
+}
 
-# Clean up test files
-rm -f test_file.txt test_file2.txt test_file3.txt profile_pic.jpg produce_image.jpg
+# Test multiple images upload
+test_multiple_images_upload() {
+    print_test_header "Testing multiple images upload"
+    
+    echo "Uploading multiple images..."
+    local response=$(curl -s -X POST \
+        -H "Authorization: Bearer ${TEST_TOKEN}" \
+        -F "files=@${TEST_FILES_DIR}/test_image1.jpg" \
+        -F "files=@${TEST_FILES_DIR}/test_image2.jpg" \
+        "${BASE_URL}/upload/multiple/${STORAGE_TYPE_IMAGES}")
+    
+    echo "Upload response: $response"
+    
+    if [[ $response =~ "Internal server error" ]]; then
+        print_error "Failed to upload images: Internal server error"
+        return 1
+    fi
 
-echo -e "\n${GREEN}File upload tests completed!${NC}" 
+    local first_url=$(echo "$response" | jq -r '.[0].url')
+    local first_filename=$(echo "$response" | jq -r '.[0].filename')
+    
+    if [[ -z "$first_url" || "$first_url" == "null" || -z "$first_filename" || "$first_filename" == "null" ]]; then
+        print_error "Failed to get image URLs from response"
+        return 1
+    fi
+
+    IMAGE_URL="$first_url"
+    IMAGE_FILENAME="$first_filename"
+    print_success "Successfully uploaded multiple images"
+    echo "First image URL: $first_url"
+    echo "First image filename: $first_filename"
+}
+
+# Test file size validation
+test_file_size_validation() {
+    print_test_header "Testing file size validation"
+    
+    echo "Testing file size validation..."
+    # Try to upload oversized file
+    local response=$(curl -s -X POST \
+        -H "Authorization: Bearer ${TEST_TOKEN}" \
+        -F "file=@${TEST_FILES_DIR}/oversized.jpg" \
+        "${BASE_URL}/upload/${STORAGE_TYPE_IMAGES}")
+    
+    echo "Validation response: $response"
+    
+    # Check if we got a validation error (which is what we want)
+    if echo "$response" | grep -q "File size exceeds"; then
+        print_success "File size validation test passed"
+        return 0
+    else
+        print_error "File size validation test failed - oversized file was accepted"
+        return 1
+    fi
+}
+
+# Test file type validation
+test_file_type_validation() {
+    print_test_header "Testing file type validation"
+    
+    echo "Testing file type validation..."
+    # Try to upload invalid file type
+    local response=$(curl -s -X POST \
+        -H "Authorization: Bearer ${TEST_TOKEN}" \
+        -F "file=@${TEST_FILES_DIR}/test_file.txt" \
+        "${BASE_URL}/upload/${STORAGE_TYPE_IMAGES}")
+    
+    echo "Validation response: $response"
+    
+    # Check if we got a validation error (which is what we want)
+    if echo "$response" | grep -q "Invalid file type"; then
+        print_success "File type validation test passed"
+        return 0
+    else
+        print_error "File type validation test failed - invalid file type was accepted"
+        return 1
+    fi
+}
+
+# Run all tests
+run_all_tests() {
+    create_test_files
+    
+    # Run tests with token
+    test_single_image_upload
+    test_multiple_images_upload
+    test_file_size_validation
+    test_file_type_validation
+}
+
+# Run tests
+run_all_tests 
