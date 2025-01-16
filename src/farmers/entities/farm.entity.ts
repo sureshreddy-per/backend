@@ -33,7 +33,7 @@ export class Farm {
   @Column({ nullable: true })
   address: string;
 
-  @Column({ type: "point", nullable: true })
+  @Column({ type: "text", nullable: true })
   location: string;
 
   @Column({ nullable: true })

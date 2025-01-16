@@ -1,12 +1,17 @@
 #!/bin/bash
 
+# Constants
+TEST_MOBILE="+1234567890"
+TEST_NAME="Test User"
+TEST_EMAIL="test@example.com"
+TEST_ROLE="BUYER"
+
 # Color codes for output
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Utility functions
 print_step() {
     echo -e "\n${BLUE}=== $1 ===${NC}\n"
 }
@@ -192,7 +197,8 @@ print_step "Updating Farm Details"
 UPDATE_RESPONSE=$(make_request "PATCH" "/farmers/farms/$FARM1_ID" '{
     "name": "Green Valley Farm - Updated",
     "description": "Updated farm description",
-    "size_in_acres": 6.0
+    "size_in_acres": 6.0,
+    "location": "12.9816,77.5946"
 }' "$FARMER1_TOKEN")
 check_error "$UPDATE_RESPONSE"
 print_success "Updated farm details"
