@@ -3,16 +3,14 @@ import {
   IsString,
   IsNumber,
   IsOptional,
-  IsArray,
   IsLatLong,
-  IsUrl,
-  ArrayMaxSize,
-  ArrayMinSize,
   MaxLength,
   IsDate,
-  ValidateIf,
   IsEnum,
-  IsDecimal,
+  IsArray,
+  ArrayMinSize,
+  ArrayMaxSize,
+  Matches,
 } from "class-validator";
 import { Type } from "class-transformer";
 import { ProduceCategory } from "../enums/produce-category.enum";
@@ -61,8 +59,11 @@ export class CreateProduceDto {
   @IsOptional()
   price_per_unit?: number;
 
-  @ApiProperty({ description: "Location in 'latitude,longitude' format" })
+  @ApiProperty({ description: "Location in 'latitude,longitude' format (e.g., '12.9716,77.5946')" })
   @IsLatLong()
+  @Matches(/^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/, {
+    message: "Location must be in format: latitude,longitude (e.g., 12.9716,77.5946)",
+  })
   location: string;
 
   @ApiPropertyOptional({ description: "Optional location name" })
@@ -70,18 +71,6 @@ export class CreateProduceDto {
   @IsOptional()
   @MaxLength(255)
   location_name?: string;
-
-  @ApiProperty({ description: "Array of image URLs (1-3 images required)" })
-  @IsArray()
-  @IsUrl({}, { each: true })
-  @ArrayMinSize(1)
-  @ArrayMaxSize(3)
-  images: string[];
-
-  @ApiPropertyOptional({ description: "Optional video URL (≤ 50 MB)" })
-  @IsUrl()
-  @IsOptional()
-  video_url?: string;
 
   @ApiPropertyOptional({ description: "Optional harvest date" })
   @IsDate()
@@ -93,4 +82,16 @@ export class CreateProduceDto {
   @IsString()
   @IsOptional()
   language?: string;
+
+  @ApiProperty({ description: "Array of image URLs" })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(3)
+  @IsString({ each: true })
+  images: string[];
+
+  @ApiPropertyOptional({ description: "Optional video URL" })
+  @IsString()
+  @IsOptional()
+  video_url?: string;
 }

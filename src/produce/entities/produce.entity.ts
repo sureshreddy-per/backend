@@ -51,7 +51,7 @@ export class Produce {
   @Column("decimal", { precision: 10, scale: 2, nullable: true })
   price_per_unit: number;
 
-  @Column()
+  @Column({ type: "text", nullable: false, comment: "Location in 'latitude,longitude' format (e.g., '12.9716,77.5946')" })
   location: string;
 
   @Column({ nullable: true })
