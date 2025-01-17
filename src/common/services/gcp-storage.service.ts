@@ -15,22 +15,22 @@ export class GcpStorageService implements StorageService {
   constructor(private readonly configService: ConfigService) {
     this.bucket = this.configService.get<string>('gcp.bucket');
     const projectId = this.configService.get<string>('gcp.projectId');
-    const keyFilePath = this.configService.get<string>('gcp.keyFilePath');
+    const credentials = this.configService.get('gcp.credentials');
 
-    this.logger.debug(`GCP Config - Bucket: ${this.bucket}, ProjectId: ${projectId}, KeyPath: ${keyFilePath}`);
+    this.logger.debug(`GCP Config - Bucket: ${this.bucket}, ProjectId: ${projectId}`);
 
-    if (!this.bucket || !projectId || !keyFilePath) {
+    if (!this.bucket || !projectId || !credentials) {
       const missing = [];
       if (!this.bucket) missing.push('bucket');
       if (!projectId) missing.push('projectId');
-      if (!keyFilePath) missing.push('keyFilePath');
+      if (!credentials) missing.push('credentials');
       this.logger.error(`Missing required GCP configuration: ${missing.join(', ')}`);
       throw new Error(`Missing required GCP configuration: ${missing.join(', ')}`);
     }
 
     this.storage = new Storage({
       projectId,
-      keyFilename: keyFilePath,
+      credentials,
     });
     
     this.logger.debug(`Initialized GCP Storage with bucket: ${this.bucket}`);

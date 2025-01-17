@@ -52,6 +52,9 @@ export default () => ({
     projectId: process.env.GCP_PROJECT_ID,
     keyFilePath: process.env.GCP_KEY_FILE_PATH,
     bucket: process.env.GCP_STORAGE_BUCKET,
+    credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON 
+      ? JSON.parse(Buffer.from(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON, 'base64').toString())
+      : undefined,
   },
   // Choose storage provider ('s3' or 'gcp')
   storageProvider: process.env.STORAGE_PROVIDER || 'gcp',
