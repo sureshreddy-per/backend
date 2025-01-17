@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule as NestConfigModule, ConfigService } from '@nestjs/config';
 import { HttpModule, HttpService } from '@nestjs/axios';
@@ -27,7 +27,7 @@ import { QualityModule } from '../quality/quality.module';
     FarmersModule,
     InspectorsModule,
     CommonModule,
-    QualityModule,
+    forwardRef(() => QualityModule),
   ],
   controllers: [ProduceController, ProduceSynonymController],
   providers: [

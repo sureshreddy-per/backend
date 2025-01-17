@@ -117,6 +117,7 @@ curl -s -X POST "${BASE_URL}/api/produce" \
   -H "Authorization: Bearer $FARMER_TOKEN" \
   -H "Content-Type: multipart/form-data" \
   -F 'data={"name":"Test Tomato","description":"Testing GCP storage with multiple images","product_variety":"Roma","produce_category":"VEGETABLES","quantity":10,"unit":"KG","price_per_unit":50,"location":"12.9716,77.5946","location_name":"Test Farm","harvested_at":"2024-02-01T00:00:00Z"}' \
+  -F "images=@test-scripts/IMG_2882.heic;type=image/heic" \
   -F "images=@test-scripts/IMG_2884.heic;type=image/heic" > $temp_response 2>&1
 
 print_debug "Upload Response:"

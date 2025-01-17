@@ -17,7 +17,7 @@ import { User } from "../users/entities/user.entity";
 import { UserStatus } from "../users/enums/user-status.enum";
 import { UserRole } from "../enums/user-role.enum";
 import * as crypto from "crypto";
-import { TwilioService } from "../twilio/twilio.service";
+import { TwoFactorService } from "../two-factor/two-factor.service";
 
 @Injectable()
 export class AuthService {
@@ -31,7 +31,7 @@ export class AuthService {
     private readonly farmersService: FarmersService,
     private readonly buyersService: BuyersService,
     private readonly inspectorsService: InspectorsService,
-    private readonly twilioService: TwilioService,
+    private readonly twoFactorService: TwoFactorService,
   ) {}
 
   private hashOtp(otp: string, mobile_number: string): string {
@@ -123,8 +123,8 @@ export class AuthService {
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Send OTP using Twilio
-    const otpSent = await this.twilioService.sendOTP(userData.mobile_number, otp);
+    // Send OTP using Twofatctor
+    const otpSent = await this.twoFactorService.sendOTP(userData.mobile_number, otp);
 
     if (!otpSent) {
       throw new InternalServerErrorException("Failed to send OTP");
@@ -149,15 +149,20 @@ export class AuthService {
       const otp = Math.floor(100000 + Math.random() * 900000).toString();
       const requestId = Math.random().toString(36).substring(2, 15);
 
-      // Hash OTP before storing
-      const hashedOtp = this.hashOtp(otp, mobile_number);
+      // Send OTP using TwoFactorService
+      const otpSent = await this.twoFactorService.sendOTP(mobile_number, otp);
+      if (!otpSent) {
+        throw new InternalServerErrorException("Failed to send OTP");
+      }
 
-      // Store hashed OTP in Redis with expiration
-      await this.redisService.set(`otp:${mobile_number}`, hashedOtp, 300); // 5 minutes expiry
-
-      // For development, return the OTP in the message
+      // Check if we should show OTP in response
+      const use2FactorValue = this.configService.get<string>("USE_2FACTOR_SERVICE");
+      const use2FactorService = use2FactorValue === 'true';
+      
       return {
-        message: `OTP sent successfully: ${otp}`,
+        message: use2FactorService 
+          ? `OTP sent successfully to ${mobile_number}`
+          : `OTP sent successfully: ${otp}`,
         requestId,
       };
     } catch (error) {
@@ -172,8 +177,8 @@ export class AuthService {
     mobile_number: string,
     otp: string,
   ): Promise<{ token: string; user: User }> {
-    // Verify OTP using Twilio
-    const isValid = await this.twilioService.verifyOTP(mobile_number, otp);
+    // Verify OTP using Twofatctor
+    const isValid = await this.twoFactorService.verifyOTP(mobile_number, otp);
 
     if (!isValid) {
       throw new UnauthorizedException("Invalid OTP");

@@ -1,11 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { OpenAIService } from './openai.service';
-import { AIAnalysisResult } from './openai.service';
+import { ConfigService } from '@nestjs/config';
+import { HttpService } from '@nestjs/axios';
+import { OpenAIService, AIAnalysisResult, ImageData } from './openai.service';
 import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 
 @Injectable()
 export class MockOpenAIService extends OpenAIService {
-  async analyzeProduceImage(fileBuffer: Buffer, mimeType: string): Promise<AIAnalysisResult> {
+  constructor(
+    configService: ConfigService,
+    httpService: HttpService,
+  ) {
+    super(configService, httpService);
+  }
+
+  async analyzeProduceWithMultipleImages(images: ImageData[]): Promise<AIAnalysisResult> {
     // Mock implementation for testing
     return {
       name: 'Mock Tomato',
