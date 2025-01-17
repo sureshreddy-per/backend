@@ -43,7 +43,7 @@ export class OpenAIService {
     this.model = this.configService.get<string>('openai.model');
     this.apiEndpoint = this.configService.get<string>('openai.apiEndpoint');
     this.maxTokens = this.configService.get<number>('openai.maxTokens', 2000);
-    this.temperature = this.configService.get<number>('openai.temperature', 0.7);
+    this.temperature = this.configService.get<number>('openai.temperature', 0.9);
     
     // Debug logging for API key
     this.logger.debug('Raw API Key from env:', {

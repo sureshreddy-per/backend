@@ -11,7 +11,7 @@ import { BuyersModule } from "../buyers/buyers.module";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { APP_GUARD } from "@nestjs/core";
 import { InspectorsModule } from "../inspectors/inspectors.module";
-import { TwilioService } from "../twilio/twilio.service";
+import { TwoFactorService } from "../two-factor/two-factor.service";
 import { HttpModule } from "@nestjs/axios";
 
 @Module({
@@ -37,7 +37,7 @@ import { HttpModule } from "@nestjs/axios";
   providers: [
     AuthService,
     JwtStrategy,
-    TwilioService,
+    TwoFactorService,
     {
       provide: APP_GUARD,
       useClass: JwtAuthGuard,
