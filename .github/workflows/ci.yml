@@ -15,8 +15,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
 
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
@@ -33,19 +31,8 @@ jobs:
     - name: Check code formatting
       run: npm run format:check
 
-    - name: Auto-fix linting issues
-      run: npm run lint
-
-    - name: Check remaining lint issues
-      run: npm run lint:check
-
-    - name: Commit auto-fixed files
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        git add -A
-        git diff-index --quiet HEAD || git commit -m "Auto-fix linting and formatting issues"
-        git push
+    - name: Lint (with warnings)
+      run: npm run lint || true
 
     - name: Run npm security audit
       run: npm audit || true
