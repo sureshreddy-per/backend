@@ -57,7 +57,6 @@ async function initializeDatabase() {
 
     // Define legacy tables that should be dropped
     const legacyTables = [
-      'transaction_history',
       'inspection_base_fee_config',
       'reports',
       'event_metrics'
