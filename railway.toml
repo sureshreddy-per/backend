@@ -1,5 +1,6 @@
 [build]
 builder = "NIXPACKS"
+buildCommand = "npm run build"
 
 [deploy]
 startCommand = "node dist/main.js"
@@ -8,14 +9,14 @@ healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
 
+[deploy.envs]
+NODE_ENV = "production"
+
 [phases.setup]
 nixPkgs = ["nodejs", "npm", "python3", "gcc", "g++"]
 
 [phases.install]
-cmds = ["npm ci --only=production"]
+cmds = ["npm ci"]
 
 [phases.build]
-cmds = [
-    "npm install",
-    "npm run build"
-] 
+cmds = ["npm run build"] 
