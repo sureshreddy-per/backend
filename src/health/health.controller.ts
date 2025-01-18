@@ -10,7 +10,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Public } from '../auth/decorators/public.decorator';
 
-@Controller('health')
+@Controller('api/health')
 export class HealthController {
   constructor(
     private health: HealthCheckService,
@@ -26,8 +26,9 @@ export class HealthController {
   @HealthCheck()
   async check() {
     const isProduction = process.env.NODE_ENV === 'production';
+    const redisUrl = this.configService.get('REDIS_URL');
 
-    return this.health.check([
+    const checks = [
       // Database health check
       () => this.db.pingCheck('database'),
 
@@ -42,13 +43,14 @@ export class HealthController {
         thresholdPercent: 0.9, // 90%
         path: '/',
       }),
+    ];
 
-      // External services health check (if in production)
-      ...(isProduction ? [
-        () => this.http.pingCheck('s3', this.configService.get('AWS_S3_HEALTH_URL')),
-        () => this.http.pingCheck('redis', 'redis://localhost:6379'),
-      ] : []),
-    ]);
+    // Add Redis check if URL is configured
+    if (redisUrl) {
+      checks.push(() => this.http.pingCheck('redis', redisUrl));
+    }
+
+    return this.health.check(checks);
   }
 
   @Get('liveness')
