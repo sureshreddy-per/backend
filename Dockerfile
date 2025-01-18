@@ -34,7 +34,7 @@ RUN npm run build
 FROM node:18-alpine
 
 # Install necessary tools
-RUN apk add --no-cache wget curl netcat-openbsd bash postgresql-client
+RUN apk add --no-cache wget curl netcat-openbsd bash postgresql-client redis
 
 WORKDIR /app
 
@@ -59,14 +59,21 @@ COPY scripts ./scripts
 COPY scripts/wait-for.sh /usr/local/bin/wait-for
 RUN chmod +x /usr/local/bin/wait-for
 
-# Create startup script that extracts host and port from DATABASE_URL
+# Create startup script that extracts connection info from URLs
 RUN echo '#!/bin/sh\n\
 echo "Extracting database connection info from DATABASE_URL..."\n\
 DB_HOST=$(echo $DATABASE_URL | sed -n "s/.*@\(.*\):.*/\1/p")\n\
 DB_PORT=$(echo $DATABASE_URL | sed -n "s/.*:\([0-9]*\)\/.*/\1/p")\n\
 \n\
+echo "Extracting Redis connection info from REDIS_URL..."\n\
+REDIS_HOST=$(echo $REDIS_URL | sed -n "s/.*@\(.*\):.*/\1/p")\n\
+REDIS_PORT=$(echo $REDIS_URL | sed -n "s/.*:\([0-9]*\)/\1/p")\n\
+\n\
 echo "Waiting for database at $DB_HOST:$DB_PORT..."\n\
 wait-for $DB_HOST:$DB_PORT -t 30\n\
+\n\
+echo "Waiting for Redis at $REDIS_HOST:$REDIS_PORT..."\n\
+wait-for $REDIS_HOST:$REDIS_PORT -t 30\n\
 \n\
 echo "Running database initialization..."\n\
 node dist/scripts/init-db.js\n\
