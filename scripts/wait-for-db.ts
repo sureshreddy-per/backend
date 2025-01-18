@@ -18,9 +18,14 @@ async function checkDatabase() {
         connectTimeoutMS: 10000,
         extra: {
           connectionTimeoutMillis: 10000,
+          keepalive: true,
+          keepaliveInitialDelayMillis: 10000,
+          application_name: 'farmdeva-backend-healthcheck',
+          options: '-c statement_timeout=10000',
         },
       });
 
+      console.log('Attempting to initialize connection...');
       // Test connection with timeout
       await Promise.race([
         dataSource.initialize(),
@@ -29,6 +34,7 @@ async function checkDatabase() {
         )
       ]);
 
+      console.log('Connection initialized, testing query...');
       // Test query with timeout
       await Promise.race([
         dataSource.query('SELECT 1'),
@@ -49,7 +55,7 @@ async function checkDatabase() {
         process.exit(1);
       }
 
-      // Wait before next attempt
+      console.log(`Waiting ${retryInterval}ms before next attempt...`);
       await new Promise(resolve => setTimeout(resolve, retryInterval));
     }
   }
@@ -61,4 +67,5 @@ process.on('SIGINT', () => {
   process.exit(1);
 });
 
+console.log('Starting database connection check...');
 checkDatabase(); 

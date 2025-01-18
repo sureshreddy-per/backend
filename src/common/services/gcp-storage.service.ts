@@ -13,9 +13,15 @@ export class GcpStorageService implements StorageService {
   private readonly logger = new Logger(GcpStorageService.name);
 
   constructor(private readonly configService: ConfigService) {
-    this.bucket = this.configService.get<string>('gcp.bucket');
-    const projectId = this.configService.get<string>('gcp.projectId');
-    const credentials = this.configService.get('gcp.credentials');
+    const gcpConfig = this.configService.get('app.gcp');
+    
+    if (!gcpConfig) {
+      throw new Error('GCP configuration is not defined');
+    }
+
+    this.bucket = gcpConfig.bucket;
+    const projectId = gcpConfig.projectId;
+    const credentials = gcpConfig.credentials;
 
     this.logger.debug(`GCP Config - Bucket: ${this.bucket}, ProjectId: ${projectId}`);
 

@@ -1,32 +1,86 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ObjectCannedACL } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { StorageService, StorageOptions, StorageResponse } from '../interfaces/storage.interface';
+import * as path from 'path';
 import * as crypto from 'crypto';
-import { v4 as uuidv4 } from 'uuid';
+import * as mime from 'mime-types';
 
 @Injectable()
-export class S3Service implements StorageService {
-  private s3Client: S3Client;
+export class S3Service implements StorageService, OnModuleInit {
+  private s3Client: S3Client | null = null;
+  private bucket: string | null = null;
+  private readonly maxAttempts: number;
   private readonly logger = new Logger(S3Service.name);
-  private readonly isProduction: boolean;
-  private readonly defaultBucket: string;
+  private isInitialized = false;
 
-  constructor(private configService: ConfigService) {
-    this.isProduction = process.env.NODE_ENV === 'production';
-    this.s3Client = new S3Client({
-      region: this.configService.get("aws.region"),
-      credentials: {
-        accessKeyId: this.configService.get("aws.accessKeyId"),
-        secretAccessKey: this.configService.get("aws.secretAccessKey"),
-      },
-      maxAttempts: this.isProduction ? 
-        parseInt(process.env.S3_MAX_ATTEMPTS_PROD || '5') : 
-        parseInt(process.env.S3_MAX_ATTEMPTS_DEV || '3'),
-    });
-    this.defaultBucket = this.configService.get<string>('aws.bucket');
+  constructor(private readonly configService: ConfigService) {
+    const isProd = this.configService.get('NODE_ENV') === 'production';
+    this.maxAttempts = isProd ? 5 : 3;
+  }
+
+  async onModuleInit() {
+    await this.initializeS3Client();
+  }
+
+  private async initializeS3Client() {
+    try {
+      // Check if S3 is enabled
+      const useS3 = this.configService.get<boolean>('USE_S3') === true;
+      
+      if (!useS3) {
+        this.logger.log('S3 is disabled. File operations will be simulated.');
+        this.isInitialized = true;
+        return;
+      }
+
+      this.bucket = this.configService.get<string>('S3_BUCKET') || 
+                    this.configService.get<string>('AWS_S3_BUCKET');
+      const region = this.configService.get<string>('AWS_REGION') || 'us-east-1';
+      const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
+      const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
+
+      if (!this.bucket || !accessKeyId || !secretAccessKey) {
+        this.logger.warn('S3 credentials not found. File operations will be simulated.');
+        this.isInitialized = true;
+        return;
+      }
+
+      this.s3Client = new S3Client({
+        region,
+        credentials: {
+          accessKeyId,
+          secretAccessKey,
+        },
+        maxAttempts: this.maxAttempts,
+      });
+
+      this.isInitialized = true;
+      this.logger.log(`S3 client initialized successfully with bucket: ${this.bucket}`);
+    } catch (error) {
+      this.logger.warn(`Failed to initialize S3 client: ${error.message}. File operations will be simulated.`);
+      this.isInitialized = true;
+    }
+  }
+
+  private ensureInitialized() {
+    if (!this.isInitialized) {
+      throw new Error('S3Service is not initialized. Please wait for onModuleInit to complete.');
+    }
+  }
+
+  private generateUniqueFilename(originalFilename: string): string {
+    const ext = path.extname(originalFilename);
+    const hash = crypto.randomBytes(8).toString('hex');
+    const timestamp = Date.now();
+    return `${path.basename(originalFilename, ext)}-${timestamp}-${hash}${ext}`;
   }
 
   async uploadFile(
@@ -34,136 +88,160 @@ export class S3Service implements StorageService {
     filename: string,
     options: StorageOptions = {},
   ): Promise<StorageResponse> {
-    try {
-      const bucket = options.bucket || this.defaultBucket;
-      const fileHash = crypto.createHash('sha256')
-        .update(typeof file === 'string' ? file : file.toString())
-        .digest('hex')
-        .substring(0, 8);
+    this.ensureInitialized();
 
-      const uniqueFileName = options.path
-        ? `${options.path}/${fileHash}-${uuidv4()}-${this.sanitizeFileName(filename)}`
-        : `${fileHash}-${uuidv4()}-${this.sanitizeFileName(filename)}`;
-
-      const uploadParams = {
-        Bucket: bucket,
-        Key: uniqueFileName,
-        Body: file,
-        ContentType: options.contentType || 'application/octet-stream',
-        Metadata: {
-          originalName: filename,
-          uploadTimestamp: new Date().toISOString(),
-          ...options.metadata,
-        },
-        ACL: options.isPublic ? ObjectCannedACL.public_read : ObjectCannedACL.private,
+    // Simulation mode when S3 is not configured
+    if (!this.s3Client || !this.bucket) {
+      this.logger.debug(`Simulating upload of file: ${filename}`);
+      const uniqueFilename = this.generateUniqueFilename(filename);
+      return {
+        url: `http://localhost:3000/mock-s3/${uniqueFilename}`,
+        key: uniqueFilename,
+        bucket: 'mock-bucket',
+        contentType: options.contentType || mime.lookup(filename) || 'application/octet-stream',
+        size: Buffer.isBuffer(file) ? Buffer.byteLength(file) : Buffer.byteLength(file, 'utf8'),
+        metadata: options.metadata || {},
       };
+    }
 
-      // Use multipart upload for large files
-      if (Buffer.isBuffer(file) && file.length > 5 * 1024 * 1024) { // 5MB
-        const multipartUpload = new Upload({
-          client: this.s3Client,
-          params: uploadParams,
-          queueSize: 4,
-          partSize: 5 * 1024 * 1024,
-        });
+    // Check file size (5MB limit for single upload)
+    if (Buffer.isBuffer(file) && Buffer.byteLength(file) > 5 * 1024 * 1024) {
+      throw new Error('File size exceeds 5MB limit');
+    }
 
-        await multipartUpload.done();
-      } else {
-        const command = new PutObjectCommand(uploadParams);
-        await this.s3Client.send(command);
-      }
+    const uniqueFilename = this.generateUniqueFilename(filename);
+    const key = options.path ? `${options.path}/${uniqueFilename}` : uniqueFilename;
 
-      // Get file metadata after upload
-      const headCommand = new HeadObjectCommand({
-        Bucket: bucket,
-        Key: uniqueFileName,
+    try {
+      const upload = new Upload({
+        client: this.s3Client,
+        params: {
+          Bucket: this.bucket,
+          Key: key,
+          Body: typeof file === 'string' ? Buffer.from(file) : file,
+          ContentType: options.contentType || mime.lookup(filename) || 'application/octet-stream',
+          Metadata: {
+            ...options.metadata,
+            originalName: filename,
+            uploadedAt: new Date().toISOString(),
+          },
+        },
       });
-      const headResponse = await this.s3Client.send(headCommand);
+
+      await upload.done();
+
+      const url = `https://${this.bucket}.s3.amazonaws.com/${key}`;
 
       return {
-        url: options.isPublic ? this.getPublicUrl(uniqueFileName, bucket) : await this.getSignedUrl(uniqueFileName, 3600, bucket),
-        key: uniqueFileName,
-        bucket: bucket,
-        contentType: headResponse.ContentType || options.contentType || 'application/octet-stream',
-        size: headResponse.ContentLength || 0,
-        metadata: headResponse.Metadata,
+        url,
+        key,
+        bucket: this.bucket,
+        contentType: options.contentType || mime.lookup(filename) || 'application/octet-stream',
+        size: Buffer.isBuffer(file) ? Buffer.byteLength(file) : Buffer.byteLength(file, 'utf8'),
+        metadata: options.metadata || {},
       };
     } catch (error) {
-      this.logger.error(`Failed to upload file to S3: ${error.message}`, error.stack);
-      throw new Error(`Failed to upload file: ${error.message}`);
+      this.logger.error(`Failed to upload file ${filename}: ${error.message}`);
+      throw error;
     }
   }
 
   async deleteFile(key: string, bucket?: string): Promise<void> {
-    try {
-      const command = new DeleteObjectCommand({
-        Bucket: bucket || this.defaultBucket,
-        Key: key,
-      });
+    this.ensureInitialized();
 
-      await this.s3Client.send(command);
-    } catch (error) {
-      this.logger.error(`Failed to delete file from S3: ${error.message}`, error.stack);
-      throw new Error(`Failed to delete file: ${error.message}`);
+    // Simulation mode when S3 is not configured
+    if (!this.s3Client || !this.bucket) {
+      this.logger.debug(`Simulating delete of file: ${key}`);
+      return;
     }
-  }
 
-  async getSignedUrl(key: string, expiresIn: number = 3600, bucket?: string): Promise<string> {
     try {
-      const command = new GetObjectCommand({
-        Bucket: bucket || this.defaultBucket,
-        Key: key,
-      });
-
-      return await getSignedUrl(this.s3Client, command, { expiresIn });
+      await this.s3Client.send(
+        new DeleteObjectCommand({
+          Bucket: bucket || this.bucket,
+          Key: key,
+        }),
+      );
     } catch (error) {
-      this.logger.error(`Failed to generate signed URL: ${error.message}`, error.stack);
-      throw new Error(`Failed to generate signed URL: ${error.message}`);
+      this.logger.error(`Failed to delete file ${key}: ${error.message}`);
+      throw error;
     }
-  }
-
-  getPublicUrl(key: string, bucket?: string): string {
-    const bucketName = bucket || this.defaultBucket;
-    return `https://${bucketName}.s3.amazonaws.com/${key}`;
   }
 
   async downloadFile(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
-    try {
-      // Extract key and bucket from URL
-      const urlObj = new URL(url);
-      const key = urlObj.pathname.split('/').pop();
-      if (!key) {
-        throw new Error('Invalid URL: Could not extract key');
-      }
+    this.ensureInitialized();
 
+    // Simulation mode when S3 is not configured
+    if (!this.s3Client || !this.bucket) {
+      this.logger.debug(`Simulating download of file: ${url}`);
+      return {
+        buffer: Buffer.from('mock-file-content'),
+        mimeType: 'application/octet-stream',
+      };
+    }
+
+    try {
+      const key = new URL(url).pathname.slice(1);
       const command = new GetObjectCommand({
-        Bucket: this.defaultBucket,
+        Bucket: this.bucket,
         Key: key,
       });
 
       const response = await this.s3Client.send(command);
       const chunks: Buffer[] = [];
-      
-      // @ts-ignore - response.Body is a ReadableStream
-      for await (const chunk of response.Body) {
-        chunks.push(Buffer.from(chunk));
+
+      if (response.Body) {
+        // @ts-ignore - AWS SDK types are not fully compatible with Node.js streams
+        for await (const chunk of response.Body as any) {
+          chunks.push(Buffer.from(chunk));
+        }
       }
 
       return {
-        buffer: Buffer.concat(chunks),
+        buffer: Buffer.concat(chunks as Uint8Array[]),
         mimeType: response.ContentType || 'application/octet-stream',
       };
     } catch (error) {
-      this.logger.error(`Failed to download file: ${error.message}`, error.stack);
+      this.logger.error(`Failed to download file: ${error.message}`);
       throw error;
     }
   }
 
-  private sanitizeFileName(fileName: string): string {
-    return fileName
-      .toLowerCase()
-      .replace(/[^a-z0-9.-]/g, '-')
-      .replace(/--+/g, '-')
-      .replace(/^-|-$/g, '');
+  async getSignedUrl(
+    key: string,
+    expiresIn: number = 3600,
+    bucket?: string,
+  ): Promise<string> {
+    this.ensureInitialized();
+
+    // Simulation mode when S3 is not configured
+    if (!this.s3Client || !this.bucket) {
+      this.logger.debug(`Simulating signed URL for file: ${key}`);
+      return `http://localhost:3000/mock-s3/${key}?signed=true&expires=${Date.now() + expiresIn * 1000}`;
+    }
+
+    try {
+      const command = new GetObjectCommand({
+        Bucket: bucket || this.bucket,
+        Key: key,
+      });
+
+      return await getSignedUrl(this.s3Client, command, { expiresIn });
+    } catch (error) {
+      this.logger.error(`Failed to generate signed URL for ${key}: ${error.message}`);
+      throw error;
+    }
+  }
+
+  getPublicUrl(key: string, bucket?: string): string {
+    this.ensureInitialized();
+
+    // Simulation mode when S3 is not configured
+    if (!this.s3Client || !this.bucket) {
+      return `http://localhost:3000/mock-s3/${key}`;
+    }
+
+    const bucketName = bucket || this.bucket;
+    return `https://${bucketName}.s3.amazonaws.com/${key}`;
   }
 }

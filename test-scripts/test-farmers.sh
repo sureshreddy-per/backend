@@ -58,6 +58,17 @@ check_error() {
     fi
 }
 
+# Function to extract OTP from response
+get_otp() {
+    local response=$1
+    local otp=$(echo "$response" | grep -o 'Development mode - OTP: [0-9]*' | grep -o '[0-9]*')
+    if [ -z "$otp" ]; then
+        # Try the old format as fallback
+        otp=$(echo "$response" | grep -o '"OTP sent successfully: [0-9]*"' | grep -o '[0-9]*')
+    fi
+    echo "$otp"
+}
+
 # Function to get test token
 get_test_token() {
     local role=$1
@@ -71,8 +82,8 @@ get_test_token() {
     echo "OTP Response: $otp_response" >&2
 
     # Extract OTP from response
-    local otp=""
-    if echo "$otp_response" | grep -q "User not found"; then
+    local otp=$(get_otp "$otp_response")
+    if [ -z "$otp" ] && echo "$otp_response" | grep -q "User not found"; then
         echo "Registering new user..." >&2
         local register_response=$(make_request "POST" "/auth/register" "{
             \"mobile_number\": \"$mobile\",
@@ -81,13 +92,21 @@ get_test_token() {
             \"role\": \"$role\"
         }")
         echo "Register Response: $register_response" >&2
-        otp=$(echo "$register_response" | grep -o '"OTP sent successfully: [0-9]*"' | grep -o '[0-9]*')
-    else
-        otp=$(echo "$otp_response" | grep -o '"OTP sent successfully: [0-9]*"' | grep -o '[0-9]*')
+        
+        # Try to get OTP from registration response
+        otp=$(get_otp "$register_response")
+        
+        # If no OTP in registration response, request a new one
+        if [ -z "$otp" ]; then
+            echo "Requesting OTP after registration..." >&2
+            local new_otp_response=$(make_request "POST" "/auth/otp/request" "{\"mobile_number\": \"$mobile\"}")
+            echo "New OTP Response: $new_otp_response" >&2
+            otp=$(get_otp "$new_otp_response")
+        fi
     fi
 
     if [ -z "$otp" ]; then
-        echo "Failed to get OTP" >&2
+        echo "Failed to get OTP. Response: $otp_response" >&2
         return 1
     fi
     echo "Got OTP: $otp" >&2
@@ -101,7 +120,7 @@ get_test_token() {
 
     local token=$(echo "$verify_response" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
     if [ -z "$token" ]; then
-        echo "Failed to get token" >&2
+        echo "Failed to get token. Response: $verify_response" >&2
         return 1
     fi
 

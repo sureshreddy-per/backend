@@ -159,10 +159,12 @@ export class AuthService {
       const use2FactorValue = this.configService.get<string>("USE_2FACTOR_SERVICE");
       const use2FactorService = use2FactorValue === 'true';
       
+      this.logger.debug(`Generated OTP for ${mobile_number}: ${otp}`);
+      
       return {
         message: use2FactorService 
           ? `OTP sent successfully to ${mobile_number}`
-          : `OTP sent successfully: ${otp}`,
+          : `Development mode - OTP: ${otp}`,
         requestId,
       };
     } catch (error) {

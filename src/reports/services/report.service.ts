@@ -367,7 +367,7 @@ export class ReportService {
       const doc = new PDFDocument();
 
       doc.on("data", chunks.push.bind(chunks));
-      doc.on("end", () => resolve(Buffer.concat(chunks)));
+      doc.on("end", () => resolve(Buffer.concat(chunks as Uint8Array[])));
 
       doc.fontSize(16).text("Report", { align: "center" });
       doc.moveDown();
@@ -390,7 +390,7 @@ export class ReportService {
       worksheet.addRow(Object.values(row));
     });
 
-    return workbook.xlsx.writeBuffer() as Promise<Buffer>;
+    return workbook.xlsx.writeBuffer().then(buffer => Buffer.from(buffer));
   }
 
   private async generateCSV(data: any): Promise<Buffer> {

@@ -5,35 +5,48 @@ import helmet from "helmet";
 import { ConfigService } from "@nestjs/config";
 import { HttpAdapterHost } from "@nestjs/core";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
-import * as fs from 'fs';
-import * as path from 'path';
 import { DataSource } from 'typeorm';
 
 async function bootstrap() {
   try {
     console.log('Starting application bootstrap...');
-
-    // SSL configuration for production
-    let httpsOptions = undefined;
-    if (process.env.NODE_ENV === 'production') {
-      try {
-        httpsOptions = {
-          key: fs.readFileSync(path.join(process.cwd(), 'ssl/privkey.pem')),
-          cert: fs.readFileSync(path.join(process.cwd(), 'ssl/fullchain.pem')),
-          ca: fs.readFileSync(path.join(process.cwd(), 'ssl/chain.pem')),
-        };
-      } catch (error) {
-        console.warn('SSL certificates not found, running without HTTPS');
-      }
-    }
-
-    console.log('Creating NestJS application...');
-    const app = await NestFactory.create(AppModule, {
-      logger: ['error', 'warn', 'log', 'debug'],
-      httpsOptions,
-    });
-
+    const app = await NestFactory.create(AppModule);
     const configService = app.get(ConfigService);
+    const env = configService.get('app.env');
+    
+    console.log(`Running in ${env} mode`);
+    
+    // Configure app
+    app.setGlobalPrefix('api');
+    
+    // CORS configuration
+    const corsConfig = configService.get('app.cors');
+    app.enableCors({
+      origin: corsConfig.origin,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      exposedHeaders: ['Content-Range', 'X-Content-Range'],
+      credentials: true,
+      maxAge: corsConfig.maxAge,
+    });
+    
+    // Security headers
+    app.use(helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'http:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
+      },
+    }));
+
     const httpAdapter = app.get(HttpAdapterHost);
     const dataSource = app.get(DataSource);
 
@@ -41,34 +54,6 @@ async function bootstrap() {
 
     // Global exception filter
     app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
-
-    // Configure CORS based on environment
-    app.enableCors({
-      origin: process.env.NODE_ENV === 'production'
-        ? configService.get('ALLOWED_ORIGINS')?.split(',') || ['https://farmdeva.com']
-        : true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-      credentials: true,
-      maxAge: 3600,
-    });
-
-    // Enhanced security headers with relaxed CSP for development
-    app.use(helmet({
-      contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          scriptSrc: ["'self'"],
-          frameSrc: ["'none'"],
-          objectSrc: ["'none'"],
-        },
-      } : false,
-      crossOriginEmbedderPolicy: false,
-      crossOriginOpenerPolicy: false,
-      crossOriginResourcePolicy: { policy: "cross-origin" },
-    }));
 
     // Validation pipe
     app.useGlobalPipes(
@@ -79,21 +64,8 @@ async function bootstrap() {
       }),
     );
 
-    app.setGlobalPrefix("api");
-
-    // Force HTTPS redirect in production
-    if (process.env.NODE_ENV === 'production') {
-      app.use((req, res, next) => {
-        if (req.secure) {
-          next();
-        } else {
-          res.redirect(301, `https://${req.headers.host}${req.url}`);
-        }
-      });
-    }
-
-    const host = process.env.HOST || '0.0.0.0';
-    const port = parseInt(process.env.PORT || '3000', 10);
+    const host = configService.get('app.host') || '0.0.0.0';
+    const port = configService.get('app.port') || 3000;
 
     console.log(`Starting server on ${host}:${port}...`);
     
@@ -137,15 +109,20 @@ async function bootstrap() {
       throw error;
     }
 
-    // Start the server with a graceful shutdown handler
-    const server = await app.listen(port, host);
+    // Start the server with a graceful shutdown handler and increased timeouts
+    const server = await app.listen(port, host, () => {
+      console.log(`Server is running on http://${host}:${port}`);
+    });
+    
+    // Configure server timeouts
+    server.setTimeout(30000); // 30 seconds socket timeout
+    server.keepAliveTimeout = 65000; // 65 seconds keep-alive timeout
+    server.headersTimeout = 66000; // 66 seconds headers timeout
+
     const url = await app.getUrl();
     console.log(`Application is running on: ${url}`);
     console.log(`Health endpoint available at: ${url}/api/health`);
-    
-    if (process.env.NODE_ENV === 'production') {
-      console.log(`SSL is ${httpsOptions ? 'enabled' : 'disabled'}`);
-    }
+    console.log(`Environment: ${env}`);
 
     // Handle graceful shutdown
     process.on('SIGTERM', async () => {

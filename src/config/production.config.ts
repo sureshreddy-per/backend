@@ -3,10 +3,12 @@ import { registerAs } from '@nestjs/config';
 export default registerAs('production', () => ({
   // Server Configuration
   port: parseInt(process.env.PORT, 10) || 3000,
-  api_url: process.env.API_URL || 'https://api.agrochain.com',
+  api_url: process.env.API_URL || 'http://api.agrochain.com',
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['https://agrochain.com'],
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://agrochain.com'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true,
+    maxAge: 3600,
   },
   
   // Rate Limiting
@@ -17,19 +19,17 @@ export default registerAs('production', () => ({
 
   // Security Headers
   security: {
-    helmet: {
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          scriptSrc: ["'self'"],
-        },
-      },
-      hsts: {
-        maxAge: 31536000,
-        includeSubDomains: true,
-        preload: true,
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'http:'],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        mediaSrc: ["'self'"],
+        frameSrc: ["'none'"],
       },
     },
   },

@@ -45,6 +45,12 @@ call_api() {
     eval $cmd
 }
 
+# Function to extract OTP from response
+extract_otp() {
+    local response=$1
+    echo "$response" | grep -o 'Development mode - OTP: [0-9]*' | grep -o '[0-9]*'
+}
+
 # Main test flow
 main() {
     print_step "Starting Authentication Tests"
@@ -58,18 +64,19 @@ main() {
         # Register new user if not exists
         print_step "Testing User Registration"
         response=$(call_api "POST" "/auth/register" "{\"mobile_number\": \"$TEST_MOBILE\", \"name\": \"$TEST_NAME\", \"email\": \"$TEST_EMAIL\", \"role\": \"$TEST_ROLE\"}")
-        otp=$(echo "$response" | grep -o '"OTP sent successfully: [0-9]*"' | grep -o '[0-9]*')
+        otp=$(extract_otp "$response")
         if [ -z "$otp" ]; then
-            print_error "Registration failed"
+            print_error "Registration failed: $response"
         fi
         print_success "Registration successful"
     else
+        print_success "User already exists"
         # Request OTP for existing user
         print_step "Testing OTP Request"
         response=$(call_api "POST" "/auth/otp/request" "{\"mobile_number\": \"$TEST_MOBILE\"}")
-        otp=$(echo "$response" | grep -o '"OTP sent successfully: [0-9]*"' | grep -o '[0-9]*')
+        otp=$(extract_otp "$response")
         if [ -z "$otp" ]; then
-            print_error "OTP request failed"
+            print_error "OTP request failed: $response"
         fi
         print_success "OTP request successful"
     fi
@@ -79,7 +86,7 @@ main() {
     response=$(call_api "POST" "/auth/otp/verify" "{\"mobile_number\": \"$TEST_MOBILE\", \"otp\": \"$otp\"}")
     token=$(echo "$response" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
     if [ -z "$token" ]; then
-        print_error "OTP verification failed"
+        print_error "OTP verification failed: $response"
     fi
     print_success "OTP verification successful"
 
@@ -87,7 +94,7 @@ main() {
     print_step "Testing Token Validation"
     response=$(call_api "GET" "/auth/validate" "" "$token")
     if ! echo "$response" | grep -q '"valid":true'; then
-        print_error "Token validation failed"
+        print_error "Token validation failed: $response"
     fi
     print_success "Token validation successful"
 
@@ -95,9 +102,17 @@ main() {
     print_step "Testing Logout"
     response=$(call_api "POST" "/auth/logout" "" "$token")
     if ! echo "$response" | grep -q '"message":"Successfully logged out"'; then
-        print_error "Logout failed"
+        print_error "Logout failed: $response"
     fi
     print_success "Logout successful"
+
+    # Test 5: Verify token is invalidated
+    print_step "Testing Token Invalidation"
+    response=$(call_api "GET" "/auth/validate" "" "$token")
+    if ! echo "$response" | grep -q '"message":"Token has been invalidated"'; then
+        print_error "Token invalidation check failed: $response"
+    fi
+    print_success "Token invalidation verified"
 
     print_step "All Authentication Tests Completed Successfully"
 }

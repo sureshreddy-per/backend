@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from "typeorm";
 
-@Entity()
+@Entity("report")
 export class Report {
   @PrimaryGeneratedColumn("uuid")
   id: string;
@@ -9,7 +9,8 @@ export class Report {
   user_id: string;
 
   @Column({
-    type: "text"
+    type: "text",
+    name: "report_type"
   })
   type: string;
 
