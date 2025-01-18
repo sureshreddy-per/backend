@@ -48,17 +48,28 @@ async function initializeDatabase() {
       throw error;
     }
 
-    // Get list of all entities
+    // Get list of all entities and remove duplicates
     const entities = AppDataSource.entityMetadatas;
-    console.log(`[DB Init] Found ${entities.length} entities to process`);
+    const uniqueEntities = entities.filter((entity, index, self) =>
+      index === self.findIndex((e) => e.tableName === entity.tableName)
+    );
+    console.log(`[DB Init] Found ${uniqueEntities.length} unique entities to process`);
 
     // Process entities in smaller batches
-    const batchSize = 3; // Reduced batch size
-    for (let i = 0; i < entities.length; i += batchSize) {
-      const batch = entities.slice(i, i + batchSize);
-      console.log(`[DB Init] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(entities.length/batchSize)}`);
+    const batchSize = 3;
+    const processedTables = new Set();
+
+    for (let i = 0; i < uniqueEntities.length; i += batchSize) {
+      const batch = uniqueEntities.slice(i, i + batchSize);
+      console.log(`[DB Init] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(uniqueEntities.length/batchSize)}`);
       
       for (const entity of batch) {
+        // Skip if table was already processed
+        if (processedTables.has(entity.tableName)) {
+          console.log(`[DB Init] Skipping duplicate table: ${entity.tableName}`);
+          continue;
+        }
+
         try {
           console.log(`[DB Init] Creating table: ${entity.tableName}`);
           
@@ -101,6 +112,7 @@ async function initializeDatabase() {
             )
           ]);
           
+          processedTables.add(entity.tableName);
           console.log(`[DB Init] Successfully created table: ${entity.tableName}`);
         } catch (error) {
           console.error(`[DB Init] Error creating table ${entity.tableName}:`, error);
@@ -123,9 +135,13 @@ async function initializeDatabase() {
       );
       console.log(`[DB Init] Verified ${tables.length} tables created successfully`);
       
+      // Compare with processed tables
+      console.log(`[DB Init] Processed ${processedTables.size} unique tables`);
+      
       // List all created tables
       for (const table of tables) {
-        console.log(`[DB Init] - Table: ${table.table_name}`);
+        const status = processedTables.has(table.table_name) ? 'processed' : 'unexpected';
+        console.log(`[DB Init] - Table: ${table.table_name} (${status})`);
       }
     } catch (error) {
       console.error("[DB Init] Error verifying tables:", error);
