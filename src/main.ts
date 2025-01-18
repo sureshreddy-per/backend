@@ -76,9 +76,16 @@ async function bootstrap() {
     // Test database connection before starting the server
     try {
       console.log('13. Starting database initialization...');
+      
+      // Initialize database with timeout
       if (!dataSource.isInitialized) {
         console.log('14. DataSource not initialized, initializing now...');
-        await dataSource.initialize();
+        await Promise.race([
+          dataSource.initialize(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Database initialization timeout after 30 seconds')), 30000)
+          )
+        ]);
         console.log('15. DataSource initialization completed');
       } else {
         console.log('14. DataSource already initialized');
@@ -91,7 +98,7 @@ async function bootstrap() {
           await Promise.race([
             dataSource.query('SELECT 1'),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Database connection timeout')), 10000)
+              setTimeout(() => reject(new Error('Database connection test timeout after 10 seconds')), 10000)
             )
           ]);
           return true;
@@ -101,7 +108,7 @@ async function bootstrap() {
         }
       };
 
-      // Retry connection up to 3 times
+      // Retry connection up to 3 times with exponential backoff
       for (let i = 0; i < 3; i++) {
         console.log(`17. Database connection attempt ${i + 1}/3`);
         if (await testConnection()) {
@@ -111,31 +118,40 @@ async function bootstrap() {
         if (i === 2) {
           throw new Error('Failed to establish database connection after 3 attempts');
         }
-        console.log(`Retrying database connection in 5 seconds...`);
-        await new Promise(resolve => setTimeout(resolve, 5000));
+        const backoffTime = Math.min(1000 * Math.pow(2, i), 5000); // Exponential backoff with max 5 seconds
+        console.log(`Retrying database connection in ${backoffTime/1000} seconds...`);
+        await new Promise(resolve => setTimeout(resolve, backoffTime));
       }
 
-      // Test Redis connection
+      // Test Redis connection with proper error handling
       console.log('19. Starting Redis connection test...');
-      const cacheManager = app.get('CACHE_MANAGER');
-      console.log('20. Cache manager retrieved');
-      
       try {
-        console.log('21. Testing Redis connection with timeout...');
-        await Promise.race([
-          cacheManager.set('test-key', 'test-value'),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Redis connection timeout')), 10000)
-          )
-        ]);
-        console.log('22. Redis connection verified successfully');
+        const cacheManager = app.get('CACHE_MANAGER');
+        console.log('20. Cache manager retrieved');
+        
+        try {
+          console.log('21. Testing Redis connection with timeout...');
+          await Promise.race([
+            cacheManager.set('test-key', 'test-value'),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Redis connection timeout after 10 seconds')), 10000)
+            )
+          ]);
+          console.log('22. Redis connection verified successfully');
+          
+          // Clean up test key
+          await cacheManager.del('test-key');
+        } catch (error) {
+          console.error('23. Warning: Redis connection failed:', error);
+          console.log('24. Continuing startup despite Redis connection failure...');
+        }
       } catch (error) {
-        console.error('23. Warning: Redis connection failed:', error);
-        console.log('24. Continuing startup despite Redis connection failure...');
+        console.error('Error getting cache manager:', error);
+        console.log('Continuing startup without Redis...');
       }
 
     } catch (error) {
-      console.error('Database initialization failed:', error);
+      console.error('Fatal error during initialization:', error);
       throw error;
     }
 
