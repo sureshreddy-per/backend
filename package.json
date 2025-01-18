@@ -21,7 +21,8 @@
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "typeorm": "typeorm-ts-node-commonjs",
-    "recreate-tables": "ts-node scripts/recreate-tables.ts"
+    "recreate-tables": "ts-node scripts/recreate-tables.ts",
+    "db:init": "ts-node scripts/init-db.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.726.1",
