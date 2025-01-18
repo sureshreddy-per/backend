@@ -79,7 +79,24 @@ async function initializeDatabase() {
 
     // Helper function to convert TypeORM type to PostgreSQL type
     function getPostgresType(column: any): string {
-      const type = column.type?.toLowerCase() || '';
+      if (!column || !column.type) {
+        console.error(`[DB Init] Invalid column definition:`, column);
+        return 'text'; // fallback type
+      }
+
+      let type = '';
+      if (typeof column.type === 'string') {
+        type = column.type.toLowerCase();
+      } else if (typeof column.type === 'function') {
+        // Handle constructor functions (like Date, Number, etc.)
+        type = column.type.name.toLowerCase();
+      } else if (column.type.name) {
+        // Handle class types
+        type = column.type.name.toLowerCase();
+      } else {
+        console.error(`[DB Init] Unknown column type:`, column.type);
+        return 'text'; // fallback type
+      }
       
       // Handle special cases
       switch(type) {
@@ -90,12 +107,14 @@ async function initializeDatabase() {
           return column.length ? `varchar(${column.length})` : 'text';
         case 'int':
         case 'integer':
+        case 'number':
           return 'integer';
         case 'float':
         case 'double':
           return 'double precision';
         case 'datetime':
         case 'timestamp':
+        case 'date':
           return 'timestamp';
         case 'boolean':
           return 'boolean';
@@ -105,33 +124,40 @@ async function initializeDatabase() {
         case 'enum':
           // Create enum type if it doesn't exist
           const enumName = `${column.entityMetadata.tableName}_${column.databaseName}_enum`;
-          const enumValues = column.enum?.map((val: string) => `'${val}'`).join(', ');
           return enumName;
         default:
-          return type;
+          console.warn(`[DB Init] Using default type 'text' for unknown type: ${type}`);
+          return 'text';
       }
     }
 
     // Helper function to get default value
     function getDefaultValue(column: any): string {
-      if (!column.default) return '';
-      
-      if (column.default === 'uuid_generate_v4()') {
-        return "DEFAULT uuid_generate_v4()";
+      if (!column || column.default === undefined || column.default === null) {
+        return '';
       }
       
-      if (column.default === 'now()') {
-        return "DEFAULT CURRENT_TIMESTAMP";
+      if (typeof column.default === 'function') {
+        const defaultStr = column.default.toString();
+        if (defaultStr.includes('uuid_generate_v4')) {
+          return "DEFAULT uuid_generate_v4()";
+        }
+        if (defaultStr.includes('now')) {
+          return "DEFAULT CURRENT_TIMESTAMP";
+        }
+        console.warn(`[DB Init] Unsupported function default value:`, defaultStr);
+        return '';
       }
       
       if (typeof column.default === 'string') {
-        return `DEFAULT '${column.default}'`;
+        return `DEFAULT '${column.default.replace(/'/g, "''")}'`;
       }
       
       if (typeof column.default === 'number' || typeof column.default === 'boolean') {
         return `DEFAULT ${column.default}`;
       }
       
+      console.warn(`[DB Init] Unsupported default value type:`, typeof column.default);
       return '';
     }
 
@@ -162,9 +188,9 @@ async function initializeDatabase() {
                 
                 // Create enums first if needed
                 for (const column of entity.columns) {
-                  if (column.type === 'enum') {
+                  if (column.type === 'enum' && column.enum) {
                     const enumName = `${entity.tableName}_${column.databaseName}_enum`;
-                    const enumValues = column.enum?.map((val: string) => `'${val}'`).join(', ');
+                    const enumValues = column.enum.map((val: string) => `'${val.replace(/'/g, "''")}'`).join(', ');
                     await queryRunner.query(`
                       DO $$
                       BEGIN
@@ -179,11 +205,16 @@ async function initializeDatabase() {
                 // Create table
                 const columns = entity.columns
                   .map(column => {
-                    const type = getPostgresType(column);
-                    const nullable = column.isNullable ? 'NULL' : 'NOT NULL';
-                    const primary = column.isPrimary ? 'PRIMARY KEY' : '';
-                    const defaultValue = getDefaultValue(column);
-                    return `"${column.databaseName}" ${type} ${nullable} ${primary} ${defaultValue}`.trim();
+                    try {
+                      const type = getPostgresType(column);
+                      const nullable = column.isNullable ? 'NULL' : 'NOT NULL';
+                      const primary = column.isPrimary ? 'PRIMARY KEY' : '';
+                      const defaultValue = getDefaultValue(column);
+                      return `"${column.databaseName}" ${type} ${nullable} ${primary} ${defaultValue}`.trim();
+                    } catch (error) {
+                      console.error(`[DB Init] Error processing column in ${entity.tableName}:`, column, error);
+                      throw error;
+                    }
                   })
                   .join(',\n');
 
