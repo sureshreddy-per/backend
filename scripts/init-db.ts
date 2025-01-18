@@ -2,62 +2,116 @@ import { AppDataSource } from "../src/config/typeorm.config";
 
 async function initializeDatabase() {
   try {
-    console.log("Initializing database...");
+    console.log("[DB Init] Starting database initialization...");
     
     // Initialize the data source with a timeout
     await Promise.race([
       AppDataSource.initialize(),
       new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Database initialization timeout')), 30000)
+        setTimeout(() => reject(new Error('Database initialization timeout after 30 seconds')), 30000)
       )
     ]);
-    console.log("Data source initialized");
+    console.log("[DB Init] Data source initialized successfully");
 
-    // Create database schema with progress logging
-    console.log("Creating database schema...");
-    try {
-      await AppDataSource.synchronize(false);
-      console.log("Database schema created");
-    } catch (error) {
-      console.error("Error creating database schema:", error);
-      throw error;
-    }
-
-    // Run essential extensions with error handling
-    console.log("Initializing essential extensions...");
+    // Enable essential extensions first
+    console.log("[DB Init] Setting up essential extensions...");
     try {
       await AppDataSource.query(`
         DO $$
         BEGIN
-          -- Enable UUID extension
-          CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-          RAISE NOTICE 'UUID extension enabled';
-          
-          -- Enable pg_trgm for text search operations
-          CREATE EXTENSION IF NOT EXISTS pg_trgm;
-          RAISE NOTICE 'pg_trgm extension enabled';
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_extension WHERE extname = 'uuid-ossp'
+          ) THEN
+            CREATE EXTENSION "uuid-ossp";
+            RAISE NOTICE 'Created uuid-ossp extension';
+          END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'
+          ) THEN
+            CREATE EXTENSION pg_trgm;
+            RAISE NOTICE 'Created pg_trgm extension';
+          END IF;
         EXCEPTION WHEN OTHERS THEN
-          RAISE NOTICE 'Error enabling extensions: %', SQLERRM;
+          RAISE NOTICE 'Error setting up extensions: %', SQLERRM;
           RAISE;
         END $$;
       `);
-      console.log("Database extensions initialized");
+      console.log("[DB Init] Database extensions initialized successfully");
     } catch (error) {
-      console.error("Error initializing extensions:", error);
+      console.error("[DB Init] Failed to initialize extensions:", error);
       throw error;
+    }
+
+    // Get list of all entities
+    const entities = AppDataSource.entityMetadatas;
+    console.log(`[DB Init] Found ${entities.length} entities to process`);
+
+    // Process entities in smaller batches
+    const batchSize = 5;
+    for (let i = 0; i < entities.length; i += batchSize) {
+      const batch = entities.slice(i, i + batchSize);
+      console.log(`[DB Init] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(entities.length/batchSize)}`);
+      
+      for (const entity of batch) {
+        try {
+          console.log(`[DB Init] Creating table: ${entity.tableName}`);
+          
+          // Create table with timeout
+          await Promise.race([
+            (async () => {
+              const queryRunner = AppDataSource.createQueryRunner();
+              try {
+                await queryRunner.createSchema(entity.schema || 'public', true);
+                const tableExists = await queryRunner.hasTable(entity.tableName);
+                if (!tableExists) {
+                  const tableSchema = await queryRunner.getTable(entity.tableName);
+                  if (!tableSchema) {
+                    await AppDataSource.synchronize(false);
+                  }
+                }
+              } finally {
+                await queryRunner.release();
+              }
+            })(),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error(`Timeout creating table ${entity.tableName}`)), 10000)
+            )
+          ]);
+          
+          console.log(`[DB Init] Successfully created table: ${entity.tableName}`);
+        } catch (error) {
+          console.error(`[DB Init] Error creating table ${entity.tableName}:`, error);
+          // Continue with other tables even if one fails
+          continue;
+        }
+      }
+
+      // Small delay between batches to prevent overwhelming the database
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    // Verify all tables were created
+    try {
+      const tables = await AppDataSource.query(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'"
+      );
+      console.log(`[DB Init] Verified ${tables.length} tables created successfully`);
+    } catch (error) {
+      console.error("[DB Init] Error verifying tables:", error);
     }
 
     // Clean up
     try {
       await AppDataSource.destroy();
-      console.log("Database initialization completed successfully");
+      console.log("[DB Init] Database initialization completed successfully");
       process.exit(0);
     } catch (error) {
-      console.error("Error during cleanup:", error);
+      console.error("[DB Init] Error during cleanup:", error);
       throw error;
     }
   } catch (error) {
-    console.error("Error during database initialization:", error);
+    console.error("[DB Init] Fatal error during database initialization:", error);
     process.exit(1);
   }
 }
