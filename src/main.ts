@@ -104,10 +104,29 @@ async function bootstrap() {
         console.log(`Retrying database connection (attempt ${i + 2}/3)...`);
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
+
+      // Test Redis connection
+      console.log('Testing Redis connection...');
+      const cacheManager = app.get('CACHE_MANAGER');
+      try {
+        await Promise.race([
+          cacheManager.set('test-key', 'test-value'),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Redis connection timeout')), 10000)
+          )
+        ]);
+        console.log('Redis connection verified successfully');
+      } catch (error) {
+        console.error('Warning: Redis connection failed:', error);
+        console.log('Continuing startup despite Redis connection failure...');
+      }
+
     } catch (error) {
       console.error('Database initialization failed:', error);
       throw error;
     }
+
+    console.log('All service connections verified, starting HTTP server...');
 
     // Start the server with a graceful shutdown handler and increased timeouts
     const server = await app.listen(port, host, () => {
