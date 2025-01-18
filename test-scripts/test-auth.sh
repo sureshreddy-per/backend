@@ -37,7 +37,7 @@ call_api() {
         headers="$headers -H 'Authorization: Bearer $auth_header'"
     fi
 
-    local cmd="curl -s -X $method 'http://localhost:3000/api$endpoint' $headers"
+    local cmd="curl -s -X $method 'http://localhost:3001/api$endpoint' $headers"
     if [ ! -z "$data" ]; then
         cmd="$cmd -d '$data'"
     fi

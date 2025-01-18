@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Source code (since we're deploying the built version)
+src/
+test/
+scripts/
+
+# Development files
+.git/
+.gitignore
+.env
+.env.*
+!.env.production
+.eslintrc
+.prettierrc
+jest.config.js
+tsconfig.json
+tsconfig.build.json
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Documentation
+docs/
+README.md
+CHANGELOG.md
+
+# Test files
+coverage/
+.nyc_output/
+*.spec.ts
+*.test.ts
+test-scripts/
+
+# Temporary files
+tmp/
+temp/
+*.log
+
+# Docker files (not needed for Railway)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# OS files
+.DS_Store
+Thumbs.db 
