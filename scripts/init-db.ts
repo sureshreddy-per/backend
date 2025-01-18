@@ -55,6 +55,25 @@ async function initializeDatabase() {
     );
     console.log(`[DB Init] Found ${uniqueEntities.length} unique entities to process`);
 
+    // Define legacy tables that should be dropped
+    const legacyTables = [
+      'transaction_history',
+      'inspection_base_fee_config',
+      'reports',
+      'event_metrics'
+    ];
+
+    // Drop legacy tables if they exist
+    console.log("[DB Init] Checking for legacy tables...");
+    for (const tableName of legacyTables) {
+      try {
+        await AppDataSource.query(`DROP TABLE IF EXISTS "${tableName}" CASCADE;`);
+        console.log(`[DB Init] Dropped legacy table: ${tableName}`);
+      } catch (error) {
+        console.error(`[DB Init] Error dropping legacy table ${tableName}:`, error);
+      }
+    }
+
     // Process entities in smaller batches
     const batchSize = 3;
     const processedTables = new Set();
@@ -78,31 +97,30 @@ async function initializeDatabase() {
             (async () => {
               const queryRunner = AppDataSource.createQueryRunner();
               try {
-                // Check if table exists
-                const tableExists = await queryRunner.hasTable(entity.tableName);
-                if (!tableExists) {
-                  // Create schema if it doesn't exist
-                  await queryRunner.createSchema(entity.schema || 'public', true);
-                  
-                  // Create table using direct SQL
-                  const metadata = AppDataSource.getMetadata(entity.target);
-                  const tablePath = metadata.tablePath;
-                  const columns = metadata.columns
-                    .map(column => {
-                      const type = column.type.toString().toLowerCase();
-                      const nullable = column.isNullable ? 'NULL' : 'NOT NULL';
-                      const primary = column.isPrimary ? 'PRIMARY KEY' : '';
-                      const defaultValue = column.default ? `DEFAULT ${column.default}` : '';
-                      return `"${column.databaseName}" ${type} ${nullable} ${primary} ${defaultValue}`.trim();
-                    })
-                    .join(',\n');
+                // Drop table if it exists (to ensure clean state)
+                await queryRunner.dropTable(entity.tableName, true);
+                
+                // Create schema if it doesn't exist
+                await queryRunner.createSchema(entity.schema || 'public', true);
+                
+                // Create table using direct SQL
+                const metadata = AppDataSource.getMetadata(entity.target);
+                const tablePath = metadata.tablePath;
+                const columns = metadata.columns
+                  .map(column => {
+                    const type = column.type.toString().toLowerCase();
+                    const nullable = column.isNullable ? 'NULL' : 'NOT NULL';
+                    const primary = column.isPrimary ? 'PRIMARY KEY' : '';
+                    const defaultValue = column.default ? `DEFAULT ${column.default}` : '';
+                    return `"${column.databaseName}" ${type} ${nullable} ${primary} ${defaultValue}`.trim();
+                  })
+                  .join(',\n');
 
-                  await queryRunner.query(`
-                    CREATE TABLE IF NOT EXISTS ${tablePath} (
-                      ${columns}
-                    );
-                  `);
-                }
+                await queryRunner.query(`
+                  CREATE TABLE IF NOT EXISTS ${tablePath} (
+                    ${columns}
+                  );
+                `);
               } finally {
                 await queryRunner.release();
               }
@@ -140,8 +158,25 @@ async function initializeDatabase() {
       
       // List all created tables
       for (const table of tables) {
-        const status = processedTables.has(table.table_name) ? 'processed' : 'unexpected';
+        const status = processedTables.has(table.table_name) ? 'processed' : 
+                      table.table_name === 'migrations' ? 'system' :
+                      'unexpected';
         console.log(`[DB Init] - Table: ${table.table_name} (${status})`);
+      }
+
+      // Verify no legacy tables exist
+      for (const legacyTable of legacyTables) {
+        const exists = await AppDataSource.query(
+          `SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = $1
+          )`,
+          [legacyTable]
+        );
+        if (exists[0].exists) {
+          console.error(`[DB Init] Warning: Legacy table ${legacyTable} still exists`);
+        }
       }
     } catch (error) {
       console.error("[DB Init] Error verifying tables:", error);
