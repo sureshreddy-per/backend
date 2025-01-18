@@ -99,17 +99,46 @@ async function bootstrap() {
     
     // Test database connection before starting the server
     try {
+      console.log('Initializing database connection...');
       if (!dataSource.isInitialized) {
         await dataSource.initialize();
       }
-      await dataSource.query('SELECT 1');
-      console.log('Database connection verified successfully');
+      
+      // Test the connection with a timeout
+      const testConnection = async () => {
+        try {
+          await Promise.race([
+            dataSource.query('SELECT 1'),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Database connection timeout')), 10000)
+            )
+          ]);
+          return true;
+        } catch (error) {
+          console.error('Database connection test failed:', error);
+          return false;
+        }
+      };
+
+      // Retry connection up to 3 times
+      for (let i = 0; i < 3; i++) {
+        if (await testConnection()) {
+          console.log('Database connection verified successfully');
+          break;
+        }
+        if (i === 2) {
+          throw new Error('Failed to establish database connection after 3 attempts');
+        }
+        console.log(`Retrying database connection (attempt ${i + 2}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
     } catch (error) {
-      console.error('Database connection test failed:', error);
+      console.error('Database initialization failed:', error);
       throw error;
     }
 
-    await app.listen(port, host);
+    // Start the server with a graceful shutdown handler
+    const server = await app.listen(port, host);
     const url = await app.getUrl();
     console.log(`Application is running on: ${url}`);
     console.log(`Health endpoint available at: ${url}/api/health`);
@@ -117,6 +146,20 @@ async function bootstrap() {
     if (process.env.NODE_ENV === 'production') {
       console.log(`SSL is ${httpsOptions ? 'enabled' : 'disabled'}`);
     }
+
+    // Handle graceful shutdown
+    process.on('SIGTERM', async () => {
+      console.log('Received SIGTERM signal. Starting graceful shutdown...');
+      try {
+        await server.close();
+        await dataSource.destroy();
+        console.log('Server and database connections closed.');
+        process.exit(0);
+      } catch (error) {
+        console.error('Error during graceful shutdown:', error);
+        process.exit(1);
+      }
+    });
   } catch (error) {
     console.error('Error starting application:', error);
     process.exit(1);
