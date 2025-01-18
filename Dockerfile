@@ -33,6 +33,9 @@ RUN npm run build
 # Production stage
 FROM node:18-alpine
 
+# Install necessary tools
+RUN apk add --no-cache wget curl netcat-openbsd
+
 WORKDIR /app
 
 # Create non-root user and set proper permissions
@@ -51,6 +54,10 @@ RUN npm ci --only=production
 # Copy built application
 COPY --from=builder /app/dist ./dist
 
+# Copy wait-for script
+COPY scripts/wait-for.sh /usr/local/bin/wait-for
+RUN chmod +x /usr/local/bin/wait-for
+
 # Switch to non-root user
 USER appuser
 
@@ -66,5 +73,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
-# Start the application
-CMD ["node", "dist/main"] 
+# Start the application with wait-for script
+CMD ["sh", "-c", "wait-for ${DB_HOST}:${DB_PORT} -- node dist/main"] 
