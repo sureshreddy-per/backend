@@ -34,14 +34,56 @@ export class InitialSchema1710336000000 implements MigrationInterface {
 
             console.log(`Found SQL file at: ${usedPath}`);
 
-            // Split the SQL content into individual statements
-            const statements = sqlContent
-                .split(';')
-                .filter(statement => statement.trim().length > 0);
+            // Function to split SQL while preserving functions
+            const splitSqlStatements = (sql: string): string[] => {
+                const statements: string[] = [];
+                let currentStatement = '';
+                let inFunction = false;
+                let dollarQuoteCount = 0;
 
-            // Execute each statement separately
+                // Split into lines for easier processing
+                const lines = sql.split('\n');
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    
+                    // Check for dollar quotes
+                    const dollarQuotes = (trimmedLine.match(/\$\$/g) || []).length;
+                    if (dollarQuotes > 0) {
+                        dollarQuoteCount += dollarQuotes;
+                        inFunction = dollarQuoteCount % 2 !== 0;
+                    }
+
+                    // Add the line to current statement
+                    currentStatement += line + '\n';
+
+                    // If we're not in a function and the line ends with semicolon
+                    if (!inFunction && trimmedLine.endsWith(';')) {
+                        if (currentStatement.trim()) {
+                            statements.push(currentStatement.trim());
+                        }
+                        currentStatement = '';
+                    }
+                }
+
+                // Add any remaining statement
+                if (currentStatement.trim()) {
+                    statements.push(currentStatement.trim());
+                }
+
+                return statements;
+            };
+
+            // Split and execute statements
+            const statements = splitSqlStatements(sqlContent);
+            
             for (const statement of statements) {
-                await queryRunner.query(statement + ';');
+                try {
+                    await queryRunner.query(statement);
+                } catch (error) {
+                    console.error('Error executing statement:', statement);
+                    throw error;
+                }
             }
 
             console.log('Initial schema migration completed successfully');
