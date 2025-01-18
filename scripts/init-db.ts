@@ -109,6 +109,11 @@ async function initializeDatabase() {
         case 'integer':
         case 'number':
           return 'integer';
+        case 'decimal':
+        case 'numeric':
+          return column.precision && column.scale
+            ? `decimal(${column.precision},${column.scale})`
+            : 'decimal';
         case 'float':
         case 'double':
           return 'double precision';
@@ -116,11 +121,16 @@ async function initializeDatabase() {
         case 'timestamp':
         case 'date':
           return 'timestamp';
+        case 'timestamptz':
+        case 'timestamp with time zone':
+          return 'timestamptz';
         case 'boolean':
           return 'boolean';
         case 'json':
         case 'jsonb':
           return 'jsonb';
+        case 'text':
+          return 'text';
         case 'enum':
           // Create enum type if it doesn't exist
           const enumName = `${column.entityMetadata.tableName}_${column.databaseName}_enum`;
@@ -137,24 +147,46 @@ async function initializeDatabase() {
         return '';
       }
       
+      // Handle function defaults
       if (typeof column.default === 'function') {
         const defaultStr = column.default.toString();
+        
+        // Handle UUID default
         if (defaultStr.includes('uuid_generate_v4')) {
           return "DEFAULT uuid_generate_v4()";
         }
-        if (defaultStr.includes('now')) {
+        
+        // Handle timestamp defaults
+        if (defaultStr.includes('now') || 
+            defaultStr.includes('CURRENT_TIMESTAMP') ||
+            defaultStr.includes('createDateDefault') ||
+            defaultStr.includes('updateDateDefault')) {
           return "DEFAULT CURRENT_TIMESTAMP";
         }
+
         console.warn(`[DB Init] Unsupported function default value:`, defaultStr);
         return '';
       }
       
+      // Handle string defaults
       if (typeof column.default === 'string') {
         return `DEFAULT '${column.default.replace(/'/g, "''")}'`;
       }
       
+      // Handle number and boolean defaults
       if (typeof column.default === 'number' || typeof column.default === 'boolean') {
         return `DEFAULT ${column.default}`;
+      }
+      
+      // Handle object defaults (like for JSON columns)
+      if (typeof column.default === 'object' && column.default !== null) {
+        try {
+          const jsonStr = JSON.stringify(column.default).replace(/'/g, "''");
+          return `DEFAULT '${jsonStr}'::jsonb`;
+        } catch (error) {
+          console.warn(`[DB Init] Error stringifying object default:`, error);
+          return '';
+        }
       }
       
       console.warn(`[DB Init] Unsupported default value type:`, typeof column.default);
