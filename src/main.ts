@@ -9,15 +9,17 @@ import { DataSource } from 'typeorm';
 
 async function bootstrap() {
   try {
-    console.log('Starting application bootstrap...');
+    console.log('1. Starting application bootstrap...');
     const app = await NestFactory.create(AppModule);
+    console.log('2. NestJS application created');
+    
     const configService = app.get(ConfigService);
     const env = configService.get('app.env');
-    
-    console.log(`Running in ${env} mode`);
+    console.log(`3. Running in ${env} mode`);
     
     // Configure app
     app.setGlobalPrefix('api');
+    console.log('4. API prefix set');
     
     // CORS configuration
     const corsConfig = configService.get('app.cors');
@@ -29,6 +31,7 @@ async function bootstrap() {
       credentials: true,
       maxAge: corsConfig.maxAge,
     });
+    console.log('5. CORS configured');
     
     // Security headers
     app.use(helmet({
@@ -46,16 +49,17 @@ async function bootstrap() {
         },
       },
     }));
+    console.log('6. Security headers configured');
 
+    console.log('7. Getting HTTP adapter and DataSource...');
     const httpAdapter = app.get(HttpAdapterHost);
     const dataSource = app.get(DataSource);
+    console.log('8. HTTP adapter and DataSource retrieved');
 
-    console.log('Configuring application middleware and settings...');
-
-    // Global exception filter
+    console.log('9. Configuring application middleware and settings...');
     app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
+    console.log('10. Global exception filter configured');
 
-    // Validation pipe
     app.useGlobalPipes(
       new ValidationPipe({
         transform: true,
@@ -63,19 +67,24 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
       }),
     );
+    console.log('11. Validation pipe configured');
 
     const host = configService.get('app.host') || '0.0.0.0';
     const port = configService.get('app.port') || 3000;
-
-    console.log(`Starting server on ${host}:${port}...`);
+    console.log(`12. Host and port configured: ${host}:${port}`);
     
     // Test database connection before starting the server
     try {
-      console.log('Initializing database connection...');
+      console.log('13. Starting database initialization...');
       if (!dataSource.isInitialized) {
+        console.log('14. DataSource not initialized, initializing now...');
         await dataSource.initialize();
+        console.log('15. DataSource initialization completed');
+      } else {
+        console.log('14. DataSource already initialized');
       }
       
+      console.log('16. Testing database connection...');
       // Test the connection with a timeout
       const testConnection = async () => {
         try {
@@ -94,31 +103,35 @@ async function bootstrap() {
 
       // Retry connection up to 3 times
       for (let i = 0; i < 3; i++) {
+        console.log(`17. Database connection attempt ${i + 1}/3`);
         if (await testConnection()) {
-          console.log('Database connection verified successfully');
+          console.log('18. Database connection verified successfully');
           break;
         }
         if (i === 2) {
           throw new Error('Failed to establish database connection after 3 attempts');
         }
-        console.log(`Retrying database connection (attempt ${i + 2}/3)...`);
+        console.log(`Retrying database connection in 5 seconds...`);
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
 
       // Test Redis connection
-      console.log('Testing Redis connection...');
+      console.log('19. Starting Redis connection test...');
       const cacheManager = app.get('CACHE_MANAGER');
+      console.log('20. Cache manager retrieved');
+      
       try {
+        console.log('21. Testing Redis connection with timeout...');
         await Promise.race([
           cacheManager.set('test-key', 'test-value'),
           new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Redis connection timeout')), 10000)
           )
         ]);
-        console.log('Redis connection verified successfully');
+        console.log('22. Redis connection verified successfully');
       } catch (error) {
-        console.error('Warning: Redis connection failed:', error);
-        console.log('Continuing startup despite Redis connection failure...');
+        console.error('23. Warning: Redis connection failed:', error);
+        console.log('24. Continuing startup despite Redis connection failure...');
       }
 
     } catch (error) {
@@ -126,7 +139,7 @@ async function bootstrap() {
       throw error;
     }
 
-    console.log('All service connections verified, starting HTTP server...');
+    console.log('25. All service connections verified, starting HTTP server...');
 
     // Start the server with a graceful shutdown handler and increased timeouts
     const server = await app.listen(port, host, () => {
