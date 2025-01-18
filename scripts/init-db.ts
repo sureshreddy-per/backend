@@ -77,6 +77,64 @@ async function initializeDatabase() {
     const batchSize = 3;
     const processedTables = new Set();
 
+    // Helper function to convert TypeORM type to PostgreSQL type
+    function getPostgresType(column: any): string {
+      const type = column.type?.toLowerCase() || '';
+      
+      // Handle special cases
+      switch(type) {
+        case 'uuid':
+          return 'uuid';
+        case 'varchar':
+        case 'string':
+          return column.length ? `varchar(${column.length})` : 'text';
+        case 'int':
+        case 'integer':
+          return 'integer';
+        case 'float':
+        case 'double':
+          return 'double precision';
+        case 'datetime':
+        case 'timestamp':
+          return 'timestamp';
+        case 'boolean':
+          return 'boolean';
+        case 'json':
+        case 'jsonb':
+          return 'jsonb';
+        case 'enum':
+          // Create enum type if it doesn't exist
+          const enumName = `${column.entityMetadata.tableName}_${column.databaseName}_enum`;
+          const enumValues = column.enum?.map((val: string) => `'${val}'`).join(', ');
+          return enumName;
+        default:
+          return type;
+      }
+    }
+
+    // Helper function to get default value
+    function getDefaultValue(column: any): string {
+      if (!column.default) return '';
+      
+      if (column.default === 'uuid_generate_v4()') {
+        return "DEFAULT uuid_generate_v4()";
+      }
+      
+      if (column.default === 'now()') {
+        return "DEFAULT CURRENT_TIMESTAMP";
+      }
+      
+      if (typeof column.default === 'string') {
+        return `DEFAULT '${column.default}'`;
+      }
+      
+      if (typeof column.default === 'number' || typeof column.default === 'boolean') {
+        return `DEFAULT ${column.default}`;
+      }
+      
+      return '';
+    }
+
     for (let i = 0; i < uniqueEntities.length; i += batchSize) {
       const batch = uniqueEntities.slice(i, i + batchSize);
       console.log(`[DB Init] Processing batch ${Math.floor(i/batchSize) + 1}/${Math.ceil(uniqueEntities.length/batchSize)}`);
@@ -102,21 +160,35 @@ async function initializeDatabase() {
                 // Create schema if it doesn't exist
                 await queryRunner.createSchema(entity.schema || 'public', true);
                 
-                // Create table using direct SQL
-                const metadata = AppDataSource.getMetadata(entity.target);
-                const tablePath = metadata.tablePath;
-                const columns = metadata.columns
+                // Create enums first if needed
+                for (const column of entity.columns) {
+                  if (column.type === 'enum') {
+                    const enumName = `${entity.tableName}_${column.databaseName}_enum`;
+                    const enumValues = column.enum?.map((val: string) => `'${val}'`).join(', ');
+                    await queryRunner.query(`
+                      DO $$
+                      BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '${enumName}') THEN
+                          CREATE TYPE ${enumName} AS ENUM (${enumValues});
+                        END IF;
+                      END$$;
+                    `);
+                  }
+                }
+                
+                // Create table
+                const columns = entity.columns
                   .map(column => {
-                    const type = column.type.toString().toLowerCase();
+                    const type = getPostgresType(column);
                     const nullable = column.isNullable ? 'NULL' : 'NOT NULL';
                     const primary = column.isPrimary ? 'PRIMARY KEY' : '';
-                    const defaultValue = column.default ? `DEFAULT ${column.default}` : '';
+                    const defaultValue = getDefaultValue(column);
                     return `"${column.databaseName}" ${type} ${nullable} ${primary} ${defaultValue}`.trim();
                   })
                   .join(',\n');
 
                 await queryRunner.query(`
-                  CREATE TABLE IF NOT EXISTS ${tablePath} (
+                  CREATE TABLE IF NOT EXISTS "${entity.tableName}" (
                     ${columns}
                   );
                 `);
