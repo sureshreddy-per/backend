@@ -30,31 +30,7 @@ DROP TABLE IF EXISTS farmers CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- Drop all enums with CASCADE to ensure all dependencies are removed
-DROP TYPE IF EXISTS user_status_enum CASCADE;
-DROP TYPE IF EXISTS produce_category_enum CASCADE;
-DROP TYPE IF EXISTS produce_status_enum CASCADE;
-DROP TYPE IF EXISTS quality_grade_enum CASCADE;
-DROP TYPE IF EXISTS assessment_source_enum CASCADE;
-DROP TYPE IF EXISTS admin_action_type_enum CASCADE;
-DROP TYPE IF EXISTS offers_status_enum CASCADE;
-DROP TYPE IF EXISTS transactions_status_enum CASCADE;
-DROP TYPE IF EXISTS media_type_enum CASCADE;
-DROP TYPE IF EXISTS media_category_enum CASCADE;
-DROP TYPE IF EXISTS notification_type_enum CASCADE;
-DROP TYPE IF EXISTS report_type_enum CASCADE;
-DROP TYPE IF EXISTS report_format_enum CASCADE;
-DROP TYPE IF EXISTS report_status_enum CASCADE;
-DROP TYPE IF EXISTS support_status_enum CASCADE;
-DROP TYPE IF EXISTS support_priority_enum CASCADE;
-DROP TYPE IF EXISTS support_category_enum CASCADE;
-DROP TYPE IF EXISTS business_metric_type_enum CASCADE;
-DROP TYPE IF EXISTS system_config_key_enum CASCADE;
-DROP TYPE IF EXISTS verified_status_enum CASCADE;
-DROP TYPE IF EXISTS ticket_type_enum CASCADE;
-DROP TYPE IF EXISTS transaction_event_enum CASCADE;
-DROP TYPE IF EXISTS inspection_request_status_enum CASCADE;
-DROP TYPE IF EXISTS metric_type_enum CASCADE;
-DROP TYPE IF EXISTS metric_category_enum CASCADE;
+-- Removing all enum drops since we're using TEXT
 
 -- Create all tables first (in dependency order)
 DROP TABLE IF EXISTS users CASCADE;
@@ -91,11 +67,6 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_users_updated_at
-    BEFORE UPDATE ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION update_users_updated_at();
-
 CREATE TABLE farmers (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id),
@@ -112,11 +83,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
-
-CREATE TRIGGER update_farmers_updated_at
-    BEFORE UPDATE ON farmers
-    FOR EACH ROW
-    EXECUTE FUNCTION update_farmers_updated_at();
 
 CREATE TABLE farms (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -142,11 +108,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
-
-CREATE TRIGGER update_farms_updated_at
-    BEFORE UPDATE ON farms
-    FOR EACH ROW
-    EXECUTE FUNCTION update_farms_updated_at();
 
 DROP TABLE IF EXISTS produce CASCADE;
 
@@ -199,11 +160,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
-
-CREATE TRIGGER update_produce_updated_at
-    BEFORE UPDATE ON produce
-    FOR EACH ROW
-    EXECUTE FUNCTION update_produce_updated_at();
 
 CREATE TABLE inspection_requests (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -455,28 +411,9 @@ CREATE TRIGGER update_transactions_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_transactions_updated_at();
 
--- Now add all foreign key constraints
-ALTER TABLE farmers
-  ADD CONSTRAINT fk_farmers_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE farms
-  ADD CONSTRAINT fk_farms_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
-
-ALTER TABLE produce
-  ADD CONSTRAINT fk_produce_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_produce_farm FOREIGN KEY (farm_id) REFERENCES farms(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_produce_inspector FOREIGN KEY (assigned_inspector) REFERENCES users(id) ON DELETE SET NULL;
-
 -- Add check constraints
 ALTER TABLE produce
-  ADD CONSTRAINT check_produce_quantity CHECK (quantity > 0),
-  ADD CONSTRAINT check_price_per_unit CHECK (price_per_unit >= 0),
-  ADD CONSTRAINT check_inspection_fee CHECK (inspection_fee >= 0);
-
--- Create indexes
-CREATE INDEX idx_users_mobile_number ON users(mobile_number);
-CREATE INDEX idx_farmers_user_id ON farmers(user_id);
-CREATE INDEX idx_farms_farmer_id ON farms(farmer_id);
+    ADD CONSTRAINT check_produce_quantity CHECK (quantity > 0);
 
 -- Create triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -499,11 +436,12 @@ CREATE TABLE media (
     size INTEGER,
     original_name TEXT,
     metadata JSONB,
+    entity_category TEXT,
+    user_id UUID REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_media_type ON media(type);
 CREATE INDEX idx_media_mime_type ON media(mime_type);
 CREATE INDEX idx_media_key ON media(key);
 
@@ -522,50 +460,16 @@ CREATE TRIGGER update_media_updated_at
 
 CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id),
   type TEXT NOT NULL,
   data JSONB NOT NULL,
   is_read BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   read_at TIMESTAMP,
-  CONSTRAINT fk_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  CONSTRAINT check_valid_notification_type CHECK (type IN (
-    'QUALITY_UPDATE',
-    'QUALITY_ASSESSMENT_COMPLETED',
-    'NEW_OFFER',
-    'NEW_AUTO_OFFER',
-    'OFFER_ACCEPTED',
-    'OFFER_REJECTED',
-    'OFFER_MODIFIED',
-    'OFFER_PRICE_MODIFIED',
-    'OFFER_APPROVED',
-    'OFFER_EXPIRED',
-    'OFFER_PRICE_UPDATE',
-    'OFFER_STATUS_UPDATE',
-    'INSPECTION_REQUEST',
-    'INSPECTION_REQUESTED',
-    'INSPECTION_COMPLETED',
-    'INSPECTION_CANCELLED',
-    'DELIVERY_WINDOW_STARTED',
-    'DELIVERY_WINDOW_EXPIRED',
-    'DELIVERY_CONFIRMED',
-    'RATING_REQUIRED',
-    'RATING_RECEIVED',
-    'TRANSACTION_UPDATE',
-    'TRANSACTION_COMPLETED',
-    'TRANSACTION_CANCELLED',
-    'PAYMENT_REQUIRED',
-    'PAYMENT_RECEIVED',
-    'ACCOUNT_STATUS_UPDATE'
-  ))
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_type ON notifications(type);
 CREATE INDEX idx_notifications_is_read ON notifications(is_read);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at);
-CREATE INDEX idx_notifications_read_at ON notifications(read_at);
-CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
 
 CREATE OR REPLACE FUNCTION update_notifications_updated_at()
 RETURNS TRIGGER AS $$
@@ -586,48 +490,17 @@ CREATE TRIGGER update_notifications_read_at
 CREATE TABLE notification_preferences (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  notification_types TEXT[] DEFAULT ARRAY[]::TEXT[],
-  email_enabled BOOLEAN DEFAULT TRUE,
-  sms_enabled BOOLEAN DEFAULT TRUE,
-  push_enabled BOOLEAN DEFAULT TRUE,
+  email_enabled BOOLEAN DEFAULT true,
+  sms_enabled BOOLEAN DEFAULT true,
+  push_enabled BOOLEAN DEFAULT true,
+  notification_types TEXT[] DEFAULT '{}',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT unique_user_notification_preferences UNIQUE (user_id),
-  CONSTRAINT check_valid_notification_types CHECK (
-    notification_types <@ ARRAY[
-      'QUALITY_UPDATE',
-      'QUALITY_ASSESSMENT_COMPLETED',
-      'NEW_OFFER',
-      'NEW_AUTO_OFFER',
-      'OFFER_ACCEPTED',
-      'OFFER_REJECTED',
-      'OFFER_MODIFIED',
-      'OFFER_PRICE_MODIFIED',
-      'OFFER_APPROVED',
-      'OFFER_EXPIRED',
-      'OFFER_PRICE_UPDATE',
-      'OFFER_STATUS_UPDATE',
-      'INSPECTION_REQUEST',
-      'INSPECTION_REQUESTED',
-      'INSPECTION_COMPLETED',
-      'INSPECTION_CANCELLED',
-      'DELIVERY_WINDOW_STARTED',
-      'DELIVERY_WINDOW_EXPIRED',
-      'DELIVERY_CONFIRMED',
-      'RATING_REQUIRED',
-      'RATING_RECEIVED',
-      'TRANSACTION_UPDATE',
-      'TRANSACTION_COMPLETED',
-      'TRANSACTION_CANCELLED',
-      'PAYMENT_REQUIRED',
-      'PAYMENT_RECEIVED',
-      'ACCOUNT_STATUS_UPDATE'
-    ]::TEXT[]
-  )
+  CONSTRAINT unique_user_notification_preferences UNIQUE (user_id)
 );
 
 CREATE INDEX idx_notification_preferences_user_id ON notification_preferences(user_id);
-CREATE INDEX idx_notification_preferences_notification_types ON notification_preferences USING GIN (notification_types);
+CREATE INDEX idx_notification_preferences_notification_types ON notification_preferences USING gin(notification_types);
 
 CREATE OR REPLACE FUNCTION update_notification_preferences_updated_at()
 RETURNS TRIGGER AS $$
@@ -667,16 +540,12 @@ CREATE TABLE support_tickets (
   priority TEXT NOT NULL DEFAULT 'MEDIUM',
   category TEXT NOT NULL,
   user_id UUID NOT NULL REFERENCES users(id),
+    assigned_to_id UUID REFERENCES users(id),
   attachments TEXT[] DEFAULT '{}',
   metadata JSONB,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_support_tickets_user_id ON support_tickets(user_id);
-CREATE INDEX idx_support_tickets_status ON support_tickets(status);
-CREATE INDEX idx_support_tickets_priority ON support_tickets(priority);
-CREATE INDEX idx_support_tickets_category ON support_tickets(category);
 
 CREATE OR REPLACE FUNCTION update_support_tickets_updated_at()
 RETURNS TRIGGER AS $$
@@ -715,19 +584,21 @@ CREATE INDEX idx_daily_prices_created_at ON daily_prices(created_at);
 CREATE INDEX idx_daily_prices_metadata ON daily_prices USING gin(metadata);
 
 CREATE TABLE business_metrics (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    type TEXT NOT NULL,
-    category TEXT NOT NULL,
-    data JSONB NOT NULL,
-    period_start TIMESTAMP NOT NULL,
-    period_end TIMESTAMP NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type VARCHAR(255) NOT NULL,
+  category VARCHAR(255) NOT NULL,
+  data JSONB NOT NULL,
+  period_start TIMESTAMP WITH TIME ZONE NOT NULL,
+  period_end TIMESTAMP WITH TIME ZONE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Indexes for better query performance
 CREATE INDEX idx_business_metrics_type ON business_metrics(type);
 CREATE INDEX idx_business_metrics_category ON business_metrics(category);
 CREATE INDEX idx_business_metrics_period ON business_metrics(period_start, period_end);
+CREATE INDEX idx_business_metrics_data ON business_metrics USING gin(data);
 
 CREATE OR REPLACE FUNCTION update_business_metrics_updated_at()
 RETURNS TRIGGER AS $$
@@ -741,6 +612,29 @@ CREATE TRIGGER update_business_metrics_updated_at
     BEFORE UPDATE ON business_metrics
     FOR EACH ROW
     EXECUTE FUNCTION update_business_metrics_updated_at();
+
+-- Drop event_metrics if it exists
+DROP TABLE IF EXISTS event_metrics CASCADE;
+
+-- Create event_metrics table
+CREATE TABLE IF NOT EXISTS event_metrics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL,
+  user_id VARCHAR(255),
+  entity_id VARCHAR(255),
+  entity_type VARCHAR(255),
+  processing_time NUMERIC,
+  value DECIMAL(10,2),
+  metadata JSONB,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create indexes for event_metrics
+CREATE INDEX IF NOT EXISTS idx_event_metrics_type ON event_metrics(type);
+CREATE INDEX IF NOT EXISTS idx_event_metrics_created_at ON event_metrics(created_at);
+CREATE INDEX IF NOT EXISTS idx_event_metrics_user_id ON event_metrics(user_id);
+CREATE INDEX IF NOT EXISTS idx_event_metrics_entity_id ON event_metrics(entity_id);
+CREATE INDEX IF NOT EXISTS idx_event_metrics_metadata ON event_metrics USING gin(metadata);
 
 DROP TABLE IF EXISTS ratings CASCADE;
 
@@ -830,10 +724,6 @@ CREATE TRIGGER update_inspection_distance_fee_config_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_inspection_distance_fee_config_updated_at();
 
--- Drop existing constraints before adding new ones
-ALTER TABLE produce DROP CONSTRAINT IF EXISTS check_produce_quantity;
-ALTER TABLE produce DROP CONSTRAINT IF EXISTS check_price_per_unit;
-ALTER TABLE produce DROP CONSTRAINT IF EXISTS check_inspection_fee;
 
 -- Now add all foreign key constraints
 ALTER TABLE farmers
@@ -877,9 +767,6 @@ ALTER TABLE notifications
 ALTER TABLE support_tickets
   ADD CONSTRAINT fk_support_tickets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE daily_prices
-  ADD CONSTRAINT fk_daily_prices_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE;
-
 ALTER TABLE ratings
   ADD CONSTRAINT fk_ratings_transaction FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_ratings_rating_user FOREIGN KEY (rating_user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -888,49 +775,8 @@ ALTER TABLE ratings
 ALTER TABLE bank_accounts
   ADD CONSTRAINT fk_bank_accounts_farmer FOREIGN KEY (farmer_id) REFERENCES farmers(id) ON DELETE CASCADE;
 
--- Add check constraints
-ALTER TABLE produce
-  ADD CONSTRAINT check_produce_quantity CHECK (quantity > 0),
-  ADD CONSTRAINT check_price_per_unit CHECK (price_per_unit >= 0),
-  ADD CONSTRAINT check_inspection_fee CHECK (inspection_fee >= 0);
-
-ALTER TABLE offers
-  ADD CONSTRAINT check_price_per_unit CHECK (price_per_unit >= 0),
-  ADD CONSTRAINT check_quantity CHECK (quantity > 0),
-  ADD CONSTRAINT check_distance CHECK (distance_km >= 0),
-  ADD CONSTRAINT check_inspection_fee CHECK (inspection_fee >= 0);
-
-ALTER TABLE transactions
-  ADD CONSTRAINT check_final_price CHECK (final_price >= 0),
-  ADD CONSTRAINT check_final_quantity CHECK (final_quantity > 0);
-
-ALTER TABLE quality_assessments
-  ADD CONSTRAINT check_confidence_level CHECK (confidence_level >= 0 AND confidence_level <= 100);
-
-ALTER TABLE daily_prices
-  ADD CONSTRAINT check_min_price CHECK (min_price >= 0),
-  ADD CONSTRAINT check_max_price CHECK (max_price >= min_price),
-  ADD CONSTRAINT check_minimum_quantity CHECK (minimum_quantity > 0);
-
-ALTER TABLE business_metrics
-  ADD CONSTRAINT check_processing_time CHECK (processing_time >= 0),
-  ADD CONSTRAINT check_value CHECK (value >= 0);
-
-ALTER TABLE inspection_distance_fee_config
-  ADD CONSTRAINT check_min_distance CHECK (min_distance >= 0),
-  ADD CONSTRAINT check_max_distance CHECK (max_distance > min_distance),
-  ADD CONSTRAINT check_fee CHECK (fee >= 0);
-
 -- Create indexes for performance
-CREATE INDEX idx_users_mobile_number ON users(mobile_number);
-CREATE INDEX idx_farmers_user_id ON farmers(user_id);
-CREATE INDEX idx_farms_farmer_id ON farms(farmer_id);
-CREATE INDEX idx_produce_farmer_id ON produce(farmer_id);
-CREATE INDEX idx_produce_farm_id ON produce(farm_id);
-CREATE INDEX idx_produce_status ON produce(status);
 CREATE INDEX idx_produce_category ON produce(produce_category);
-CREATE INDEX idx_produce_location ON produce(location);
-CREATE INDEX idx_produce_assigned_inspector ON produce(assigned_inspector);
 CREATE INDEX idx_produce_farmer_status ON produce(farmer_id, status);
 CREATE INDEX idx_produce_category_status ON produce(produce_category, status);
 
@@ -941,26 +787,13 @@ CREATE INDEX idx_quality_assessments_request ON quality_assessments(inspection_r
 CREATE INDEX idx_inspection_requests_produce ON inspection_requests(produce_id);
 CREATE INDEX idx_inspection_requests_inspector ON inspection_requests(inspector_id);
 
-CREATE INDEX idx_offers_produce_id ON offers(produce_id);
-CREATE INDEX idx_offers_buyer_id ON offers(buyer_id);
-CREATE INDEX idx_offers_farmer_id ON offers(farmer_id);
-CREATE INDEX idx_offers_status ON offers(status);
 CREATE INDEX idx_offers_status_valid_until ON offers(status, valid_until);
 CREATE INDEX idx_offers_farmer_status ON offers(farmer_id, status);
 CREATE INDEX idx_offers_produce_status ON offers(produce_id, status);
 CREATE INDEX idx_offers_auto_generated ON offers(is_auto_generated);
 
-CREATE INDEX idx_transactions_offer_id ON transactions(offer_id);
-CREATE INDEX idx_transactions_produce_id ON transactions(produce_id);
-CREATE INDEX idx_transactions_buyer_id ON transactions(buyer_id);
-CREATE INDEX idx_transactions_farmer_id ON transactions(farmer_id);
-CREATE INDEX idx_transactions_status ON transactions(status);
 CREATE INDEX idx_transactions_dates ON transactions(delivery_window_starts_at, delivery_window_ends_at);
-CREATE INDEX idx_transactions_rating ON transactions(requires_rating, rating_completed);
 
-CREATE INDEX idx_buyer_preferences_buyer_id ON buyer_preferences(buyer_id);
-
-CREATE INDEX idx_media_entity ON media(entity_id);
 CREATE INDEX idx_media_user ON media(user_id);
 
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
@@ -977,16 +810,6 @@ CREATE INDEX idx_support_tickets_user_id ON support_tickets(user_id);
 CREATE INDEX idx_support_tickets_status ON support_tickets(status);
 CREATE INDEX idx_support_tickets_assigned ON support_tickets(assigned_to_id);
 
-CREATE INDEX idx_daily_prices_buyer_id ON daily_prices(buyer_id);
-CREATE INDEX idx_daily_prices_category ON daily_prices(produce_category);
-CREATE INDEX idx_daily_prices_validity ON daily_prices(valid_from, valid_until);
-CREATE INDEX idx_daily_prices_buyer_category ON daily_prices(buyer_id, produce_category);
-
-CREATE INDEX idx_business_metrics_type ON business_metrics(type);
-CREATE INDEX idx_business_metrics_user ON business_metrics(user_id);
-CREATE INDEX idx_business_metrics_type_date ON business_metrics(type, created_at);
-CREATE INDEX idx_business_metrics_entity ON business_metrics(entity_type, entity_id);
-
 CREATE INDEX idx_ratings_transaction ON ratings(transaction_id);
 CREATE INDEX idx_ratings_users ON ratings(rating_user_id, rated_user_id);
 
@@ -1002,11 +825,6 @@ END;
 $$ language 'plpgsql';
 
 -- Add triggers for all tables
-CREATE TRIGGER update_users_updated_at
-    BEFORE UPDATE ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
 CREATE TRIGGER update_farmers_updated_at
     BEFORE UPDATE ON farmers
     FOR EACH ROW
@@ -1022,41 +840,6 @@ CREATE TRIGGER update_produce_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_quality_assessments_updated_at
-    BEFORE UPDATE ON quality_assessments
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_inspection_requests_updated_at
-    BEFORE UPDATE ON inspection_requests
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_buyers_updated_at
-    BEFORE UPDATE ON buyers
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_buyer_preferences_updated_at
-    BEFORE UPDATE ON buyer_preferences
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_offers_updated_at
-    BEFORE UPDATE ON offers
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_transactions_updated_at
-    BEFORE UPDATE ON transactions
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_media_updated_at
-    BEFORE UPDATE ON media
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
 CREATE TRIGGER update_notifications_updated_at
     BEFORE UPDATE ON notifications
     FOR EACH ROW
@@ -1067,35 +850,19 @@ CREATE TRIGGER update_reports_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_support_tickets_updated_at
-    BEFORE UPDATE ON support_tickets
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
 CREATE TRIGGER update_daily_prices_updated_at
     BEFORE UPDATE ON daily_prices
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_business_metrics_updated_at
-    BEFORE UPDATE ON business_metrics
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
--- Update media table
-ALTER TABLE media
-ADD COLUMN type TEXT NOT NULL DEFAULT 'IMAGE',
-ADD COLUMN entity_category TEXT;
-
 -- Update notifications table
 ALTER TABLE notifications
-ADD COLUMN read_at TIMESTAMP;
+ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id),
+ADD COLUMN IF NOT EXISTS read_at TIMESTAMP;
 
 -- Update support_tickets table
 ALTER TABLE support_tickets
-ADD COLUMN priority TEXT NOT NULL DEFAULT 'MEDIUM',
-ADD COLUMN category TEXT NOT NULL,
-ADD COLUMN attachments TEXT[] DEFAULT ARRAY[]::TEXT[];
+ADD COLUMN IF NOT EXISTS assigned_to_id UUID REFERENCES users(id);
 
 -- Add missing indexes
 CREATE INDEX idx_media_type ON media(type);
@@ -1103,13 +870,6 @@ CREATE INDEX idx_media_entity_category ON media(entity_category);
 CREATE INDEX idx_notifications_read_at ON notifications(read_at);
 CREATE INDEX idx_support_tickets_priority ON support_tickets(priority);
 CREATE INDEX idx_support_tickets_category ON support_tickets(category);
-CREATE INDEX idx_users_roles ON users(roles);
-CREATE INDEX idx_users_is_verified ON users(is_verified);
-CREATE INDEX idx_users_is_blocked ON users(is_blocked);
-CREATE INDEX idx_users_is_farmer ON users(is_farmer);
-CREATE INDEX idx_users_is_buyer ON users(is_buyer);
-CREATE INDEX idx_users_is_admin ON users(is_admin);
-CREATE INDEX idx_users_is_quality_inspector ON users(is_quality_inspector);
 
 -- Create transaction history table
 CREATE TABLE transaction_history (
@@ -1250,18 +1010,6 @@ CREATE TABLE admin_audit_logs (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create inspectors table
-CREATE TABLE inspectors (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name VARCHAR(255) NOT NULL,
-  location VARCHAR(255) NOT NULL,
-  mobile_number VARCHAR(20) NOT NULL,
-  user_id UUID NOT NULL REFERENCES users(id),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-);
-
 -- Create Report table
 CREATE TABLE IF NOT EXISTS report (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -1298,4 +1046,235 @@ CREATE TABLE IF NOT EXISTS request_metrics (
 
 -- Add constraint to ensure lat_lng uses comma format
 ALTER TABLE buyers
-ADD CONSTRAINT check_lat_lng_format CHECK (lat_lng !~ '-');
+ADD CONSTRAINT check_lat_lng_format CHECK (location ~ '^-?\d+(\.\d+)?,-?\d+(\.\d+)?$');
+
+-- Fix media table
+ALTER TABLE media 
+ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'IMAGE',
+ADD COLUMN IF NOT EXISTS entity_category TEXT;
+
+-- Fix support_tickets table
+ALTER TABLE support_tickets
+ADD COLUMN IF NOT EXISTS assigned_to_id UUID REFERENCES users(id);
+
+-- Fix location constraint for buyers
+ALTER TABLE buyers
+DROP CONSTRAINT IF EXISTS check_location_format,
+ADD CONSTRAINT check_location_format CHECK (location ~ '^-?\d+(\.\d+)?,-?\d+(\.\d+)?$');
+
+-- Drop and recreate inspectors table to avoid conflicts
+DROP TABLE IF EXISTS inspectors CASCADE;
+CREATE TABLE inspectors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  location VARCHAR(255) NOT NULL,
+  mobile_number VARCHAR(20) NOT NULL,
+  user_id UUID NOT NULL REFERENCES users(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Fix report table indexes
+CREATE INDEX IF NOT EXISTS idx_report_user_id ON report(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_status ON report(status);
+CREATE INDEX IF NOT EXISTS idx_report_scheduled_time ON report(scheduled_time);
+
+-- Drop and recreate indexes with IF NOT EXISTS
+DROP INDEX IF EXISTS idx_notifications_user_id;
+DROP INDEX IF EXISTS idx_notifications_type;
+DROP INDEX IF EXISTS idx_notifications_user_read;
+DROP INDEX IF EXISTS idx_support_tickets_user_id;
+DROP INDEX IF EXISTS idx_support_tickets_status;
+DROP INDEX IF EXISTS idx_report_status;
+
+-- Fix notifications table
+ALTER TABLE notifications 
+ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id),
+ADD COLUMN IF NOT EXISTS read_at TIMESTAMP;
+
+-- Fix media table
+ALTER TABLE media 
+ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'IMAGE',
+ADD COLUMN IF NOT EXISTS entity_category TEXT;
+
+-- Fix support_tickets table
+ALTER TABLE support_tickets 
+ADD COLUMN IF NOT EXISTS assigned_to_id UUID REFERENCES users(id);
+
+-- Fix report table
+ALTER TABLE report 
+ADD COLUMN IF NOT EXISTS status TEXT;
+
+-- Create indexes
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_report_status ON report(status);
+
+-- Create notification_preferences table
+DROP TABLE IF EXISTS notification_preferences CASCADE;
+
+CREATE TABLE notification_preferences (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email_enabled BOOLEAN DEFAULT true,
+  sms_enabled BOOLEAN DEFAULT true,
+  push_enabled BOOLEAN DEFAULT true,
+  notification_types TEXT[] DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT unique_user_notification_preferences UNIQUE (user_id)
+);
+
+CREATE INDEX idx_notification_preferences_user_id ON notification_preferences(user_id);
+CREATE INDEX idx_notification_preferences_notification_types ON notification_preferences USING gin(notification_types);
+
+-- Update buyer_preferences table
+ALTER TABLE buyer_preferences
+ADD COLUMN IF NOT EXISTS produce_price_preferences JSONB DEFAULT '[]',
+ADD COLUMN IF NOT EXISTS last_price_updated TIMESTAMP WITH TIME ZONE;
+
+-- Update support_tickets table to use TEXT instead of enums
+ALTER TABLE support_tickets
+ALTER COLUMN status TYPE TEXT,
+ALTER COLUMN priority TYPE TEXT,
+ALTER COLUMN category TYPE TEXT;
+
+-- Update produce table to use TEXT
+ALTER TABLE produce
+ALTER COLUMN produce_category TYPE TEXT;
+
+-- Update notifications table to use TEXT
+ALTER TABLE notifications
+ALTER COLUMN type TYPE TEXT;
+
+-- Remove enum-related constraints from notification_preferences
+ALTER TABLE notification_preferences
+DROP CONSTRAINT IF EXISTS check_valid_notification_types;
+
+-- Remove notification type validation trigger
+DROP TRIGGER IF EXISTS validate_notification_types_trigger ON notification_preferences;
+DROP FUNCTION IF EXISTS validate_notification_types();
+
+-- Remove enum creation blocks
+-- Remove all DO $$ BEGIN CREATE TYPE ... END $$ blocks
+
+-- Remove all duplicate index creations
+DROP INDEX IF EXISTS idx_notifications_user_id;
+DROP INDEX IF EXISTS idx_notifications_type;
+DROP INDEX IF EXISTS idx_notifications_user_read;
+DROP INDEX IF EXISTS idx_support_tickets_user_id;
+DROP INDEX IF EXISTS idx_support_tickets_status;
+DROP INDEX IF EXISTS idx_media_entity_category;
+DROP INDEX IF EXISTS idx_report_user_id;
+DROP INDEX IF EXISTS idx_report_status;
+DROP INDEX IF EXISTS idx_report_scheduled_time;
+
+-- Create indexes only once
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user_id ON support_tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_status ON support_tickets(status);
+CREATE INDEX IF NOT EXISTS idx_media_entity_category ON media(entity_category);
+CREATE INDEX IF NOT EXISTS idx_report_user_id ON report(user_id);
+CREATE INDEX IF NOT EXISTS idx_report_status ON report(status);
+CREATE INDEX IF NOT EXISTS idx_report_scheduled_time ON report(scheduled_time);
+
+-- Remove all duplicate trigger creations
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+DROP TRIGGER IF EXISTS update_farmers_updated_at ON farmers;
+DROP TRIGGER IF EXISTS update_farms_updated_at ON farms;
+DROP TRIGGER IF EXISTS update_produce_updated_at ON produce;
+DROP TRIGGER IF EXISTS update_quality_assessments_updated_at ON quality_assessments;
+DROP TRIGGER IF EXISTS update_inspection_requests_updated_at ON inspection_requests;
+DROP TRIGGER IF EXISTS update_support_tickets_updated_at ON support_tickets;
+DROP TRIGGER IF EXISTS update_business_metrics_updated_at ON business_metrics;
+
+-- Create triggers only once
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_farmers_updated_at
+    BEFORE UPDATE ON farmers
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_farms_updated_at
+    BEFORE UPDATE ON farms
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_produce_updated_at
+    BEFORE UPDATE ON produce
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_quality_assessments_updated_at
+    BEFORE UPDATE ON quality_assessments
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_inspection_requests_updated_at
+    BEFORE UPDATE ON inspection_requests
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_support_tickets_updated_at
+    BEFORE UPDATE ON support_tickets
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_business_metrics_updated_at
+    BEFORE UPDATE ON business_metrics
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Remove duplicate table creations
+DROP TABLE IF EXISTS inspectors CASCADE;
+DROP TABLE IF EXISTS report CASCADE;
+DROP TABLE IF EXISTS request_metrics CASCADE;
+
+-- Create tables only once
+CREATE TABLE IF NOT EXISTS inspectors (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    location VARCHAR(255) NOT NULL,
+    mobile_number VARCHAR(20) NOT NULL,
+    user_id UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS report (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    report_type TEXT NOT NULL,
+    format TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'DRAFT',
+    parameters JSONB,
+    file_url VARCHAR(255),
+    file_size INTEGER,
+    summary TEXT,
+    error_message TEXT,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    scheduled_time TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS request_metrics (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id),
+    endpoint TEXT NOT NULL,
+    method TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    response_time INTEGER NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
