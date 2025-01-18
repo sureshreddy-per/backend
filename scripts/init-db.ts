@@ -12,18 +12,26 @@ async function initializeDatabase() {
     await AppDataSource.synchronize(false);
     console.log("Database schema created");
 
-    // Run extensions script
+    // Run essential extensions first
+    console.log("Initializing essential extensions...");
     await AppDataSource.query(`
       -- Enable UUID extension
       CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
       
-      -- Enable PostGIS extension if needed
-      CREATE EXTENSION IF NOT EXISTS postgis;
-      
       -- Enable pg_trgm for text search operations
       CREATE EXTENSION IF NOT EXISTS pg_trgm;
     `);
-    console.log("Database extensions initialized");
+    console.log("Essential extensions initialized");
+
+    // Try to enable PostGIS if available
+    try {
+      console.log("Attempting to enable PostGIS extension...");
+      await AppDataSource.query(`CREATE EXTENSION IF NOT EXISTS postgis;`);
+      console.log("PostGIS extension initialized successfully");
+    } catch (error) {
+      console.warn("PostGIS extension not available. Skipping...");
+      // Continue execution as PostGIS is optional
+    }
 
     await AppDataSource.destroy();
     console.log("Database initialization completed successfully");
