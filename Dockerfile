@@ -59,10 +59,14 @@ COPY scripts ./scripts
 COPY scripts/wait-for.sh /usr/local/bin/wait-for
 RUN chmod +x /usr/local/bin/wait-for
 
-# Create startup script
+# Create startup script that extracts host and port from DATABASE_URL
 RUN echo '#!/bin/sh\n\
-echo "Waiting for database..."\n\
-wait-for ${DB_HOST}:${DB_PORT} -t 30\n\
+echo "Extracting database connection info from DATABASE_URL..."\n\
+DB_HOST=$(echo $DATABASE_URL | sed -n "s/.*@\(.*\):.*/\1/p")\n\
+DB_PORT=$(echo $DATABASE_URL | sed -n "s/.*:\([0-9]*\)\/.*/\1/p")\n\
+\n\
+echo "Waiting for database at $DB_HOST:$DB_PORT..."\n\
+wait-for $DB_HOST:$DB_PORT -t 30\n\
 \n\
 echo "Running database initialization..."\n\
 node dist/scripts/init-db.js\n\
