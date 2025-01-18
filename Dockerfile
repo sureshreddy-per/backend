@@ -34,7 +34,7 @@ RUN npm run build
 FROM node:18-alpine
 
 # Install necessary tools
-RUN apk add --no-cache wget curl netcat-openbsd
+RUN apk add --no-cache wget curl netcat-openbsd bash postgresql-client
 
 WORKDIR /app
 
@@ -51,12 +51,25 @@ COPY package*.json ./
 ENV NODE_ENV=production
 RUN npm ci --only=production
 
-# Copy built application
+# Copy built application and scripts
 COPY --from=builder /app/dist ./dist
+COPY scripts ./scripts
 
 # Copy wait-for script
 COPY scripts/wait-for.sh /usr/local/bin/wait-for
 RUN chmod +x /usr/local/bin/wait-for
+
+# Create startup script
+RUN echo '#!/bin/sh\n\
+echo "Waiting for database..."\n\
+wait-for ${DB_HOST}:${DB_PORT} -t 30\n\
+\n\
+echo "Running database initialization..."\n\
+node dist/scripts/init-db.js\n\
+\n\
+echo "Starting application..."\n\
+exec node dist/main' > /app/start.sh && \
+    chmod +x /app/start.sh
 
 # Switch to non-root user
 USER appuser
@@ -69,9 +82,9 @@ ENV NODE_OPTIONS="--max-old-space-size=2048 --max-http-header-size=16384"
 # Expose port
 EXPOSE 3000
 
-# Add healthcheck
-HEALTHCHECK --interval=30s --timeout=3s \
+# Add healthcheck with longer interval and timeout
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
-# Start the application with wait-for script
-CMD ["sh", "-c", "wait-for ${DB_HOST}:${DB_PORT} -- node dist/main"] 
+# Start the application with the startup script
+CMD ["/app/start.sh"] 
