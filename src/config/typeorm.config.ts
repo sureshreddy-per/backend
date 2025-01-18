@@ -29,6 +29,7 @@ import { RequestMetric } from "../metrics/entities/request-metric.entity";
 import { ConfigAuditLog } from "./entities/config-audit-log.entity";
 import { BuyerPreferences } from "../buyers/entities/buyer-preferences.entity";
 import { NotificationPreferences } from "../notifications/entities/notification-preferences.entity";
+import * as path from 'path';
 
 config();
 
@@ -71,12 +72,14 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
   entities,
-  synchronize: process.env.NODE_ENV === 'development',
+  synchronize: false,
   logging: process.env.NODE_ENV === 'development',
   autoLoadEntities: true,
   retryAttempts: 10,
   retryDelay: 3000,
   keepConnectionAlive: true,
+  migrations: [path.join(__dirname, '../migrations/*{.ts,.js}')],
+  migrationsRun: true,
 };
 
 export default typeOrmConfig;
