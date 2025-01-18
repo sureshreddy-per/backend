@@ -5,11 +5,34 @@ import * as path from 'path';
 export class InitialSchema1710336000000 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<void> {
         try {
-            // Read the SQL file
-            const sqlContent = fs.readFileSync(
-                path.join(__dirname, '../../create_tables.sql'),
-                'utf8'
-            );
+            // Try multiple possible locations for the SQL file
+            const possiblePaths = [
+                path.join(__dirname, '../../create_tables.sql'), // Development
+                path.join(process.cwd(), 'create_tables.sql'),  // Production root
+                path.join(process.cwd(), 'dist/create_tables.sql'), // Production dist
+            ];
+
+            let sqlContent: string | null = null;
+            let usedPath: string | null = null;
+
+            // Try each path until we find the file
+            for (const filePath of possiblePaths) {
+                try {
+                    if (fs.existsSync(filePath)) {
+                        sqlContent = fs.readFileSync(filePath, 'utf8');
+                        usedPath = filePath;
+                        break;
+                    }
+                } catch (err) {
+                    console.log(`Could not read from ${filePath}`);
+                }
+            }
+
+            if (!sqlContent) {
+                throw new Error(`Could not find create_tables.sql in any of these locations: ${possiblePaths.join(', ')}`);
+            }
+
+            console.log(`Found SQL file at: ${usedPath}`);
 
             // Split the SQL content into individual statements
             const statements = sqlContent

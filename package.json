@@ -7,7 +7,8 @@
   "license": "MIT",
   "scripts": {
     "prebuild": "rimraf dist",
-    "build": "nest build",
+    "build": "nest build && npm run copy-assets",
+    "copy-assets": "ts-node scripts/copy-assets.ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "start": "nest start",
