@@ -312,7 +312,7 @@ Below is a conceptual diagram showing major components and interactions:
 - **Version Control**: Use Git with a standard branching strategy (e.g., GitFlow).  
 - **Build & Test**: Automated unit and integration tests run on each pull request.  
 - **Security Scans**: Tools like SonarQube or Snyk for code analysis and vulnerability checks.  
-- **Deploy**: Containerize services (Docker), orchestrate with Kubernetes or ECS, or a simpler environment if not at scale.
+- **Deploy**: Use your preferred deployment platform (AWS, GCP, Azure, etc.) with appropriate scaling and monitoring setup.
 
 ### 7.3 Monitoring & Logging
 

@@ -1,4 +1,3 @@
-
 # Backend System Requirements
 
 ## 1. Architectural & Technical Requirements
@@ -172,3 +171,11 @@
 5. **Deployment**  
    - Containerization (Docker) recommended for consistent deployments.  
    - Use orchestration (Kubernetes, ECS, etc.) if you anticipate high scale.
+
+## Deployment Requirements
+
+- Node.js runtime environment
+- PostgreSQL database
+- Redis for caching and session management
+- Proper security measures for production deployment
+- Regular backups and monitoring

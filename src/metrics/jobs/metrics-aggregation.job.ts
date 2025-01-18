@@ -1,128 +1,139 @@
 import { Injectable } from "@nestjs/common";
-import { Cron, CronExpression } from "@nestjs/schedule";
-import { BusinessMetricsService } from "../services/business-metrics.service";
-import { BusinessMetricType } from "../entities/business-metric.entity";
+import { EventMetricsService } from "../services/event-metrics.service";
+import { EventMetricType } from "../entities/event-metric.entity";
+import { Cron } from "@nestjs/schedule";
 
 @Injectable()
 export class MetricsAggregationJob {
   constructor(
-    private readonly businessMetricsService: BusinessMetricsService,
+    private readonly eventMetricsService: EventMetricsService,
   ) {}
 
-  @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
-  async aggregateMetrics() {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-
+  @Cron("0 0 * * *") // Run at midnight every day
+  async aggregateDailyMetrics() {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
 
-    // Aggregate user metrics
-    const userMetrics = await Promise.all([
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.USER_REGISTRATION,
+    // User metrics
+    const [userRegistrations, userLogins, userVerifications] = await Promise.all([
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.USER_REGISTRATION,
         yesterday,
+        today
       ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.USER_LOGIN,
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.USER_LOGIN,
         yesterday,
+        today
       ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.USER_VERIFICATION,
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.USER_VERIFICATION,
         yesterday,
+        today
       ),
     ]);
 
-    // Aggregate produce metrics
-    const produceMetrics = await Promise.all([
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.PRODUCE_LISTING,
+    // Produce metrics
+    const [produceListings, produceInspections, produceQualityUpdates] = await Promise.all([
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.PRODUCE_LISTING,
         yesterday,
+        today
       ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.PRODUCE_INSPECTION,
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.PRODUCE_INSPECTION,
         yesterday,
+        today
       ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.PRODUCE_QUALITY_UPDATE,
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.PRODUCE_QUALITY_UPDATE,
         yesterday,
-      ),
-    ]);
-
-    // Aggregate offer metrics
-    const offerMetrics = await Promise.all([
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.OFFER_CREATION,
-        yesterday,
-      ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.OFFER_ACCEPTANCE,
-        yesterday,
-      ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.OFFER_REJECTION,
-        yesterday,
-      ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.OFFER_EXPIRY,
-        yesterday,
+        today
       ),
     ]);
 
-    // Aggregate transaction metrics
-    const transactionMetrics = await Promise.all([
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.TRANSACTION_CREATION,
+    // Offer metrics
+    const [offerCreations, offerAcceptances, offerRejections, offerExpiries] = await Promise.all([
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.OFFER_CREATION,
         yesterday,
+        today
       ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.TRANSACTION_COMPLETION,
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.OFFER_ACCEPTANCE,
         yesterday,
+        today
       ),
-      this.businessMetricsService.getMetricCount(
-        BusinessMetricType.TRANSACTION_CANCELLATION,
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.OFFER_REJECTION,
         yesterday,
+        today
       ),
-      this.businessMetricsService.getValueSum(
-        BusinessMetricType.PAYMENT_PROCESSING,
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.OFFER_EXPIRY,
         yesterday,
+        today
       ),
     ]);
 
-    // Get performance metrics
+    // Transaction metrics
+    const [transactionCreations, transactionCompletions, transactionCancellations, paymentValue] = await Promise.all([
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.TRANSACTION_CREATION,
+        yesterday,
+        today
+      ),
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.TRANSACTION_COMPLETION,
+        yesterday,
+        today
+      ),
+      this.eventMetricsService.getMetricCount(
+        EventMetricType.TRANSACTION_CANCELLATION,
+        yesterday,
+        today
+      ),
+      this.eventMetricsService.getValueSum(
+        EventMetricType.PAYMENT_PROCESSING,
+        yesterday,
+        today
+      ),
+    ]);
+
+    // Performance metrics
     const [errorRates, responseTimes] = await Promise.all([
-      this.businessMetricsService.getErrorRateByPath(yesterday, today),
-      this.businessMetricsService.getResponseTimePercentiles(yesterday, today),
+      this.eventMetricsService.getErrorRateByPath(yesterday, today),
+      this.eventMetricsService.getResponseTimePercentiles(yesterday, today),
     ]);
 
-    // Store aggregated metrics
-    await this.businessMetricsService.create({
-      type: BusinessMetricType.DAILY_PRICE_UPDATE,
+    // Store daily summary
+    await this.eventMetricsService.create({
+      type: EventMetricType.DAILY_PRICE_UPDATE,
       metadata: {
         additional_info: {
-          aggregation_date: yesterday.toISOString().split("T")[0],
+          date: yesterday.toISOString().split("T")[0],
           users: {
-            registrations: userMetrics[0],
-            logins: userMetrics[1],
-            verifications: userMetrics[2],
+            registrations: userRegistrations,
+            logins: userLogins,
+            verifications: userVerifications,
           },
           produce: {
-            listings: produceMetrics[0],
-            inspections: produceMetrics[1],
-            qualityUpdates: produceMetrics[2],
+            listings: produceListings,
+            inspections: produceInspections,
+            qualityUpdates: produceQualityUpdates,
           },
           offers: {
-            created: offerMetrics[0],
-            accepted: offerMetrics[1],
-            rejected: offerMetrics[2],
-            expired: offerMetrics[3],
+            created: offerCreations,
+            accepted: offerAcceptances,
+            rejected: offerRejections,
+            expired: offerExpiries,
           },
           transactions: {
-            created: transactionMetrics[0],
-            completed: transactionMetrics[1],
-            cancelled: transactionMetrics[2],
-            totalValue: transactionMetrics[3],
+            created: transactionCreations,
+            completed: transactionCompletions,
+            cancelled: transactionCancellations,
+            totalValue: paymentValue,
           },
           performance: {
             errorRates,

@@ -75,7 +75,7 @@ Key points:
 - **Object Storage**: AWS S3 / GCP Cloud Storage (for media files)
 - **API Docs**: Swagger / OpenAPI (recommended)
 - **Authentication**: JWT, Mobile OTP
-- **Others**: Docker for containerization, message queue (optional for scale), etc.
+- **Others**: Message queue (optional for scale), etc.
 
 ---
 
@@ -172,22 +172,25 @@ Create or copy a **`.env`** file (or **config/default.json**) from **`.env.examp
 
 ## Running the Application
 
-- **Development Mode**
-  ```bash
-  npm run dev
-  ```
-  This might use something like Nodemon for auto-restart on file changes.
+1. Install dependencies:
+```bash
+npm install
+```
 
-- **Production Mode**
-  ```bash
-  npm run build
-  npm start
-  ```
-  Or if using Docker:
-  ```bash
-  docker build -t agritrade-backend .
-  docker run -p 3000:3000 --env-file .env agritrade-backend
-  ```
+2. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+3. Start the application:
+```bash
+# Development
+npm run start:dev
+
+# Production
+npm run start:prod
+```
 
 ---
 
@@ -272,49 +275,6 @@ Permission is hereby granted...
 
 **Happy Coding!** If you have any questions or issues, please open an **issue** or contact the project maintainers.
 
-# Customer-Buyer Application API
-
-## SSL Certificate Setup
-
-The application uses Let's Encrypt for SSL certificates in production. To set up SSL:
-
-1. Make sure your domain is properly configured and pointing to your server
-2. Ensure port 80 is available for the initial certificate validation
-3. Run the SSL setup script:
-
-```bash
-sudo ./scripts/setup-ssl.sh farmdeva.com
-```
-
-Or if your domain is configured in `.env.production`:
-
-```bash
-sudo ./scripts/setup-ssl.sh
-```
-
-The script will:
-- Install certbot if not already installed
-- Obtain SSL certificates from Let's Encrypt
-- Set up automatic renewal (twice daily checks)
-- Create symbolic links to certificates in the `ssl` directory
-- Configure proper permissions
-
-### Manual Certificate Renewal
-
-Certificates are automatically renewed, but you can manually renew them:
-
-```bash
-sudo certbot renew
-```
-
-### SSL Configuration
-
-SSL certificates are automatically used when running in production mode. The application will:
-- Serve HTTPS on the configured port
-- Automatically redirect HTTP to HTTPS
-- Use secure headers and HSTS
-- Apply proper SSL configuration
-
 ## Environment Setup
 
 Make sure to set these variables in your `.env.production`:
@@ -322,22 +282,19 @@ Make sure to set these variables in your `.env.production`:
 ```env
 # Application
 NODE_ENV=production
-PORT=443  # Standard HTTPS port
+PORT=3000
 
 # CORS Configuration
-ALLOWED_ORIGINS=https://farmdeva.com,https://api.farmdeva.com
+ALLOWED_ORIGINS=http://farmdeva.com,http://api.farmdeva.com
 CORS_MAX_AGE=3600
 
 # Admin Configuration
-ADMIN_USERS=admin@farmdeva.com  # Used for SSL certificate notifications
+ADMIN_USERS=admin@farmdeva.com
 ```
 
 ## Security Features
 
 The application implements several security features:
-- SSL/TLS encryption
-- HTTP to HTTPS redirection
-- Secure headers (HSTS, CSP, etc.)
 - Rate limiting
 - CORS protection
 - XSS protection
@@ -356,14 +313,9 @@ The application implements several security features:
    npm install --production
    ```
 
-3. Set up SSL certificates:
-   ```bash
-   sudo ./scripts/setup-ssl.sh farmdeva.com
-   ```
-
-4. Start the application:
+3. Start the application:
    ```bash
    npm run start:prod
    ```
 
-The application will start with SSL enabled and all security features active.
+The application will start with all security features active.

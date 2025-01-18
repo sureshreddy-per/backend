@@ -13,24 +13,30 @@ export class GcpStorageService implements StorageService {
   private readonly logger = new Logger(GcpStorageService.name);
 
   constructor(private readonly configService: ConfigService) {
-    this.bucket = this.configService.get<string>('gcp.bucket');
-    const projectId = this.configService.get<string>('gcp.projectId');
-    const keyFilePath = this.configService.get<string>('gcp.keyFilePath');
+    const gcpConfig = this.configService.get('app.gcp');
+    
+    if (!gcpConfig) {
+      throw new Error('GCP configuration is not defined');
+    }
 
-    this.logger.debug(`GCP Config - Bucket: ${this.bucket}, ProjectId: ${projectId}, KeyPath: ${keyFilePath}`);
+    this.bucket = gcpConfig.bucket;
+    const projectId = gcpConfig.projectId;
+    const credentials = gcpConfig.credentials;
 
-    if (!this.bucket || !projectId || !keyFilePath) {
+    this.logger.debug(`GCP Config - Bucket: ${this.bucket}, ProjectId: ${projectId}`);
+
+    if (!this.bucket || !projectId || !credentials) {
       const missing = [];
       if (!this.bucket) missing.push('bucket');
       if (!projectId) missing.push('projectId');
-      if (!keyFilePath) missing.push('keyFilePath');
+      if (!credentials) missing.push('credentials');
       this.logger.error(`Missing required GCP configuration: ${missing.join(', ')}`);
       throw new Error(`Missing required GCP configuration: ${missing.join(', ')}`);
     }
 
     this.storage = new Storage({
       projectId,
-      keyFilename: keyFilePath,
+      credentials,
     });
     
     this.logger.debug(`Initialized GCP Storage with bucket: ${this.bucket}`);

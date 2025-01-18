@@ -4,7 +4,7 @@ import { Repository, Between, Not, IsNull } from "typeorm";
 import {
   EventMetric,
   EventMetricType,
-} from "../entities/business-metric.entity";
+} from "../entities/event-metric.entity";
 
 @Injectable()
 export class EventMetricsService {

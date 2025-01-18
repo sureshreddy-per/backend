@@ -35,9 +35,6 @@ lerna-debug.log*
 .env.development
 .env.production
 
-# Docker
-docker-compose.override.yml
-
 # TypeScript
 *.tsbuildinfo
 

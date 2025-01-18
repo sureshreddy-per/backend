@@ -5,98 +5,141 @@ import helmet from "helmet";
 import { ConfigService } from "@nestjs/config";
 import { HttpAdapterHost } from "@nestjs/core";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
-import * as fs from 'fs';
-import * as path from 'path';
+import { DataSource } from 'typeorm';
 
 async function bootstrap() {
-  // SSL configuration for production
-  const httpsOptions = process.env.NODE_ENV === 'production' ? {
-    key: fs.readFileSync(path.join(process.cwd(), 'ssl/privkey.pem')),
-    cert: fs.readFileSync(path.join(process.cwd(), 'ssl/fullchain.pem')),
-    ca: fs.readFileSync(path.join(process.cwd(), 'ssl/chain.pem')),
-  } : undefined;
-
-  const app = await NestFactory.create(AppModule, {
-    logger: process.env.NODE_ENV === 'production'
-      ? ['error', 'warn']
-      : ['error', 'warn', 'log', 'debug'],
-    httpsOptions,
-  });
-
-  const configService = app.get(ConfigService);
-  const httpAdapter = app.get(HttpAdapterHost);
-
-  // Global exception filter
-  app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
-
-  // Configure CORS based on environment
-  app.enableCors({
-    origin: process.env.NODE_ENV === 'production'
-      ? configService.get('ALLOWED_ORIGINS')?.split(',') || ['https://farmdeva.com']
-      : true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    credentials: true,
-    maxAge: 3600,
-  });
-
-  // Enhanced security headers
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
-        scriptSrc: ["'self'"],
-        frameSrc: ["'none'"],
-        objectSrc: ["'none'"],
+  try {
+    console.log('Starting application bootstrap...');
+    const app = await NestFactory.create(AppModule);
+    const configService = app.get(ConfigService);
+    const env = configService.get('app.env');
+    
+    console.log(`Running in ${env} mode`);
+    
+    // Configure app
+    app.setGlobalPrefix('api');
+    
+    // CORS configuration
+    const corsConfig = configService.get('app.cors');
+    app.enableCors({
+      origin: corsConfig.origin,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization'],
+      exposedHeaders: ['Content-Range', 'X-Content-Range'],
+      credentials: true,
+      maxAge: corsConfig.maxAge,
+    });
+    
+    // Security headers
+    app.use(helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'http:'],
+          connectSrc: ["'self'"],
+          fontSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          mediaSrc: ["'self'"],
+          frameSrc: ["'none'"],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: true,
-    crossOriginOpenerPolicy: true,
-    crossOriginResourcePolicy: { policy: "same-site" },
-    dnsPrefetchControl: true,
-    frameguard: { action: "deny" },
-    hidePoweredBy: true,
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true,
-    },
-    ieNoOpen: true,
-    noSniff: true,
-    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-    xssFilter: true,
-  }));
+    }));
 
-  // Validation pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      transform: true,
-      whitelist: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
+    const httpAdapter = app.get(HttpAdapterHost);
+    const dataSource = app.get(DataSource);
 
-  app.setGlobalPrefix("api");
+    console.log('Configuring application middleware and settings...');
 
-  // Force HTTPS redirect in production
-  if (process.env.NODE_ENV === 'production') {
-    app.use((req, res, next) => {
-      if (req.secure) {
-        next();
-      } else {
-        res.redirect(301, `https://${req.headers.host}${req.url}`);
+    // Global exception filter
+    app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
+
+    // Validation pipe
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
+
+    const host = configService.get('app.host') || '0.0.0.0';
+    const port = configService.get('app.port') || 3000;
+
+    console.log(`Starting server on ${host}:${port}...`);
+    
+    // Test database connection before starting the server
+    try {
+      console.log('Initializing database connection...');
+      if (!dataSource.isInitialized) {
+        await dataSource.initialize();
+      }
+      
+      // Test the connection with a timeout
+      const testConnection = async () => {
+        try {
+          await Promise.race([
+            dataSource.query('SELECT 1'),
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Database connection timeout')), 10000)
+            )
+          ]);
+          return true;
+        } catch (error) {
+          console.error('Database connection test failed:', error);
+          return false;
+        }
+      };
+
+      // Retry connection up to 3 times
+      for (let i = 0; i < 3; i++) {
+        if (await testConnection()) {
+          console.log('Database connection verified successfully');
+          break;
+        }
+        if (i === 2) {
+          throw new Error('Failed to establish database connection after 3 attempts');
+        }
+        console.log(`Retrying database connection (attempt ${i + 2}/3)...`);
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+    } catch (error) {
+      console.error('Database initialization failed:', error);
+      throw error;
+    }
+
+    // Start the server with a graceful shutdown handler and increased timeouts
+    const server = await app.listen(port, host, () => {
+      console.log(`Server is running on http://${host}:${port}`);
+    });
+    
+    // Configure server timeouts
+    server.setTimeout(30000); // 30 seconds socket timeout
+    server.keepAliveTimeout = 65000; // 65 seconds keep-alive timeout
+    server.headersTimeout = 66000; // 66 seconds headers timeout
+
+    const url = await app.getUrl();
+    console.log(`Application is running on: ${url}`);
+    console.log(`Health endpoint available at: ${url}/api/health`);
+    console.log(`Environment: ${env}`);
+
+    // Handle graceful shutdown
+    process.on('SIGTERM', async () => {
+      console.log('Received SIGTERM signal. Starting graceful shutdown...');
+      try {
+        await server.close();
+        await dataSource.destroy();
+        console.log('Server and database connections closed.');
+        process.exit(0);
+      } catch (error) {
+        console.error('Error during graceful shutdown:', error);
+        process.exit(1);
       }
     });
-  }
-
-  const port = process.env.PORT || 3000;
-  await app.listen(port);
-
-  console.log(`Application is running on: ${await app.getUrl()}`);
-  if (process.env.NODE_ENV === 'production') {
-    console.log(`SSL is ${httpsOptions ? 'enabled' : 'disabled'}`);
+  } catch (error) {
+    console.error('Error starting application:', error);
+    process.exit(1);
   }
 }
 
