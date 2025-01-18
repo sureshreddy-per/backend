@@ -6,21 +6,26 @@ RUN apk add --no-cache python3 make g++
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-USER appuser
+# Create non-root user and set proper permissions
+RUN addgroup -S appgroup && \
+    adduser -S appuser -G appgroup && \
+    mkdir -p /app/node_modules && \
+    chown -R appuser:appgroup /app
 
 # Copy package files for better caching
-COPY --chown=appuser:appgroup package*.json ./
-COPY --chown=appuser:appgroup tsconfig*.json ./
-COPY --chown=appuser:appgroup package-lock.json ./
+COPY package*.json ./
+COPY tsconfig*.json ./
 
 # Install dependencies with specific NODE_ENV
 ENV NODE_ENV=development
 RUN npm ci
 
 # Copy source code
-COPY --chown=appuser:appgroup . .
+COPY . .
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
 
 # Build the application
 RUN npm run build
@@ -30,26 +35,21 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-# Create necessary directories with proper permissions
-RUN mkdir -p uploads/produce/images uploads/produce/videos uploads/documents && \
+# Create non-root user and set proper permissions
+RUN addgroup -S appgroup && \
+    adduser -S appuser -G appgroup && \
+    mkdir -p /app/node_modules /app/uploads/produce/images /app/uploads/produce/videos /app/uploads/documents && \
     chown -R appuser:appgroup /app
 
 # Copy package files
-COPY --chown=appuser:appgroup package*.json ./
-COPY --chown=appuser:appgroup package-lock.json ./
+COPY package*.json ./
 
 # Install production dependencies only
 ENV NODE_ENV=production
 RUN npm ci --only=production
 
 # Copy built application
-COPY --chown=appuser:appgroup --from=builder /app/dist ./dist
-
-# Copy production configuration
-COPY --chown=appuser:appgroup --from=builder /app/src/config/production.config.ts ./dist/config/
+COPY --from=builder /app/dist ./dist
 
 # Switch to non-root user
 USER appuser
