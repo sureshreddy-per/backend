@@ -4,46 +4,58 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
     environment:
       - NODE_ENV=development
-      - PORT=3000
       - DB_HOST=postgres
       - DB_PORT=5432
-      - DB_USER=farmdeva
-      - DB_PASSWORD=farmdeva@123
-      - DB_NAME=farmdeva_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=customer_buyer_app
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - JWT_SECRET=your_jwt_secret_key
-      - OTP_SECRET=your_otp_secret_key
-      - TWILIO_ACCOUNT_SID=your_twilio_account_sid
-      - TWILIO_AUTH_TOKEN=your_twilio_auth_token
-      - TWILIO_PHONE_NUMBER=your_twilio_phone_number
+      - HOST=0.0.0.0
+      - PORT=3000
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - app-network
 
   postgres:
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=farmdeva
-      - POSTGRES_PASSWORD=farmdeva@123
-      - POSTGRES_DB=farmdeva_db
+    image: postgis/postgis:15-3.4-alpine
     ports:
       - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=customer_buyer_app
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
+      - ./scripts/init-extensions.sql:/docker-entrypoint-initdb.d/01-init-extensions.sql
+      - ./create_tables.sql:/docker-entrypoint-initdb.d/02-create-tables.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U farmdeva"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
 
   redis:
     image: redis:7-alpine
@@ -56,17 +68,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-
-  pgadmin:
-    image: dpage/pgadmin4
-    environment:
-      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
-      - PGADMIN_DEFAULT_PASSWORD=admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
+    restart: unless-stopped
+    networks:
+      - app-network
 
 volumes:
   postgres_data:
-  redis_data: 
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge 

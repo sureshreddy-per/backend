@@ -1,18 +1,16 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { ScheduleModule } from "@nestjs/schedule";
-import { BusinessMetric } from "./entities/business-metric.entity";
-import { BusinessMetricsService } from "./services/business-metrics.service";
+import { EventMetric } from "./entities/event-metric.entity";
+import { EventMetricsService } from "./services/event-metrics.service";
 import { MetricsController } from "./controllers/metrics.controller";
 import { MetricsAggregationJob } from "./jobs/metrics-aggregation.job";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([BusinessMetric]),
-    ScheduleModule.forRoot(),
+    TypeOrmModule.forFeature([EventMetric]),
   ],
-  providers: [BusinessMetricsService, MetricsAggregationJob],
   controllers: [MetricsController],
-  exports: [BusinessMetricsService],
+  providers: [EventMetricsService, MetricsAggregationJob],
+  exports: [EventMetricsService],
 })
 export class MetricsModule {}

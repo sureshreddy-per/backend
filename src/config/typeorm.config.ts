@@ -32,6 +32,37 @@ import { NotificationPreferences } from "../notifications/entities/notification-
 
 config();
 
+const entities = [
+  User,
+  Farmer,
+  Buyer,
+  Farm,
+  BankAccount,
+  Produce,
+  Offer,
+  Transaction,
+  QualityAssessment,
+  Inspector,
+  Rating,
+  Synonym,
+  Notification,
+  NotificationPreferences,
+  DailyPrice,
+  InspectionDistanceFeeConfig,
+  AdminAuditLog,
+  SystemConfig,
+  InspectionRequest,
+  BusinessMetric,
+  SupportTicket,
+  Support,
+  Ticket,
+  Media,
+  Report,
+  RequestMetric,
+  ConfigAuditLog,
+  BuyerPreferences,
+];
+
 export const typeOrmConfig: TypeOrmModuleOptions = {
   type: "postgres",
   host: process.env.DB_HOST,
@@ -39,72 +70,13 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   username: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
-  entities: [
-    User,
-    Farmer,
-    Buyer,
-    Farm,
-    BankAccount,
-    Produce,
-    Offer,
-    Transaction,
-    QualityAssessment,
-    Inspector,
-    Rating,
-    Synonym,
-    Notification,
-    NotificationPreferences,
-    DailyPrice,
-    InspectionDistanceFeeConfig,
-    AdminAuditLog,
-    SystemConfig,
-    InspectionRequest,
-    BusinessMetric,
-    SupportTicket,
-    Support,
-    Ticket,
-    Media,
-    Report,
-    RequestMetric,
-    ConfigAuditLog,
-    BuyerPreferences,
-  ],
+  entities,
   synchronize: process.env.NODE_ENV === 'development',
-  dropSchema: false,
   logging: process.env.NODE_ENV === 'development',
-  logger: process.env.NODE_ENV === 'development' ? "advanced-console" : "file",
-  maxQueryExecutionTime: 1000, // Log slow queries (>1s)
-  // Production optimizations
-  extra: {
-    // Connection pool settings
-    max: parseInt(process.env.DB_POOL_MAX || '20'), // max number of connections
-    min: parseInt(process.env.DB_POOL_MIN || '5'),  // min number of connections
-    idleTimeoutMillis: 60000, // how long a connection can be idle (1 minute)
-    connectionTimeoutMillis: 10000, // connection timeout (10 seconds)
-    maxUses: 7500, // number of times a connection can be used before being destroyed
-  },
-  ssl: process.env.NODE_ENV === 'production' ? {
-    rejectUnauthorized: false, // You might want to set this to true in production with proper SSL certs
-    ca: process.env.DB_SSL_CA,
-    key: process.env.DB_SSL_KEY,
-    cert: process.env.DB_SSL_CERT,
-  } : undefined,
-  cache: {
-    type: "redis",
-    options: {
-      host: process.env.REDIS_HOST || 'localhost',
-      port: parseInt(process.env.REDIS_PORT || '6379'),
-      password: process.env.REDIS_PASSWORD,
-      db: 0,
-      duration: 60000, // Cache duration in milliseconds (1 minute)
-    },
-    ignoreErrors: true,
-  },
-  // Retry connection settings
+  autoLoadEntities: true,
   retryAttempts: 10,
   retryDelay: 3000,
   keepConnectionAlive: true,
-  migrationsRun: false
 };
 
 export default typeOrmConfig;
@@ -112,4 +84,5 @@ export default typeOrmConfig;
 export const AppDataSource = new DataSource({
   ...typeOrmConfig,
   type: "postgres",
+  entities,
 });
