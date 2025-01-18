@@ -12,15 +12,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   constructor(private readonly configService: ConfigService) {}
 
   async onModuleInit() {
-    const redisHost = this.configService.get<string>("REDIS_HOST");
-    const redisPort = this.configService.get<number>("REDIS_PORT");
+    const redisUrl = this.configService.get<string>("REDIS_URL");
 
     // Create Redis clients
     this.client = createClient({
-      socket: {
-        host: redisHost,
-        port: redisPort,
-      },
+      url: redisUrl,
     });
 
     this.subscriber = this.client.duplicate();

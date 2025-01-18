@@ -66,11 +66,7 @@ const entities = [
 
 export const typeOrmConfig: TypeOrmModuleOptions = {
   type: "postgres",
-  host: process.env.DB_HOST || 'postgres.railway.internal',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  username: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || 'railway',
+  url: process.env.DATABASE_URL,
   entities,
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',

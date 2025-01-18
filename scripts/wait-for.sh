@@ -2,7 +2,7 @@
 
 # wait-for.sh - Wait for a host:port to be available
 
-TIMEOUT=15
+TIMEOUT=30
 QUIET=0
 
 echoerr() {
@@ -22,19 +22,24 @@ USAGE
 }
 
 wait_for() {
+  echo "Waiting for $HOST:$PORT..."
+  
   for i in `seq $TIMEOUT` ; do
+    echo "Attempt $i of $TIMEOUT..."
     nc -z "$HOST" "$PORT" > /dev/null 2>&1
     
     result=$?
     if [ $result -eq 0 ] ; then
+      echo "$HOST:$PORT is available after $i seconds"
       if [ $# -gt 0 ] ; then
+        echo "Executing command: $@"
         exec "$@"
       fi
       exit 0
     fi
     sleep 1
   done
-  echo "Operation timed out" >&2
+  echo "Operation timed out waiting for $HOST:$PORT" >&2
   exit 1
 }
 
@@ -78,4 +83,5 @@ if [ "$HOST" = "" -o "$PORT" = "" ]; then
   usage 2
 fi
 
+echo "Starting wait-for script with HOST=$HOST, PORT=$PORT, TIMEOUT=$TIMEOUT"
 wait_for "$@" 

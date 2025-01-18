@@ -45,12 +45,7 @@ import configuration from "./config/configuration";
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        socket: {
-          host: configService.get('REDIS_HOST', 'localhost'),
-          port: parseInt(configService.get('REDIS_PORT', '6379')),
-        },
-        password: configService.get('REDIS_PASSWORD'),
-        database: parseInt(configService.get('REDIS_DB', '0')),
+        url: configService.get('REDIS_URL'),
         ttl: parseInt(configService.get('REDIS_TTL', '3600')), // 1 hour default
         retryStrategy: (times: number) => {
           if (times > 10) return null;
