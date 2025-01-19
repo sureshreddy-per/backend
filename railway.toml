@@ -13,16 +13,10 @@ NODE_ENV = "production"
 PORT = "3000"
 
 # Database Configuration
-DB_HOST = "${{ Postgres.HOST }}"
-DB_PORT = "${{ Postgres.PORT }}"
-DB_USER = "${{ Postgres.USER }}"
-DB_PASSWORD = "${{ Postgres.PASSWORD }}"
-DB_NAME = "${{ Postgres.DATABASE }}"
+DATABASE_URL = "postgresql://${{ Postgres.USER }}:${{ Postgres.PASSWORD }}@${{ Postgres.HOST }}:${{ Postgres.PORT }}/${{ Postgres.DATABASE }}"
 
 # Redis Configuration
-REDIS_HOST = "${{ Redis.HOST }}"
-REDIS_PORT = "${{ Redis.PORT }}"
-REDIS_PASSWORD = "${{ Redis.PASSWORD }}"
+REDIS_URL = "redis://:${{ Redis.PASSWORD }}@${{ Redis.HOST }}:${{ Redis.PORT }}"
 CACHE_TTL = "300"
 CACHE_MAX_ITEMS = "100"
 

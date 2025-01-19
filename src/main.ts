@@ -9,13 +9,8 @@ import { DataSource } from 'typeorm';
 
 async function validateEnvironment(configService: ConfigService) {
   const requiredVars = {
-    'DB_HOST': configService.get('app.database.host'),
-    'DB_PORT': configService.get('app.database.port'),
-    'DB_USER': configService.get('app.database.username'),
-    'DB_PASSWORD': configService.get('app.database.password'),
-    'DB_NAME': configService.get('app.database.database'),
-    'REDIS_HOST': configService.get('app.redis.host'),
-    'REDIS_PORT': configService.get('app.redis.port'),
+    'DATABASE_URL': configService.get('app.database.url'),
+    'REDIS_URL': configService.get('app.redis.url'),
     'JWT_SECRET': configService.get('app.jwt.secret'),
   };
 
@@ -34,8 +29,8 @@ async function bootstrap() {
     console.log('Environment variables:', {
       NODE_ENV: process.env.NODE_ENV,
       PORT: process.env.PORT,
-      DB_HOST: process.env.DB_HOST,
-      REDIS_HOST: process.env.REDIS_HOST,
+      DATABASE_URL: process.env.DATABASE_URL ? 'Set' : 'Using constructed URL',
+      REDIS_URL: process.env.REDIS_URL ? 'Set' : 'Using constructed URL',
       ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
     });
     

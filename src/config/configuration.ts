@@ -30,22 +30,14 @@ export default registerAs('app', () => {
 
     // Database
     database: {
-      url: process.env.DATABASE_URL,
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT, 10) || 5432,
-      username: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
+      url: process.env.DATABASE_URL || `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`,
       synchronize: !isProd, // Only sync in development
       logging: !isProd,    // Only log in development
     },
 
     // Redis
     redis: {
-      url: process.env.REDIS_URL,
-      host: process.env.REDIS_HOST,
-      port: parseInt(process.env.REDIS_PORT, 10) || 6379,
-      password: process.env.REDIS_PASSWORD,
+      url: process.env.REDIS_URL || `redis://:${process.env.REDIS_PASSWORD}@${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`,
     },
 
     // Cache
