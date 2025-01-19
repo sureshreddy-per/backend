@@ -6,6 +6,7 @@ import { ConfigService } from "@nestjs/config";
 import { HttpAdapterHost } from "@nestjs/core";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { DataSource } from 'typeorm';
+import { AppDataSource } from "./config/typeorm.config";
 
 async function validateEnvironment(configService: ConfigService) {
   const requiredVars = {
@@ -33,19 +34,28 @@ async function bootstrap() {
       REDIS_URL: process.env.REDIS_URL ? 'Set' : 'Using constructed URL',
       ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
     });
+
+    // Initialize database connection first
+    if (!AppDataSource.isInitialized) {
+      console.log('2. Initializing database connection...');
+      await AppDataSource.initialize();
+      console.log('3. Database connection initialized');
+    } else {
+      console.log('2. Database already initialized');
+    }
     
     const app = await NestFactory.create(AppModule);
-    console.log('2. NestJS application created');
+    console.log('4. NestJS application created');
     
     const configService = app.get(ConfigService);
     const env = configService.get('app.env');
-    console.log(`3. Running in ${env} mode`);
+    console.log(`5. Running in ${env} mode`);
 
     // Validate environment variables
-    console.log('4. Validating environment variables...');
+    console.log('6. Validating environment variables...');
     try {
       await validateEnvironment(configService);
-      console.log('5. Environment variables validated successfully');
+      console.log('7. Environment variables validated successfully');
     } catch (error) {
       console.error('Environment validation failed:', error);
       throw error;
@@ -53,21 +63,21 @@ async function bootstrap() {
     
     // Configure app
     app.setGlobalPrefix('api');
-    console.log('6. API prefix set');
+    console.log('8. API prefix set');
     
     // CORS configuration
     const corsConfig = configService.get('app.cors');
-    console.log('7. Configuring CORS with origins:', corsConfig.origin);
+    console.log('9. Configuring CORS with origins:', corsConfig.origin);
     try {
       app.enableCors({
-        origin: corsConfig.origin || '*',  // Fallback to allow all if not configured
+        origin: corsConfig.origin || '*',
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization'],
         exposedHeaders: ['Content-Range', 'X-Content-Range'],
         credentials: true,
         maxAge: corsConfig.maxAge || 3600,
       });
-      console.log('8. CORS configured successfully');
+      console.log('10. CORS configured successfully');
     } catch (error) {
       console.error('CORS configuration failed:', error);
       throw error;
@@ -81,7 +91,7 @@ async function bootstrap() {
           scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'http:'],
-          connectSrc: ["'self'", ...corsConfig.origin], // Add CORS origins to connectSrc
+          connectSrc: ["'self'", ...corsConfig.origin],
           fontSrc: ["'self'"],
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
@@ -89,16 +99,10 @@ async function bootstrap() {
         },
       },
     }));
-    console.log('9. Security headers configured');
+    console.log('11. Security headers configured');
 
-    console.log('10. Getting HTTP adapter and DataSource...');
-    const httpAdapter = app.get(HttpAdapterHost);
-    const dataSource = app.get(DataSource);
-    console.log('11. HTTP adapter and DataSource retrieved');
-
-    console.log('12. Configuring application middleware and settings...');
-    app.useGlobalFilters(new AllExceptionsFilter(httpAdapter));
-    console.log('13. Global exception filter configured');
+    app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
+    console.log('12. Global exception filter configured');
 
     app.useGlobalPipes(
       new ValidationPipe({
@@ -107,47 +111,32 @@ async function bootstrap() {
         forbidNonWhitelisted: true,
       }),
     );
-    console.log('14. Validation pipe configured');
-
-    console.log('28. All service connections verified, starting HTTP server...');
+    console.log('13. Validation pipe configured');
 
     // Start the server with dual-stack support
-    const host = configService.get('app.host') || '::';  // '::' binds to both IPv4 and IPv6
+    const host = configService.get('app.host') || '::';
     const port = configService.get('app.port') || 3000;
-    const server = await app.listen(port, host, () => {
-      console.log(`Server is running on http://[${host}]:${port}`);
-    });
+    
+    console.log('14. Starting HTTP server...');
+    const server = await app.listen(port, host);
+    console.log(`15. Server is running on http://[${host}]:${port}`);
     
     // Configure server timeouts
-    server.setTimeout(30000); // 30 seconds socket timeout
-    server.keepAliveTimeout = 65000; // 65 seconds keep-alive timeout
-    server.headersTimeout = 66000; // 66 seconds headers timeout
+    server.setTimeout(30000);
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
 
     const url = await app.getUrl();
     console.log(`Application is running on: ${url}`);
     console.log(`Health endpoint available at: ${url}/api/health`);
     console.log(`Environment: ${env}`);
-    console.log('Configuration:', {
-      database: {
-        url: configService.get('app.database.url') ? 'Set' : 'Missing',
-        synchronize: configService.get('app.database.synchronize'),
-        logging: configService.get('app.database.logging'),
-      },
-      redis: {
-        url: configService.get('app.redis.url') ? 'Set' : 'Missing',
-      },
-      cors: {
-        origin: configService.get('app.cors.origin'),
-      },
-      features: configService.get('app.features'),
-    });
 
     // Handle graceful shutdown
     process.on('SIGTERM', async () => {
       console.log('Received SIGTERM signal. Starting graceful shutdown...');
       try {
         await server.close();
-        await dataSource.destroy();
+        await AppDataSource.destroy();
         console.log('Server and database connections closed.');
         process.exit(0);
       } catch (error) {

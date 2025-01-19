@@ -318,9 +318,12 @@ async function initializeDatabase() {
 
     // Clean up
     try {
-      await AppDataSource.destroy();
+      // Don't destroy the connection as it will be used by the main application
       console.log("[DB Init] Database initialization completed successfully");
-      process.exit(0);
+      // Exit only if running this script directly (not as part of app startup)
+      if (require.main === module) {
+        process.exit(0);
+      }
     } catch (error) {
       console.error("[DB Init] Error during cleanup:", error);
       throw error;
@@ -331,4 +334,10 @@ async function initializeDatabase() {
   }
 }
 
-initializeDatabase(); 
+// Only run initialization if this script is run directly
+if (require.main === module) {
+  initializeDatabase();
+} else {
+  // Export for use in main application
+  module.exports = initializeDatabase;
+} 
