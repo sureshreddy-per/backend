@@ -9,8 +9,13 @@ import { DataSource } from 'typeorm';
 
 async function validateEnvironment(configService: ConfigService) {
   const requiredVars = {
-    'DATABASE_URL': configService.get('app.database.url'),
-    'REDIS_URL': configService.get('app.redis.url'),
+    'DB_HOST': configService.get('app.database.host'),
+    'DB_PORT': configService.get('app.database.port'),
+    'DB_USER': configService.get('app.database.username'),
+    'DB_PASSWORD': configService.get('app.database.password'),
+    'DB_NAME': configService.get('app.database.database'),
+    'REDIS_HOST': configService.get('app.redis.host'),
+    'REDIS_PORT': configService.get('app.redis.port'),
     'JWT_SECRET': configService.get('app.jwt.secret'),
   };
 
@@ -26,6 +31,14 @@ async function validateEnvironment(configService: ConfigService) {
 async function bootstrap() {
   try {
     console.log('1. Starting application bootstrap...');
+    console.log('Environment variables:', {
+      NODE_ENV: process.env.NODE_ENV,
+      PORT: process.env.PORT,
+      DB_HOST: process.env.DB_HOST,
+      REDIS_HOST: process.env.REDIS_HOST,
+      ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+    });
+    
     const app = await NestFactory.create(AppModule);
     console.log('2. NestJS application created');
     
@@ -35,8 +48,13 @@ async function bootstrap() {
 
     // Validate environment variables
     console.log('4. Validating environment variables...');
-    await validateEnvironment(configService);
-    console.log('5. Environment variables validated');
+    try {
+      await validateEnvironment(configService);
+      console.log('5. Environment variables validated successfully');
+    } catch (error) {
+      console.error('Environment validation failed:', error);
+      throw error;
+    }
     
     // Configure app
     app.setGlobalPrefix('api');
@@ -45,15 +63,20 @@ async function bootstrap() {
     // CORS configuration
     const corsConfig = configService.get('app.cors');
     console.log('7. Configuring CORS with origins:', corsConfig.origin);
-    app.enableCors({
-      origin: corsConfig.origin,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      exposedHeaders: ['Content-Range', 'X-Content-Range'],
-      credentials: true,
-      maxAge: corsConfig.maxAge,
-    });
-    console.log('8. CORS configured');
+    try {
+      app.enableCors({
+        origin: corsConfig.origin || '*',  // Fallback to allow all if not configured
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        exposedHeaders: ['Content-Range', 'X-Content-Range'],
+        credentials: true,
+        maxAge: corsConfig.maxAge || 3600,
+      });
+      console.log('8. CORS configured successfully');
+    } catch (error) {
+      console.error('CORS configuration failed:', error);
+      throw error;
+    }
     
     // Security headers
     app.use(helmet({

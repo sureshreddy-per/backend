@@ -31,6 +31,11 @@ export default registerAs('app', () => {
     // Database
     database: {
       url: process.env.DATABASE_URL,
+      host: process.env.DB_HOST,
+      port: parseInt(process.env.DB_PORT, 10) || 5432,
+      username: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
       synchronize: !isProd, // Only sync in development
       logging: !isProd,    // Only log in development
     },
@@ -38,6 +43,9 @@ export default registerAs('app', () => {
     // Redis
     redis: {
       url: process.env.REDIS_URL,
+      host: process.env.REDIS_HOST,
+      port: parseInt(process.env.REDIS_PORT, 10) || 6379,
+      password: process.env.REDIS_PASSWORD,
     },
 
     // Cache
