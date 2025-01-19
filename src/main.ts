@@ -114,12 +114,12 @@ async function bootstrap() {
     console.log('13. Validation pipe configured');
 
     // Start the server with dual-stack support
-    const host = configService.get('app.host') || '::';
+    const host = configService.get('app.host') || '0.0.0.0';
     const port = configService.get('app.port') || 3000;
     
     console.log('14. Starting HTTP server...');
     const server = await app.listen(port, host);
-    console.log(`15. Server is running on http://[${host}]:${port}`);
+    console.log(`15. Server is running on http://${host}:${port}`);
     
     // Configure server timeouts
     server.setTimeout(30000);
