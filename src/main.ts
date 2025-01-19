@@ -9,19 +9,29 @@ import { DataSource } from 'typeorm';
 import { AppDataSource } from "./config/typeorm.config";
 
 async function validateEnvironment(configService: ConfigService) {
+  console.log('Validating environment variables...');
+  
   const requiredVars = {
     'DATABASE_URL': configService.get('app.database.url'),
     'REDIS_URL': configService.get('app.redis.url'),
     'JWT_SECRET': configService.get('app.jwt.secret'),
   };
 
+  console.log('Environment variable status:', Object.fromEntries(
+    Object.entries(requiredVars).map(([key, value]) => [key, value ? 'Set' : 'Missing'])
+  ));
+
   const missingVars = Object.entries(requiredVars)
     .filter(([_, value]) => !value)
     .map(([key]) => key);
 
   if (missingVars.length > 0) {
-    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    const error = new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+    console.error('Environment validation failed:', error);
+    throw error;
   }
+
+  console.log('All required environment variables are set');
 }
 
 async function bootstrap() {
@@ -36,12 +46,22 @@ async function bootstrap() {
     });
 
     // Initialize database connection first
-    if (!AppDataSource.isInitialized) {
-      console.log('2. Initializing database connection...');
-      await AppDataSource.initialize();
-      console.log('3. Database connection initialized');
-    } else {
-      console.log('2. Database already initialized');
+    try {
+      if (!AppDataSource.isInitialized) {
+        console.log('2. Initializing database connection...');
+        await Promise.race([
+          AppDataSource.initialize(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Database connection timeout after 30 seconds')), 30000)
+          )
+        ]);
+        console.log('3. Database connection initialized');
+      } else {
+        console.log('2. Database already initialized');
+      }
+    } catch (error) {
+      console.error('Failed to initialize database:', error);
+      throw error;
     }
     
     const app = await NestFactory.create(AppModule);
@@ -66,41 +86,67 @@ async function bootstrap() {
     console.log('8. API prefix set');
     
     // CORS configuration
-    const corsConfig = configService.get('app.cors');
-    console.log('9. Configuring CORS with origins:', corsConfig.origin);
     try {
-      app.enableCors({
-        origin: corsConfig.origin || '*',
+      const corsConfig = {
+        origin: configService.get('CORS_ORIGINS', '*').split(','),
+        maxAge: configService.get('CORS_MAX_AGE', 3600),
+      };
+
+      console.log('9. Configuring CORS with:', {
+        origins: corsConfig.origin,
+        maxAge: corsConfig.maxAge,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
-        exposedHeaders: ['Content-Range', 'X-Content-Range'],
+        credentials: true
+      });
+
+      app.enableCors({
+        origin: corsConfig.origin,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         credentials: true,
-        maxAge: corsConfig.maxAge || 3600,
+        maxAge: corsConfig.maxAge,
       });
       console.log('10. CORS configured successfully');
+
+      // Security headers
+      app.use(
+        helmet({
+          contentSecurityPolicy: {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              connectSrc: ["'self'", ...corsConfig.origin],
+            },
+          },
+        })
+      );
+      console.log('11. Security headers configured');
     } catch (error) {
-      console.error('CORS configuration failed:', error);
-      throw error;
+      console.error('Error configuring CORS and security headers:', error);
+      // Fallback to permissive CORS settings
+      app.enableCors({
+        origin: '*',
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        credentials: true,
+      });
+      // Fallback security headers
+      app.use(
+        helmet({
+          contentSecurityPolicy: {
+            directives: {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:', 'https:'],
+              connectSrc: ["'self'", '*'],
+            },
+          },
+        })
+      );
+      console.log('10. CORS and security headers configured with fallback settings');
     }
     
-    // Security headers
-    app.use(helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'http:'],
-          connectSrc: ["'self'", ...corsConfig.origin],
-          fontSrc: ["'self'"],
-          objectSrc: ["'none'"],
-          mediaSrc: ["'self'"],
-          frameSrc: ["'none'"],
-        },
-      },
-    }));
-    console.log('11. Security headers configured');
-
     app.useGlobalFilters(new AllExceptionsFilter(app.get(HttpAdapterHost)));
     console.log('12. Global exception filter configured');
 
