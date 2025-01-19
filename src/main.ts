@@ -91,97 +91,13 @@ async function bootstrap() {
     );
     console.log('14. Validation pipe configured');
 
-    const host = configService.get('app.host') || '0.0.0.0';
-    const port = configService.get('app.port') || 3000;
-    console.log(`15. Host and port configured: ${host}:${port}`);
-    
-    // Test database connection before starting the server
-    try {
-      console.log('16. Starting database initialization...');
-      
-      // Initialize database with timeout
-      if (!dataSource.isInitialized) {
-        console.log('17. DataSource not initialized, initializing now...');
-        await Promise.race([
-          dataSource.initialize(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Database initialization timeout after 30 seconds')), 30000)
-          )
-        ]);
-        console.log('18. DataSource initialization completed');
-      } else {
-        console.log('17. DataSource already initialized');
-      }
-      
-      console.log('19. Testing database connection...');
-      // Test the connection with a timeout
-      const testConnection = async () => {
-        try {
-          await Promise.race([
-            dataSource.query('SELECT 1'),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Database connection test timeout after 10 seconds')), 10000)
-            )
-          ]);
-          return true;
-        } catch (error) {
-          console.error('Database connection test failed:', error);
-          return false;
-        }
-      };
-
-      // Retry connection up to 3 times with exponential backoff
-      for (let i = 0; i < 3; i++) {
-        console.log(`20. Database connection attempt ${i + 1}/3`);
-        if (await testConnection()) {
-          console.log('21. Database connection verified successfully');
-          break;
-        }
-        if (i === 2) {
-          throw new Error('Failed to establish database connection after 3 attempts');
-        }
-        const backoffTime = Math.min(1000 * Math.pow(2, i), 5000); // Exponential backoff with max 5 seconds
-        console.log(`Retrying database connection in ${backoffTime/1000} seconds...`);
-        await new Promise(resolve => setTimeout(resolve, backoffTime));
-      }
-
-      // Test Redis connection with proper error handling
-      console.log('22. Starting Redis connection test...');
-      try {
-        const cacheManager = app.get('CACHE_MANAGER');
-        console.log('23. Cache manager retrieved');
-        
-        try {
-          console.log('24. Testing Redis connection with timeout...');
-          await Promise.race([
-            cacheManager.set('test-key', 'test-value'),
-            new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Redis connection timeout after 10 seconds')), 10000)
-            )
-          ]);
-          console.log('25. Redis connection verified successfully');
-          
-          // Clean up test key
-          await cacheManager.del('test-key');
-        } catch (error) {
-          console.error('26. Warning: Redis connection failed:', error);
-          console.log('27. Continuing startup despite Redis connection failure...');
-        }
-      } catch (error) {
-        console.error('Error getting cache manager:', error);
-        console.log('Continuing startup without Redis...');
-      }
-
-    } catch (error) {
-      console.error('Fatal error during initialization:', error);
-      throw error;
-    }
-
     console.log('28. All service connections verified, starting HTTP server...');
 
-    // Start the server with a graceful shutdown handler and increased timeouts
+    // Start the server with dual-stack support
+    const host = configService.get('app.host') || '::';  // '::' binds to both IPv4 and IPv6
+    const port = configService.get('app.port') || 3000;
     const server = await app.listen(port, host, () => {
-      console.log(`Server is running on http://${host}:${port}`);
+      console.log(`Server is running on http://[${host}]:${port}`);
     });
     
     // Configure server timeouts
