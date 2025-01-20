@@ -35,16 +35,16 @@ services:
   postgres:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_USER=${DB_USER:-farmdeva}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-farmdeva@123}
-      - POSTGRES_DB=${DB_NAME:-farmdeva_db}
+      - POSTGRES_USER=${DB_USER:-${DB_USER}}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-${DB_PASSWORD}}
+      - POSTGRES_DB=${DB_NAME:-${DB_NAME}}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./create_tables.sql:/docker-entrypoint-initdb.d/create_tables.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-farmdeva} -d ${DB_NAME:-farmdeva_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-${DB_USER}} -d ${DB_NAME:-${DB_NAME}}"]
       interval: 5s
       timeout: 5s
       retries: 5
