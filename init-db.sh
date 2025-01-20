@@ -4,7 +4,7 @@ set -e
 echo "Starting database initialization..."
 
 # Wait for PostgreSQL to be ready
-until PGPASSWORD=$POSTGRES_PASSWORD psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\q'; do
+until psql "$DATABASE_URL" -c '\q'; do
   echo "PostgreSQL is unavailable - sleeping"
   sleep 1
 done
@@ -31,6 +31,6 @@ psql "$DATABASE_URL" -c 'SELECT uuid_generate_v4();'
 
 # Run create_tables.sql
 echo "Running create_tables.sql..."
-psql "$DATABASE_URL" < create_tables.sql
+cat create_tables.sql | psql "$DATABASE_URL"
 
 echo "Database initialization completed successfully" 

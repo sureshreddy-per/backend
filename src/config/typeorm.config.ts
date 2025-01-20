@@ -62,8 +62,6 @@ const entities = [
   RequestMetric,
   ConfigAuditLog,
   BuyerPreferences,
-  InspectionDistanceFeeConfig,
-  SystemConfig,
 ];
 
 export const typeOrmConfig: TypeOrmModuleOptions = {

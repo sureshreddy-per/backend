@@ -44,6 +44,24 @@ cmds = [
 
 [phases.db]
 cmds = [
-    "chmod +x init-db.sh",
-    "./init-db.sh"
+    "echo 'Testing database connection...'",
+    "psql ${{ Postgres.DATABASE_URL }} -c 'SELECT 1;'",
+    
+    "echo 'Dropping schema...'",
+    "psql ${{ Postgres.DATABASE_URL }} -c 'DROP SCHEMA public CASCADE;'",
+    "psql ${{ Postgres.DATABASE_URL }} -c 'CREATE SCHEMA public;'",
+
+    "echo 'Creating extensions...'",
+    "psql ${{ Postgres.DATABASE_URL }} -c 'CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";'",
+    "psql ${{ Postgres.DATABASE_URL }} -c 'CREATE EXTENSION IF NOT EXISTS \"postgis\";'",
+    "psql ${{ Postgres.DATABASE_URL }} -c 'CREATE EXTENSION IF NOT EXISTS \"pg_trgm\";'",
+
+    "echo 'Creating trigger functions...'",
+    "psql ${{ Postgres.DATABASE_URL }} -c 'CREATE OR REPLACE FUNCTION trigger_set_timestamp() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = CURRENT_TIMESTAMP; RETURN NEW; END; $$ language plpgsql;'",
+
+    "echo 'Verifying UUID generation...'",
+    "psql ${{ Postgres.DATABASE_URL }} -c 'SELECT uuid_generate_v4();'",
+
+    "echo 'Running create_tables.sql...'",
+    "cat create_tables.sql | psql ${{ Postgres.DATABASE_URL }}"
 ]
