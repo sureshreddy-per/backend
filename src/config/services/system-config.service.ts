@@ -1,11 +1,14 @@
-import { Injectable, OnModuleInit } from "@nestjs/common";
+import { Injectable, OnModuleInit, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource } from "typeorm";
 import { SystemConfig } from "../entities/system-config.entity";
 import { SystemConfigKey } from "../enums/system-config-key.enum";
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class SystemConfigService implements OnModuleInit {
+  private readonly logger = new Logger(SystemConfigService.name);
+
   constructor(
     @InjectRepository(SystemConfig)
     private readonly systemConfigRepository: Repository<SystemConfig>,
@@ -13,7 +16,27 @@ export class SystemConfigService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    await this.initializeDefaultConfigs();
+    await this.initializeWithRetry();
+  }
+
+  private async initializeWithRetry(retries = 3): Promise<void> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        this.logger.log(`Attempting to initialize configs (attempt ${attempt}/${retries})`);
+        await this.initializeDefaultConfigs();
+        this.logger.log('Successfully initialized configs');
+        return;
+      } catch (error) {
+        this.logger.error(`Failed to initialize configs on attempt ${attempt}: ${error.message}`);
+        if (attempt === retries) {
+          this.logger.error('Max retries reached, initialization failed');
+          // Don't throw error to allow application to start
+          return;
+        }
+        // Wait before retrying (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+      }
+    }
   }
 
   private async initializeDefaultConfigs(): Promise<void> {
@@ -62,29 +85,32 @@ export class SystemConfigService implements OnModuleInit {
 
       for (const config of defaultConfigs) {
         try {
-          const existingConfig = await this.systemConfigRepository.findOne({
+          // Check if config exists using query runner to maintain transaction
+          const existingConfig = await queryRunner.manager.findOne(SystemConfig, {
             where: { key: config.key },
           });
 
           if (!existingConfig) {
-            const newConfig = this.systemConfigRepository.create({
+            const newConfig = queryRunner.manager.create(SystemConfig, {
+              id: uuidv4(),
               key: config.key,
               value: config.value,
               description: config.description,
-              is_active: true
+              is_active: true,
             });
-
-            await this.systemConfigRepository.save(newConfig);
+            await queryRunner.manager.save(newConfig);
+            this.logger.log(`Created config: ${config.key}`);
           }
         } catch (innerError) {
-          console.error(`Error processing config ${config.key}:`, innerError);
-          throw innerError;
+          this.logger.error(`Error processing config ${config.key}: ${innerError.message}`);
+          throw innerError; // Let the transaction handle the rollback
         }
       }
 
       await queryRunner.commitTransaction();
+      this.logger.log('Successfully committed all configs');
     } catch (error) {
-      console.error('Failed to initialize default configs:', error);
+      this.logger.error(`Transaction failed: ${error.message}`);
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {
