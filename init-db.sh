@@ -12,13 +12,14 @@ done
 echo "PostgreSQL is up - executing schema setup"
 
 # Drop and recreate schema
+echo "Dropping and recreating schema..."
 psql "$DATABASE_URL" -c 'DROP SCHEMA IF EXISTS public CASCADE;'
 psql "$DATABASE_URL" -c 'CREATE SCHEMA public;'
+psql "$DATABASE_URL" -c 'GRANT ALL ON SCHEMA public TO public;'
 
 # Create extensions
 echo "Creating extensions..."
 psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";'
-psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS "postgis";'
 psql "$DATABASE_URL" -c 'CREATE EXTENSION IF NOT EXISTS "pg_trgm";'
 
 # Create trigger functions
@@ -32,5 +33,9 @@ psql "$DATABASE_URL" -c 'SELECT uuid_generate_v4();'
 # Run create_tables.sql
 echo "Running create_tables.sql..."
 cat create_tables.sql | psql "$DATABASE_URL"
+
+# Verify tables were created
+echo "Verifying table creation..."
+psql "$DATABASE_URL" -c '\dt'
 
 echo "Database initialization completed successfully" 
