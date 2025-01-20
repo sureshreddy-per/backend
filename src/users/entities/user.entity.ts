@@ -1,16 +1,13 @@
 import {
   Entity,
   Column,
-  PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { BaseEntity } from "../../common/entities/base.entity";
 
 @Entity("users")
-export class User {
-  @PrimaryGeneratedColumn("uuid")
-  id: string;
-
+export class User extends BaseEntity {
   @Column()
   name: string;
 
@@ -49,10 +46,4 @@ export class User {
 
   @Column({ type: "timestamp", nullable: true })
   scheduled_for_deletion_at: Date;
-
-  @CreateDateColumn()
-  created_at: Date;
-
-  @UpdateDateColumn()
-  updated_at: Date;
 }

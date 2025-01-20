@@ -491,7 +491,7 @@ CREATE TRIGGER update_notifications_read_at
     EXECUTE FUNCTION update_notifications_updated_at();
 
 CREATE TABLE notification_preferences (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   email_enabled BOOLEAN DEFAULT true,
   sms_enabled BOOLEAN DEFAULT true,
@@ -519,7 +519,7 @@ CREATE TRIGGER update_notification_preferences_updated_at
     EXECUTE FUNCTION update_notification_preferences_updated_at();
 
 CREATE TABLE reports (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id),
   type TEXT NOT NULL,
   format TEXT NOT NULL,
@@ -587,7 +587,7 @@ CREATE INDEX idx_daily_prices_created_at ON daily_prices(created_at);
 CREATE INDEX idx_daily_prices_metadata ON daily_prices USING gin(metadata);
 
 CREATE TABLE business_metrics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   type VARCHAR(255) NOT NULL,
   category VARCHAR(255) NOT NULL,
   data JSONB NOT NULL,
@@ -621,7 +621,7 @@ DROP TABLE IF EXISTS event_metrics CASCADE;
 
 -- Create event_metrics table
 CREATE TABLE IF NOT EXISTS event_metrics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   type TEXT NOT NULL,
   user_id VARCHAR(255),
   entity_id VARCHAR(255),
@@ -642,7 +642,7 @@ CREATE INDEX IF NOT EXISTS idx_event_metrics_metadata ON event_metrics USING gin
 DROP TABLE IF EXISTS ratings CASCADE;
 
 CREATE TABLE ratings (
-id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   transaction_id UUID NOT NULL REFERENCES transactions(id),
   rating_user_id UUID NOT NULL REFERENCES users(id),
   rated_user_id UUID NOT NULL REFERENCES users(id),
@@ -876,7 +876,7 @@ CREATE INDEX idx_support_tickets_category ON support_tickets(category);
 
 -- Create transaction history table
 CREATE TABLE transaction_history (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
   event TEXT NOT NULL,
   old_status TEXT,
@@ -1121,7 +1121,7 @@ CREATE INDEX IF NOT EXISTS idx_report_status ON report(status);
 DROP TABLE IF EXISTS notification_preferences CASCADE;
 
 CREATE TABLE notification_preferences (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   email_enabled BOOLEAN DEFAULT true,
   sms_enabled BOOLEAN DEFAULT true,
