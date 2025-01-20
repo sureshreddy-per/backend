@@ -61,16 +61,24 @@ export class SystemConfigService implements OnModuleInit {
       ];
 
       for (const config of defaultConfigs) {
-        const existingConfig = await queryRunner.manager.findOne(SystemConfig, {
-          where: { key: config.key },
-        });
-
-        if (!existingConfig) {
-          const newConfig = queryRunner.manager.create(SystemConfig, {
-            ...config,
-            is_active: true,
+        try {
+          const existingConfig = await this.systemConfigRepository.findOne({
+            where: { key: config.key },
           });
-          await queryRunner.manager.save(SystemConfig, newConfig);
+
+          if (!existingConfig) {
+            const newConfig = this.systemConfigRepository.create({
+              key: config.key,
+              value: config.value,
+              description: config.description,
+              is_active: true
+            });
+
+            await this.systemConfigRepository.save(newConfig);
+          }
+        } catch (innerError) {
+          console.error(`Error processing config ${config.key}:`, innerError);
+          throw innerError;
         }
       }
 
