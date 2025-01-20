@@ -1,3 +1,6 @@
+-- Enable UUID extension
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- First, handle enum dependencies
 
 -- First, drop all tables in reverse order of dependencies
@@ -1049,7 +1052,7 @@ ALTER TABLE buyers
 ADD CONSTRAINT check_lat_lng_format CHECK (location ~ '^-?\d+(\.\d+)?,-?\d+(\.\d+)?$');
 
 -- Fix media table
-ALTER TABLE media 
+ALTER TABLE media
 ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'IMAGE',
 ADD COLUMN IF NOT EXISTS entity_category TEXT;
 
@@ -1089,21 +1092,21 @@ DROP INDEX IF EXISTS idx_support_tickets_status;
 DROP INDEX IF EXISTS idx_report_status;
 
 -- Fix notifications table
-ALTER TABLE notifications 
+ALTER TABLE notifications
 ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id),
 ADD COLUMN IF NOT EXISTS read_at TIMESTAMP;
 
 -- Fix media table
-ALTER TABLE media 
+ALTER TABLE media
 ADD COLUMN IF NOT EXISTS type TEXT DEFAULT 'IMAGE',
 ADD COLUMN IF NOT EXISTS entity_category TEXT;
 
 -- Fix support_tickets table
-ALTER TABLE support_tickets 
+ALTER TABLE support_tickets
 ADD COLUMN IF NOT EXISTS assigned_to_id UUID REFERENCES users(id);
 
 -- Fix report table
-ALTER TABLE report 
+ALTER TABLE report
 ADD COLUMN IF NOT EXISTS status TEXT;
 
 -- Create indexes

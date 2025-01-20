@@ -1,10 +1,14 @@
-#!/bin/bash
+#!/bin/sh
 
-# Wait for database to be ready
-node dist/scripts/wait-for-db.js
+echo "Waiting for PostgreSQL to be ready..."
+while ! nc -z postgres 5432; do
+  sleep 1
+done
 
-# Initialize database
-node dist/scripts/init-db.js
+echo "Waiting for Redis to be ready..."
+while ! nc -z redis 6379; do
+  sleep 1
+done
 
-# Start the application
-exec node dist/src/main.js 
+echo "Starting application..."
+node dist/src/main.js

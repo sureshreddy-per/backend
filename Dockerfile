@@ -55,32 +55,10 @@ RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist
 COPY scripts ./scripts
 
-# Copy wait-for script
-COPY scripts/wait-for.sh /usr/local/bin/wait-for
-RUN chmod +x /usr/local/bin/wait-for
-
-# Create startup script that extracts connection info from URLs
-RUN echo '#!/bin/sh\n\
-echo "Extracting database connection info from DATABASE_URL..."\n\
-DB_HOST=$(echo $DATABASE_URL | sed -n "s/.*@\(.*\):.*/\1/p")\n\
-DB_PORT=$(echo $DATABASE_URL | sed -n "s/.*:\([0-9]*\)\/.*/\1/p")\n\
-\n\
-echo "Extracting Redis connection info from REDIS_URL..."\n\
-REDIS_HOST=$(echo $REDIS_URL | sed -n "s/.*@\(.*\):.*/\1/p")\n\
-REDIS_PORT=$(echo $REDIS_URL | sed -n "s/.*:\([0-9]*\)/\1/p")\n\
-\n\
-echo "Waiting for database at $DB_HOST:$DB_PORT..."\n\
-wait-for $DB_HOST:$DB_PORT -t 30\n\
-\n\
-echo "Waiting for Redis at $REDIS_HOST:$REDIS_PORT..."\n\
-wait-for $REDIS_HOST:$REDIS_PORT -t 30\n\
-\n\
-echo "Running database initialization..."\n\
-node dist/scripts/init-db.js\n\
-\n\
-echo "Starting application..."\n\
-exec node dist/main' > /app/start.sh && \
-    chmod +x /app/start.sh
+# Copy and setup start script
+COPY scripts/start.sh /app/start.sh
+RUN chmod +x /app/start.sh && \
+    chown appuser:appgroup /app/start.sh
 
 # Switch to non-root user
 USER appuser
@@ -98,4 +76,4 @@ HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
 # Start the application with the startup script
-CMD ["/app/start.sh"] 
+CMD ["/app/start.sh"]
