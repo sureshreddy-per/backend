@@ -15,14 +15,14 @@ NODE_ENV = "production"
 PORT = "3000"
 
 # Database Configuration
-DATABASE_URL = "postgresql://${{ Postgres.USER }}:${{ Postgres.PASSWORD }}@${{ Postgres.HOST }}:${{ Postgres.PORT }}/${{ Postgres.DATABASE }}"
+DATABASE_URL = "${{ Postgres.DATABASE_URL }}"
 
 # Redis Configuration
-REDIS_URL = "redis://:${{ Redis.PASSWORD }}@${{ Redis.HOST }}:${{ Redis.PORT }}"
+REDIS_URL = "${{ Redis.URL }}"
 CACHE_TTL = "300"
 CACHE_MAX_ITEMS = "100"
 
-# JWT Configuration (Make sure to set these in Railway's environment variables)
+# JWT Configuration
 JWT_SECRET = "${{ JWT_SECRET }}"
 JWT_EXPIRY = "15d"
 JWT_REFRESH_EXPIRY = "60d"
@@ -38,4 +38,14 @@ nixPkgs = ["nodejs", "npm", "python3", "gcc", "g++"]
 cmds = ["npm ci"]
 
 [phases.build]
-cmds = ["npm run prebuild", "npm run build", "cp -r scripts dist/"]
+cmds = [
+    "npm run prebuild",
+    "npm run build",
+    "cp -r scripts dist/"
+]
+
+[phases.db]
+cmds = [
+    "echo 'CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";' | psql ${{ Postgres.DATABASE_URL }}",
+    "cat create_tables.sql | psql ${{ Postgres.DATABASE_URL }}"
+]

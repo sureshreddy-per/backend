@@ -2,7 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateCol
 
 @Entity('system_configs')
 export class SystemConfig {
-  @PrimaryGeneratedColumn('uuid')
+  @PrimaryGeneratedColumn('uuid', { name: 'id' })
   id: string;
 
   @Column({
@@ -20,7 +20,7 @@ export class SystemConfig {
   @Column({ default: true })
   is_active: boolean;
 
-  @Column({ nullable: true })
+  @Column({ type: 'uuid', nullable: true })
   updated_by: string;
 
   @CreateDateColumn()
