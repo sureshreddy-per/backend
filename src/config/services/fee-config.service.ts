@@ -1,7 +1,8 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { Repository, DataSource } from "typeorm";
 import { InspectionDistanceFeeConfig } from "../entities/fee-config.entity";
+import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class InspectionDistanceFeeService {
@@ -11,34 +12,61 @@ export class InspectionDistanceFeeService {
   constructor(
     @InjectRepository(InspectionDistanceFeeConfig)
     private readonly inspectionDistanceFeeRepository: Repository<InspectionDistanceFeeConfig>,
+    private readonly dataSource: DataSource
   ) {
-    this.initializeCache();
+    this.initializeWithRetry();
   }
 
-  private async initializeCache(): Promise<void> {
-    try {
-      this.cachedConfig = await this.getActiveConfig();
-
-      if (!this.cachedConfig) {
-        // Create default config if none exists
-        this.cachedConfig = await this.createDefaultConfig();
+  private async initializeWithRetry(retries = 3): Promise<void> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        this.logger.log(`Attempting to initialize fee config (attempt ${attempt}/${retries})`);
+        await this.initializeCache();
+        this.logger.log('Successfully initialized fee config');
+        return;
+      } catch (error) {
+        this.logger.error(`Failed to initialize fee config on attempt ${attempt}: ${error.message}`);
+        if (attempt === retries) {
+          this.logger.error('Max retries reached, initialization failed');
+          return;
+        }
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
       }
-    } catch (error) {
-      this.logger.error(
-        "Failed to initialize inspection distance fee config cache",
-        error.stack,
-      );
     }
   }
 
-  private async createDefaultConfig(): Promise<InspectionDistanceFeeConfig> {
-    const defaultConfig = this.inspectionDistanceFeeRepository.create({
-      fee_per_km: parseInt(process.env.DEFAULT_FEE_PER_KM || '5'), // Default ₹5 per km
-      max_distance_fee: parseInt(process.env.DEFAULT_MAX_DISTANCE_FEE || '500'), // Default max ₹500
-      is_active: true,
-    });
+  private async initializeCache(): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    return this.inspectionDistanceFeeRepository.save(defaultConfig);
+    try {
+      this.cachedConfig = await queryRunner.manager.findOne(InspectionDistanceFeeConfig, {
+        where: { is_active: true },
+        order: { created_at: "DESC" },
+      });
+
+      if (!this.cachedConfig) {
+        // Create default config if none exists
+        const defaultConfig = queryRunner.manager.create(InspectionDistanceFeeConfig, {
+          id: uuidv4(),
+          fee_per_km: parseInt(process.env.DEFAULT_FEE_PER_KM || '10'),
+          max_distance_fee: parseInt(process.env.DEFAULT_MAX_DISTANCE_FEE || '500'),
+          is_active: true,
+        });
+
+        this.cachedConfig = await queryRunner.manager.save(defaultConfig);
+        this.logger.log('Created default fee config');
+      }
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      this.logger.error('Failed to initialize fee config cache', error.stack);
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async getActiveConfig(): Promise<InspectionDistanceFeeConfig | null> {
@@ -53,32 +81,46 @@ export class InspectionDistanceFeeService {
     maxDistanceFee: number,
     updatedBy: string,
   ): Promise<InspectionDistanceFeeConfig> {
-    // Deactivate current config
-    if (this.cachedConfig) {
-      await this.inspectionDistanceFeeRepository.update(
-        { id: this.cachedConfig.id },
-        { is_active: false },
-      );
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      // Deactivate current config
+      if (this.cachedConfig) {
+        await queryRunner.manager.update(
+          InspectionDistanceFeeConfig,
+          { id: this.cachedConfig.id },
+          { is_active: false }
+        );
+      }
+
+      // Create new config
+      const newConfig = queryRunner.manager.create(InspectionDistanceFeeConfig, {
+        id: uuidv4(),
+        fee_per_km: feePerKm,
+        max_distance_fee: maxDistanceFee,
+        is_active: true,
+        updated_by: updatedBy,
+      });
+
+      // Save and update cache
+      this.cachedConfig = await queryRunner.manager.save(newConfig);
+
+      await queryRunner.commitTransaction();
+      return this.cachedConfig;
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    // Create new config
-    const newConfig = this.inspectionDistanceFeeRepository.create({
-      fee_per_km: feePerKm,
-      max_distance_fee: maxDistanceFee,
-      is_active: true,
-      updated_by: updatedBy,
-    });
-
-    // Save and update cache
-    this.cachedConfig =
-      await this.inspectionDistanceFeeRepository.save(newConfig);
-    return this.cachedConfig;
   }
 
   getDistanceFee(distance: number): number {
     if (!this.cachedConfig) {
       // Use default values if config not available
-      const defaultFeePerKm = parseInt(process.env.DEFAULT_FEE_PER_KM || '5');
+      const defaultFeePerKm = parseInt(process.env.DEFAULT_FEE_PER_KM || '10');
       const defaultMaxFee = parseInt(process.env.DEFAULT_MAX_DISTANCE_FEE || '500');
       return Math.min(distance * defaultFeePerKm, defaultMaxFee);
     }
