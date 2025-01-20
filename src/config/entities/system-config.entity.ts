@@ -7,25 +7,47 @@ export class SystemConfig {
 
   @Column({
     type: 'text',
-    unique: true
+    unique: true,
+    nullable: false
   })
   key: string;
 
-  @Column('text')
+  @Column({
+    type: 'text',
+    nullable: false
+  })
   value: string;
 
-  @Column('text')
+  @Column({
+    type: 'text',
+    nullable: false
+  })
   description: string;
 
-  @Column({ default: true })
+  @Column({
+    type: 'boolean',
+    default: true,
+    nullable: false
+  })
   is_active: boolean;
 
-  @Column({ type: 'uuid', nullable: true })
+  @Column({
+    type: 'uuid',
+    nullable: true
+  })
   updated_by: string;
 
-  @CreateDateColumn()
+  @CreateDateColumn({
+    type: 'timestamp with time zone',
+    name: 'created_at',
+    nullable: false
+  })
   created_at: Date;
 
-  @UpdateDateColumn()
+  @UpdateDateColumn({
+    type: 'timestamp with time zone',
+    name: 'updated_at',
+    nullable: false
+  })
   updated_at: Date;
 }
