@@ -2,7 +2,6 @@ import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, DataSource } from "typeorm";
 import { InspectionDistanceFeeConfig } from "../entities/fee-config.entity";
-import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class InspectionDistanceFeeService {
@@ -49,7 +48,6 @@ export class InspectionDistanceFeeService {
       if (!this.cachedConfig) {
         // Create default config if none exists
         const defaultConfig = queryRunner.manager.create(InspectionDistanceFeeConfig, {
-          id: uuidv4(),
           fee_per_km: parseInt(process.env.DEFAULT_FEE_PER_KM || '10'),
           max_distance_fee: parseInt(process.env.DEFAULT_MAX_DISTANCE_FEE || '500'),
           is_active: true,
@@ -88,27 +86,25 @@ export class InspectionDistanceFeeService {
     try {
       // Deactivate current config
       if (this.cachedConfig) {
-        await queryRunner.manager.update(
-          InspectionDistanceFeeConfig,
-          { id: this.cachedConfig.id },
-          { is_active: false }
-        );
+        this.cachedConfig.is_active = false;
+        await queryRunner.manager.save(this.cachedConfig);
       }
 
       // Create new config
       const newConfig = queryRunner.manager.create(InspectionDistanceFeeConfig, {
-        id: uuidv4(),
         fee_per_km: feePerKm,
         max_distance_fee: maxDistanceFee,
         is_active: true,
         updated_by: updatedBy,
       });
 
-      // Save and update cache
-      this.cachedConfig = await queryRunner.manager.save(newConfig);
-
+      const savedConfig = await queryRunner.manager.save(newConfig);
       await queryRunner.commitTransaction();
-      return this.cachedConfig;
+
+      // Update cache
+      this.cachedConfig = savedConfig;
+
+      return savedConfig;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;

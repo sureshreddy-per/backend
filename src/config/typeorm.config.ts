@@ -89,6 +89,7 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
   },
   migrations: [path.join(__dirname, '../migrations/*{.ts,.js}')],
   migrationsRun: false,
+  entitySkipConstructor: true,
 };
 
 export default typeOrmConfig;

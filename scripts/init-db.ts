@@ -20,6 +20,7 @@ async function initializeDatabase() {
         AppDataSource.query(`
           DO $$
           BEGIN
+            -- Enable UUID extension if not already enabled
             IF NOT EXISTS (
               SELECT 1 FROM pg_extension WHERE extname = 'uuid-ossp'
             ) THEN
@@ -27,12 +28,17 @@ async function initializeDatabase() {
               RAISE NOTICE 'Created uuid-ossp extension';
             END IF;
 
+            -- Enable pg_trgm extension if not already enabled
             IF NOT EXISTS (
               SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm'
             ) THEN
               CREATE EXTENSION pg_trgm;
               RAISE NOTICE 'Created pg_trgm extension';
             END IF;
+
+            -- Ensure UUID generation is working
+            PERFORM uuid_generate_v4();
+            RAISE NOTICE 'UUID generation is working correctly';
           EXCEPTION WHEN OTHERS THEN
             RAISE NOTICE 'Error setting up extensions: %', SQLERRM;
             RAISE;
@@ -120,10 +126,10 @@ async function initializeDatabase() {
         case 'datetime':
         case 'timestamp':
         case 'date':
-          return 'timestamp';
+          return 'timestamp with time zone';
         case 'timestamptz':
         case 'timestamp with time zone':
-          return 'timestamptz';
+          return 'timestamp with time zone';
         case 'boolean':
           return 'boolean';
         case 'json':
@@ -212,6 +218,9 @@ async function initializeDatabase() {
             (async () => {
               const queryRunner = AppDataSource.createQueryRunner();
               try {
+                await queryRunner.connect();
+                await queryRunner.startTransaction();
+
                 // Drop table if it exists (to ensure clean state)
                 await queryRunner.dropTable(entity.tableName, true);
                 
@@ -241,7 +250,9 @@ async function initializeDatabase() {
                       const type = getPostgresType(column);
                       const nullable = column.isNullable ? 'NULL' : 'NOT NULL';
                       const primary = column.isPrimary ? 'PRIMARY KEY' : '';
-                      const defaultValue = getDefaultValue(column);
+                      const defaultValue = column.isPrimary && type === 'uuid' 
+                        ? "DEFAULT uuid_generate_v4()" 
+                        : getDefaultValue(column);
                       return `"${column.databaseName}" ${type} ${nullable} ${primary} ${defaultValue}`.trim();
                     } catch (error) {
                       console.error(`[DB Init] Error processing column in ${entity.tableName}:`, column, error);
@@ -251,25 +262,28 @@ async function initializeDatabase() {
                   .join(',\n');
 
                 await queryRunner.query(`
-                  CREATE TABLE IF NOT EXISTS "${entity.tableName}" (
+                  CREATE TABLE "${entity.tableName}" (
                     ${columns}
                   );
                 `);
+
+                await queryRunner.commitTransaction();
+                processedTables.add(entity.tableName);
+                console.log(`[DB Init] Successfully created table: ${entity.tableName}`);
+              } catch (error) {
+                await queryRunner.rollbackTransaction();
+                throw error;
               } finally {
                 await queryRunner.release();
               }
             })(),
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error(`Timeout creating table ${entity.tableName}`)), 15000)
+              setTimeout(() => reject(new Error(`Table creation timeout for ${entity.tableName}`)), 10000)
             )
           ]);
-          
-          processedTables.add(entity.tableName);
-          console.log(`[DB Init] Successfully created table: ${entity.tableName}`);
         } catch (error) {
           console.error(`[DB Init] Error creating table ${entity.tableName}:`, error);
-          // Continue with other tables even if one fails
-          continue;
+          throw error;
         }
 
         // Small delay between tables
