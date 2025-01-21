@@ -130,9 +130,17 @@ export class AuthService {
       throw new InternalServerErrorException("Failed to send OTP");
     }
 
+    // Check if we should show OTP in response
+    const use2FactorValue = this.configService.get<string>("USE_2FACTOR_SERVICE");
+    const use2FactorService = use2FactorValue === 'true';
+
+    this.logger.debug(`Generated OTP for ${userData.mobile_number}: ${otp}`);
+
     return {
       requestId,
-      message: `User registered successfully. OTP sent to ${userData.mobile_number}`,
+      message: use2FactorService
+        ? `User registered successfully. OTP sent to ${userData.mobile_number}`
+        : `User registered successfully. Development mode - OTP: ${otp}`,
     };
   }
 
