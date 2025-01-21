@@ -91,6 +91,40 @@
               "path": ["auth", "otp", "verify"]
             }
           }
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/account",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "account"]
+            }
+          }
+        },
+        {
+          "name": "Validate Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/validate",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "validate"]
+            }
+          }
         }
       ]
     },
@@ -271,6 +305,23 @@
                   "value": ""
                 }
               ]
+            }
+          }
+        },
+        {
+          "name": "Request AI Verification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produce/request-ai-verification",
+              "host": ["{{base_url}}"],
+              "path": ["produce", "request-ai-verification"]
             }
           }
         }
@@ -545,6 +596,174 @@
               "raw": "{{base_url}}/support/tickets/my",
               "host": ["{{base_url}}"],
               "path": ["support", "tickets", "my"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Farm Management",
+      "item": [
+        {
+          "name": "Add Farm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"My Farm\",\n    \"location\": \"12.9716,77.5946\",\n    \"area\": 100,\n    \"area_unit\": \"ACRES\",\n    \"address\": \"123 Farm Road, City\",\n    \"soil_type\": \"BLACK\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/farmers/farms",
+              "host": ["{{base_url}}"],
+              "path": ["farmers", "farms"]
+            }
+          }
+        },
+        {
+          "name": "Get Farm Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/farmers/farms/:farmId",
+              "host": ["{{base_url}}"],
+              "path": ["farmers", "farms", ":farmId"],
+              "variable": [
+                {
+                  "key": "farmId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Farm",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"name\": \"Updated Farm Name\",\n    \"area\": 150,\n    \"area_unit\": \"ACRES\",\n    \"address\": \"Updated Farm Address\",\n    \"soil_type\": \"RED\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/farmers/farms/:farmId",
+              "host": ["{{base_url}}"],
+              "path": ["farmers", "farms", ":farmId"],
+              "variable": [
+                {
+                  "key": "farmId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank Account Management",
+      "item": [
+        {
+          "name": "Add Bank Account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"account_holder_name\": \"Farmer Name\",\n    \"account_number\": \"1234567890\",\n    \"ifsc_code\": \"BANK0001234\",\n    \"bank_name\": \"Sample Bank\",\n    \"branch_name\": \"Sample Branch\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/farmers/bank-accounts",
+              "host": ["{{base_url}}"],
+              "path": ["farmers", "bank-accounts"]
+            }
+          }
+        },
+        {
+          "name": "Get Bank Account Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/farmers/bank-accounts/:accountId",
+              "host": ["{{base_url}}"],
+              "path": ["farmers", "bank-accounts", ":accountId"],
+              "variable": [
+                {
+                  "key": "accountId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Bank Account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"account_holder_name\": \"Updated Name\",\n    \"branch_name\": \"Updated Branch\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/farmers/bank-accounts/:accountId",
+              "host": ["{{base_url}}"],
+              "path": ["farmers", "bank-accounts", ":accountId"],
+              "variable": [
+                {
+                  "key": "accountId",
+                  "value": ""
+                }
+              ]
             }
           }
         }

@@ -91,6 +91,40 @@
               "path": ["auth", "otp", "verify"]
             }
           }
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/account",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "account"]
+            }
+          }
+        },
+        {
+          "name": "Validate Token",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/validate",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "validate"]
+            }
+          }
         }
       ]
     },
@@ -308,6 +342,54 @@
               ]
             }
           }
+        },
+        {
+          "name": "Override Offer Price",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"new_price_per_unit\": 60,\n    \"reason\": \"Market price adjustment\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/offers/:id/override-price",
+              "host": ["{{base_url}}"],
+              "path": ["offers", ":id", "override-price"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Offer Statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/offers/stats",
+              "host": ["{{base_url}}"],
+              "path": ["offers", "stats"]
+            }
+          }
         }
       ]
     },
@@ -488,4 +570,4 @@
       ]
     }
   ]
-} 
+}
