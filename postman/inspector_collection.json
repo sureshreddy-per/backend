@@ -295,6 +295,46 @@
               ]
             }
           }
+        },
+        {
+          "name": "Get Completed Inspections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quality/completed",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "completed"]
+            }
+          }
+        },
+        {
+          "name": "Get Inspection Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quality/:id",
+              "host": ["{{base_url}}"],
+              "path": ["quality", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -348,6 +388,23 @@
               ]
             }
           }
+        },
+        {
+          "name": "Get Report Types",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/reports/types",
+              "host": ["{{base_url}}"],
+              "path": ["reports", "types"]
+            }
+          }
         }
       ]
     },
@@ -399,4 +456,4 @@
       ]
     }
   ]
-} 
+}
