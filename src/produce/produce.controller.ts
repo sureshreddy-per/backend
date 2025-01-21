@@ -40,6 +40,7 @@ import { retry } from "../common/utils/retry.util";
 import { ConfigService } from "@nestjs/config";
 import { RequestAiVerificationDto } from '../quality/dto/request-ai-verification.dto';
 import { ParseJsonPipe } from "../common/pipes/parse-json.pipe";
+import { Express } from 'express';
 
 interface CreateProduceInput extends CreateProduceDto {
   farmer_id: string;
@@ -69,7 +70,7 @@ export class ProduceController {
   private async cleanupUploadedFiles(fileKeys: string[]) {
     try {
       await Promise.all(
-        fileKeys.map(key => 
+        fileKeys.map(key =>
           retry(
             () => this.gcpStorageService.deleteFile(key),
             this.retryOptions,
@@ -140,7 +141,7 @@ export class ProduceController {
 
     // Validate images
     const fileValidationPipe = FileValidationPipe.forType(StorageUploadType.IMAGES);
-    files.images.forEach(file => fileValidationPipe.transform(file, { type: 'body', metatype: File, data: 'images' }));
+    files.images.forEach(file => fileValidationPipe.transform(file, { type: 'body', data: 'images' }));
 
     try {
       // Upload images in parallel and analyze the first image

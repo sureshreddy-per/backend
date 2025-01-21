@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set base URL for API
-BASE_URL="http://localhost:3000"
+BASE_URL="https://backend-production-2944.up.railway.app"
 
 # Color codes for output
 RED='\033[0;31m'
@@ -108,17 +108,18 @@ print_success "Farmer setup complete"
 print_step "Testing GCP storage with multiple image uploads..."
 
 # Check if test images exist
-if [ ! -f "IMG_2882.heic" ] || [ ! -f "IMG_2884.heic" ]; then
+if [ ! -f "small1.jpg" ] || [ ! -f "small2.jpg" ]; then
   print_error "Test images not found in test-scripts directory"
   exit 1
 fi
 
+# Upload produce with images
 curl -s -X POST "${BASE_URL}/api/produce" \
   -H "Authorization: Bearer $FARMER_TOKEN" \
-  -H "Content-Type: multipart/form-data" \
-  -F 'data={"name":"Test Tomato","description":"Testing GCP storage with multiple images","product_variety":"Roma","produce_category":"VEGETABLES","quantity":10,"unit":"KG","price_per_unit":50,"location":"12.9716,77.5946","location_name":"Test Farm","harvested_at":"2024-02-01T00:00:00Z"}' \
-  -F "images=@IMG_2882.heic;type=image/heic" \
-  -F "images=@IMG_2884.heic;type=image/heic" > $temp_response 2>&1
+  -F 'data={"name":"Test Tomato","description":"Testing GCP storage with multiple images","product_variety":"Roma","produce_category":"VEGETABLES","quantity":10,"unit":"KG","price_per_unit":50,"location":"12.9716,77.5946","location_name":"Test Farm","harvested_at":"2024-02-01T00:00:00Z","images":[]}' \
+  -F 'images=@small1.jpg;type=image/jpeg;filename=small1.jpg' \
+  -F 'images=@small2.jpg;type=image/jpeg;filename=small2.jpg' \
+  > $temp_response 2>&1
 
 print_debug "Upload Response:"
 cat $temp_response
@@ -155,4 +156,4 @@ if [ "$IMAGE_COUNT" -ne 2 ]; then
   exit 1
 fi
 
-print_success "Successfully verified produce has ${IMAGE_COUNT} images" 
+print_success "Successfully verified produce has ${IMAGE_COUNT} images"
