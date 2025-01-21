@@ -722,6 +722,8 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
+
+
 CREATE TRIGGER update_inspection_distance_fee_config_updated_at
     BEFORE UPDATE ON inspection_distance_fee_config
     FOR EACH ROW
@@ -1039,12 +1041,12 @@ CREATE INDEX IF NOT EXISTS idx_report_scheduled_time ON report(scheduled_time);
 -- Create request_metrics table
 CREATE TABLE IF NOT EXISTS request_metrics (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id),
-  endpoint TEXT NOT NULL,
-  method TEXT NOT NULL,
-  status_code INTEGER NOT NULL,
-  response_time INTEGER NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+user_id UUID NOT NULL REFERENCES users(id),
+endpoint TEXT NOT NULL,
+method TEXT NOT NULL,
+status_code INTEGER NOT NULL,
+response_time INTEGER NOT NULL,
+created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Add constraint to ensure lat_lng uses comma format
