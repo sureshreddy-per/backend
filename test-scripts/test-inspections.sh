@@ -31,25 +31,25 @@ make_request() {
     local endpoint=$2
     local data=$3
     local token=$4
-    
+
     local response=$(curl -s -X "$method" \
         -H "Content-Type: application/json" \
         ${token:+-H "Authorization: Bearer $token"} \
         ${data:+-d "$data"} \
         "http://localhost:3000/api$endpoint")
-    
+
     # Check for curl errors
     if [ $? -ne 0 ]; then
         print_error "Failed to make request to $endpoint"
         return 1
     fi
-    
+
     # Check for API errors
     if echo "$response" | grep -q '"statusCode":[45]'; then
         print_error "API request failed: $response"
         return 1
     fi
-    
+
     echo "$response"
     return 0
 }
@@ -89,7 +89,7 @@ get_user_token() {
         print_error "Failed to verify OTP"
         return 1
     fi
-    
+
     echo "$VERIFY_RESPONSE"
     return 0
 }
@@ -240,4 +240,4 @@ if [ $? -ne 0 ]; then
 fi
 print_success "Retrieved all quality assessments"
 
-echo -e "\n${GREEN}All inspection tests completed successfully!${NC}" 
+echo -e "\n${GREEN}All inspection tests completed successfully!${NC}"

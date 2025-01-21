@@ -197,18 +197,50 @@
               },
               {
                 "key": "Content-Type",
-                "value": "application/json"
+                "value": "multipart/form-data"
               }
             ],
             "body": {
-              "mode": "raw",
-              "raw": "{\n    \"name\": \"Organic Tomatoes\",\n    \"category\": \"VEGETABLES\",\n    \"quantity\": 100,\n    \"unit\": \"KG\",\n    \"price_per_unit\": 50,\n    \"description\": \"Fresh organic tomatoes\",\n    \"harvest_date\": \"2024-01-15\",\n    \"location\": {\n        \"latitude\": 12.9716,\n        \"longitude\": 77.5946\n    }\n}"
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "data",
+                  "value": "{\n    \"name\": \"Organic Tomatoes\",\n    \"description\": \"Fresh organic tomatoes\",\n    \"product_variety\": \"Roma\",\n    \"produce_category\": \"VEGETABLES\",\n    \"quantity\": 100,\n    \"unit\": \"KG\",\n    \"price_per_unit\": 50,\n    \"location\": \"12.9716,77.5946\",\n    \"location_name\": \"My Farm\",\n    \"harvested_at\": \"2024-02-01T00:00:00Z\",\n    \"images\": []\n}",
+                  "type": "text",
+                  "description": "Produce details in JSON format"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Image file (can add up to 3 images)"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Second image (optional)"
+                },
+                {
+                  "key": "images",
+                  "type": "file",
+                  "src": [],
+                  "description": "Third image (optional)"
+                },
+                {
+                  "key": "video",
+                  "type": "file",
+                  "src": [],
+                  "description": "Video file (optional, currently not processed by the API)"
+                }
+              ]
             },
             "url": {
               "raw": "{{base_url}}/produce",
               "host": ["{{base_url}}"],
               "path": ["produce"]
-            }
+            },
+            "description": "Create a new produce listing with images. Can upload up to 3 images and 1 video (video not currently processed)."
           }
         },
         {
@@ -519,4 +551,4 @@
       ]
     }
   ]
-} 
+}

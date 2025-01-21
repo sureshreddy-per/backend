@@ -33,7 +33,7 @@ print_success() {
 check_error() {
     local response=$1
     local error_message=$2
-    
+
     if echo "$response" | grep -q '"error"'; then
         print_error "$error_message"
     fi
@@ -44,7 +44,7 @@ get_id() {
     if [ -z "$response" ]; then
         print_error "Empty response when trying to get ID"
     fi
-    
+
     # Try to parse as JSON and get id field
     if command -v jq >/dev/null 2>&1; then
         local id=$(echo "$response" | jq -r '.id // empty')
@@ -53,14 +53,14 @@ get_id() {
             return
         fi
     fi
-    
+
     # Fallback to grep if jq fails or id not found
     local id=$(echo "$response" | grep -o '"id":"[^"]*' | cut -d'"' -f4)
     if [ -n "$id" ]; then
         echo "$id"
         return
     fi
-    
+
     print_error "Could not extract ID from response"
 }
 
@@ -69,7 +69,7 @@ make_request() {
     local endpoint=$2
     local token=$3
     local data=$4
-    
+
     print_debug "Making $method request to $endpoint" >&2
     local response=""
     if [ -n "$data" ]; then
@@ -94,18 +94,18 @@ get_auth_token() {
     local mobile=$1
     local name=$2
     local role=$3
-    
+
     print_step "Getting $role token"
-    
+
     # Try registration
     print_debug "Registering $role with mobile: $mobile"
     role_email=$(echo "$role" | tr '[:upper:]' '[:lower:]')
     REGISTER_RESPONSE=$(curl -s -X POST http://localhost:3000/api/auth/register \
         -H "Content-Type: application/json" \
         -d "{\"mobile_number\":\"$mobile\",\"name\":\"$name\",\"role\":\"$role\",\"email\":\"${role_email}@test.com\"}")
-    
+
     print_debug "Registration Response: $REGISTER_RESPONSE"
-    
+
     # Check if user exists and request OTP
     if echo "$REGISTER_RESPONSE" | grep -q "User already exists"; then
         print_debug "User exists, requesting OTP"
@@ -117,24 +117,24 @@ get_auth_token() {
     else
         OTP=$(echo $REGISTER_RESPONSE | grep -o 'OTP sent: [0-9]*' | grep -o '[0-9]*')
     fi
-    
+
     if [ -z "$OTP" ]; then
         print_error "Failed to get OTP for $role"
     fi
-    
+
     # Verify OTP and get token
     print_debug "Verifying OTP for $role"
     VERIFY_RESPONSE=$(curl -s -X POST http://localhost:3000/api/auth/otp/verify \
         -H "Content-Type: application/json" \
         -d "{\"mobile_number\":\"$mobile\",\"otp\":\"$OTP\"}")
-    
+
     print_debug "Verify Response: $VERIFY_RESPONSE"
     TOKEN=$(echo $VERIFY_RESPONSE | grep -o '"token":"[^"]*' | cut -d'"' -f4)
-    
+
     if [ -z "$TOKEN" ]; then
         print_error "Failed to get token for $role"
     fi
-    
+
     print_success "Got $role token"
     echo "$TOKEN"
 }
@@ -257,4 +257,4 @@ CANCEL_RESPONSE=$(make_request "POST" "/transactions/$TRANSACTION_ID/cancel" "$F
 check_error "$CANCEL_RESPONSE" "Failed to cancel transaction"
 print_success "Cancelled transaction"
 
-echo -e "\n${GREEN}✓ All Transaction Tests Completed Successfully${NC}" 
+echo -e "\n${GREEN}✓ All Transaction Tests Completed Successfully${NC}"
