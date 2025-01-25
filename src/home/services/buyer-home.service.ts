@@ -35,9 +35,9 @@ export class BuyerHomeService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  async getBuyerHomeData(buyerId: string, location: string): Promise<BuyerHomeResponse> {
+  async getBuyerHomeData(userId: string, location: string): Promise<BuyerHomeResponse> {
     try {
-      const cacheKey = `${this.CACHE_PREFIX}${buyerId}:${location}`;
+      const cacheKey = `${this.CACHE_PREFIX}${userId}:${location}`;
       const cachedData = await this.cacheManager.get<BuyerHomeResponse>(cacheKey);
       
       if (cachedData) {
@@ -46,20 +46,21 @@ export class BuyerHomeService {
 
       const [lat, lng] = location.split(',').map(Number);
 
+      // First get the buyer to get their ID
+      const buyer = await this.getBuyerStatus(userId);
+
       const [
-        buyer,
         preferences,
         topOffers,
         nearbyProduces,
         highValueTransactions,
         inspections
       ] = await Promise.all([
-        this.getBuyerStatus(buyerId),
-        this.getBuyerPreferences(buyerId),
-        this.getTopOffers(buyerId, location),
+        this.getBuyerPreferences(buyer.id),
+        this.getTopOffers(buyer.id, location),
         this.getNearbyProduces(location),
-        this.getHighValueTransactions(buyerId, location),
-        this.getInspections(buyerId, location)
+        this.getHighValueTransactions(buyer.id, location),
+        this.getInspections(buyer.id, location)
       ]);
 
       const response = {
@@ -80,8 +81,8 @@ export class BuyerHomeService {
     }
   }
 
-  private async getBuyerStatus(buyerId: string): Promise<Buyer> {
-    const cacheKey = `${this.CACHE_PREFIX}buyer:${buyerId}`;
+  private async getBuyerStatus(userId: string): Promise<Buyer> {
+    const cacheKey = `${this.CACHE_PREFIX}buyer:${userId}`;
     const cachedBuyer = await this.cacheManager.get<Buyer>(cacheKey);
     
     if (cachedBuyer) {
@@ -89,12 +90,12 @@ export class BuyerHomeService {
     }
 
     const buyer = await this.buyerRepository.findOne({ 
-      where: { id: buyerId },
+      where: { user_id: userId },
       select: ['id', 'is_active']
     });
 
     if (!buyer) {
-      throw new NotFoundException(`Buyer with ID ${buyerId} not found`);
+      throw new NotFoundException(`Buyer not found for user ${userId}`);
     }
 
     await this.cacheManager.set(cacheKey, buyer, this.CACHE_TTL);
