@@ -196,11 +196,12 @@ export class BuyerHomeService {
 
     const produces = await this.produceRepository
       .createQueryBuilder('p')
-      .select('DISTINCT ON (p.name) p.name')
-      .addSelect([
+      .select([
+        'p.name',
         'p.id',
         'p.icon_url'
       ])
+      .distinctOn(['p.name'])
       .where('p.status = :status', { status: 'ACTIVE' })
       .andWhere(
         `ST_DWithin(
@@ -215,8 +216,14 @@ export class BuyerHomeService {
       .limit(15)
       .getRawMany();
 
-    await this.cacheManager.set(cacheKey, produces, this.CACHE_TTL);
-    return produces;
+    const transformedProduces = produces.map(p => ({
+      id: p.p_id,
+      name: p.p_name,
+      icon_url: p.p_icon_url
+    }));
+
+    await this.cacheManager.set(cacheKey, transformedProduces, this.CACHE_TTL);
+    return transformedProduces;
   }
 
   private async getHighValueTransactions(buyerId: string, location: string): Promise<TransformedTransaction[]> {
