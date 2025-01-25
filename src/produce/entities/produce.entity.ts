@@ -7,6 +7,7 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  Index,
 } from "typeorm";
 import { Farmer } from "../../farmers/entities/farmer.entity";
 import { Farm } from "../../farmers/entities/farm.entity";
@@ -16,6 +17,10 @@ import { ProduceCategory } from "../enums/produce-category.enum";
 import { ProduceStatus } from "../enums/produce-status.enum";
 
 @Entity("produce")
+@Index("idx_produce_status_location", ["status", "location"])
+@Index("idx_produce_farmer_id", ["farmer_id"])
+@Index("idx_produce_created_at", ["created_at"])
+@Index("idx_produce_name", ["name"])
 export class Produce {
   @PrimaryGeneratedColumn("uuid")
   id: string;

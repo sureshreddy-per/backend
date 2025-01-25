@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { Produce } from "../../produce/entities/produce.entity";
 import { Inspector } from "../../inspectors/entities/inspector.entity";
@@ -19,6 +20,10 @@ export enum InspectionRequestStatus {
 }
 
 @Entity("inspection_requests")
+@Index("idx_inspection_requests_produce_id", ["produce_id"])
+@Index("idx_inspection_requests_requester_id", ["requester_id"])
+@Index("idx_inspection_requests_status_location", ["status", "location"])
+@Index("idx_inspection_requests_created_at", ["created_at"])
 export class InspectionRequest {
   @PrimaryGeneratedColumn("uuid")
   id: string;

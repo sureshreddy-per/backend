@@ -992,6 +992,164 @@
           }
         }
       ]
+    },
+    {
+      "name": "Home",
+      "item": [
+        {
+          "name": "Get Home Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/home/farmer?location=12.9716,77.5946",
+              "host": ["{{base_url}}"],
+              "path": ["home", "farmer"],
+              "query": [
+                {
+                  "key": "location",
+                  "value": "12.9716,77.5946",
+                  "description": "Current location in format: latitude,longitude"
+                }
+              ]
+            },
+            "description": "Get farmer's home screen data including market trends, active offers, recent produces, top buyers, and inspections"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/home/farmer?location=12.9716,77.5946",
+                  "host": ["{{base_url}}"],
+                  "path": ["home", "farmer"],
+                  "query": [
+                    {
+                      "key": "location",
+                      "value": "12.9716,77.5946"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "market_trends": [
+                  {
+                    "produce_name": "Tomatoes",
+                    "daily_prices": [
+                      {
+                        "date": "2024-01-20",
+                        "timestamp": "2024-01-20T00:00:00.000Z",
+                        "unix_timestamp": 1705708800000,
+                        "avg_price": 45.5
+                      }
+                    ],
+                    "today": {
+                      "min_price": 40,
+                      "max_price": 50
+                    }
+                  }
+                ],
+                "active_offers": {
+                  "my_offers": [
+                    {
+                      "produce_id": "123",
+                      "name": "Organic Tomatoes",
+                      "quantity": 100,
+                      "unit": "kg",
+                      "quality_grade": 8,
+                      "distance_km": 0,
+                      "is_manually_inspected": true,
+                      "images": ["url1", "url2"],
+                      "farmer_id": "456",
+                      "farmer_name": "John Doe",
+                      "farmer_avatar_url": "url"
+                    }
+                  ],
+                  "nearby_offers": [
+                    {
+                      "produce_id": "789",
+                      "name": "Fresh Potatoes",
+                      "quantity": 200,
+                      "unit": "kg",
+                      "quality_grade": 7,
+                      "distance_km": 5.2,
+                      "is_manually_inspected": false,
+                      "images": ["url1"],
+                      "farmer_id": "012",
+                      "farmer_name": "Jane Smith",
+                      "farmer_avatar_url": "url"
+                    }
+                  ]
+                },
+                "recent_produces": [
+                  {
+                    "produce_id": "345",
+                    "name": "Carrots",
+                    "quantity": 50,
+                    "unit": "kg",
+                    "quality_grade": 9,
+                    "distance_km": 0,
+                    "is_manually_inspected": true,
+                    "produce_images": ["url1", "url2"]
+                  }
+                ],
+                "top_buyers": [
+                  {
+                    "id": "678",
+                    "name": "Super Market",
+                    "business_name": "Super Market Chain",
+                    "avatar_url": "url",
+                    "rating": 4.8,
+                    "total_completed_transactions": 25
+                  }
+                ],
+                "inspections": {
+                  "recent": [
+                    {
+                      "inspection_id": "901",
+                      "produce_id": "123",
+                      "produce_name": "Organic Tomatoes",
+                      "produce_images": ["url1", "url2"],
+                      "quality_assessment": {
+                        "grade": 8,
+                        "notes": "Excellent quality"
+                      }
+                    }
+                  ],
+                  "nearby": [
+                    {
+                      "inspection_id": "234",
+                      "produce_id": "567",
+                      "produce_name": "Onions",
+                      "produce_images": ["url1"],
+                      "quality_assessment": {
+                        "grade": 7,
+                        "notes": "Good quality"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

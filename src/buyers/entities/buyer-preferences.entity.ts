@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   OneToOne,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { Buyer } from "./buyer.entity";
 
@@ -16,6 +17,8 @@ interface ProducePricePreference {
 }
 
 @Entity("buyer_preferences")
+@Index("idx_buyer_preferences_buyer_id", ["buyer_id"])
+@Index("idx_buyer_preferences_created_at", ["created_at"])
 export class BuyerPreferences {
   @PrimaryGeneratedColumn("uuid")
   id: string;

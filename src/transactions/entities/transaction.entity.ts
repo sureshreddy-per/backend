@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from "typeorm";
 import { Offer } from "../../offers/entities/offer.entity";
 import { Produce } from '../../produce/entities/produce.entity';
@@ -19,6 +20,9 @@ export enum TransactionStatus {
 }
 
 @Entity("transactions")
+@Index("idx_transactions_buyer_id_status", ["buyer_id", "status"])
+@Index("idx_transactions_total_amount", ["final_price", "final_quantity"])
+@Index("idx_transactions_created_at", ["created_at"])
 export class Transaction {
   @PrimaryGeneratedColumn("uuid")
   id: string;

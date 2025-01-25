@@ -804,6 +804,150 @@
           }
         }
       ]
+    },
+    {
+      "name": "Home",
+      "item": [
+        {
+          "name": "Get Home Data",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/home/buyer?location=12.9716,77.5946",
+              "host": ["{{base_url}}"],
+              "path": ["home", "buyer"],
+              "query": [
+                {
+                  "key": "location",
+                  "value": "12.9716,77.5946",
+                  "description": "Current location in format: latitude,longitude"
+                }
+              ]
+            },
+            "description": "Get buyer's home screen data including preferences, top offers, nearby produces, high value transactions, and inspections"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/home/buyer?location=12.9716,77.5946",
+                  "host": ["{{base_url}}"],
+                  "path": ["home", "buyer"],
+                  "query": [
+                    {
+                      "key": "location",
+                      "value": "12.9716,77.5946"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": {
+                "is_online": true,
+                "preferences": [
+                  {
+                    "produce_name": "Tomatoes",
+                    "min_price": 40,
+                    "max_price": 50,
+                    "last_price_updated": "2024-01-20T10:30:00.000Z"
+                  }
+                ],
+                "top_offers": [
+                  {
+                    "produce_id": "123",
+                    "name": "Organic Tomatoes",
+                    "quantity": 100,
+                    "unit": "kg",
+                    "quality_grade": 8,
+                    "distance_km": 5.2,
+                    "is_manually_inspected": true,
+                    "images": ["url1", "url2"],
+                    "farmer_id": "456",
+                    "farmer_name": "John Doe",
+                    "farmer_avatar_url": "url"
+                  }
+                ],
+                "nearby_produces": [
+                  {
+                    "id": "789",
+                    "name": "Potatoes",
+                    "icon_url": "url"
+                  }
+                ],
+                "high_value_transactions": [
+                  {
+                    "id": "012",
+                    "offer_id": "345",
+                    "produce_id": "678",
+                    "buyer_id": "901",
+                    "farmer_id": "234",
+                    "final_price": 5000,
+                    "final_quantity": 100,
+                    "status": "IN_PROGRESS",
+                    "delivery_window_starts_at": "2024-01-21T00:00:00.000Z",
+                    "delivery_window_ends_at": "2024-01-22T00:00:00.000Z",
+                    "delivery_confirmed_at": null,
+                    "buyer_inspection_completed_at": null,
+                    "distance_km": 7.5,
+                    "created_at": "2024-01-20T10:30:00.000Z",
+                    "updated_at": "2024-01-20T10:30:00.000Z",
+                    "requires_rating": false,
+                    "rating_completed": false,
+                    "produce": {
+                      "id": "678",
+                      "name": "Organic Tomatoes",
+                      "quality_grade": 8
+                    }
+                  }
+                ],
+                "inspections": {
+                  "recent": [
+                    {
+                      "inspection_id": "567",
+                      "produce_id": "123",
+                      "produce_name": "Organic Tomatoes",
+                      "produce_images": ["url1", "url2"],
+                      "quality_assessment": {
+                        "grade": 8,
+                        "notes": "Excellent quality"
+                      }
+                    }
+                  ],
+                  "nearby": [
+                    {
+                      "inspection_id": "890",
+                      "produce_id": "789",
+                      "produce_name": "Potatoes",
+                      "produce_images": ["url1"],
+                      "quality_assessment": {
+                        "grade": 7,
+                        "notes": "Good quality"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
