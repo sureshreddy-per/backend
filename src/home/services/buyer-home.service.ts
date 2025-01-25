@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject } from '@nestjs/common';
+import { Injectable, Logger, Inject, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -88,10 +88,14 @@ export class BuyerHomeService {
       return cachedBuyer;
     }
 
-    const buyer = await this.buyerRepository.findOneOrFail({ 
+    const buyer = await this.buyerRepository.findOne({ 
       where: { id: buyerId },
-      select: ['id', 'is_active'] // Only select needed fields
+      select: ['id', 'is_active']
     });
+
+    if (!buyer) {
+      throw new NotFoundException(`Buyer with ID ${buyerId} not found`);
+    }
 
     await this.cacheManager.set(cacheKey, buyer, this.CACHE_TTL);
     return buyer;
