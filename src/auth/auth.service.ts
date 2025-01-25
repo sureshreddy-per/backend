@@ -273,6 +273,8 @@ export class AuthService {
       storeUrl?: string;
     };
   }> {
+    let app_status = undefined;
+    
     try {
       // Check if token is blacklisted
       const isBlacklisted = await this.isTokenBlacklisted(token);
@@ -290,7 +292,6 @@ export class AuthService {
       }
 
       // Check app version if version is provided
-      let app_status = undefined;
       if (currentVersion) {
         const appType = user.role === UserRole.BUYER ? AppType.BUYER : AppType.FARMER;
         app_status = await this.appVersionService.checkAppStatus(appType, currentVersion);
@@ -302,10 +303,21 @@ export class AuthService {
         app_status,
       };
     } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
+      // If currentVersion is provided, get app status using FARMER as default type
+      // since we don't have user information when token is invalid
+      if (currentVersion) {
+        try {
+          app_status = await this.appVersionService.checkAppStatus(AppType.FARMER, currentVersion);
+        } catch (appError) {
+          // If app status check fails, log error but continue with token validation response
+          this.logger.error('Failed to check app status:', appError);
+        }
       }
-      throw new UnauthorizedException("Invalid or expired token");
+
+      return {
+        valid: false,
+        app_status,
+      };
     }
   }
 

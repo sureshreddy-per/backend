@@ -27,6 +27,7 @@ import { MediaModule } from "./media/media.module";
 import { ReportsModule } from "./reports/reports.module";
 import { MetricsModule } from "./metrics/metrics.module";
 import { BusinessMetricsModule } from "./business-metrics/business-metrics.module";
+import { HomeModule } from "./home/home.module";
 import type { RedisClientOptions } from "redis";
 import { LoggerService } from "./common/services/logger.service";
 import configuration from "./config/configuration";
@@ -98,6 +99,7 @@ import configuration from "./config/configuration";
     ReportsModule,
     MetricsModule,
     BusinessMetricsModule,
+    HomeModule,
   ],
   providers: [
     LoggerService,
