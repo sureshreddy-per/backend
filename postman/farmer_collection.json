@@ -142,16 +142,16 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/auth/profile",
+              "raw": "{{base_url}}/farmers/profile",
               "host": ["{{base_url}}"],
-              "path": ["auth", "profile"]
+              "path": ["farmers", "profile"]
             }
           }
         },
         {
           "name": "Update Profile",
           "request": {
-            "method": "PUT",
+            "method": "PATCH",
             "header": [
               {
                 "key": "Authorization",
@@ -167,9 +167,9 @@
               "raw": "{\n    \"name\": \"Updated Farmer Name\",\n    \"email\": \"updated.farmer@example.com\",\n    \"app_version\": \"1.0.0\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/profile",
+              "raw": "{{base_url}}/farmers/profile/user-details",
               "host": ["{{base_url}}"],
-              "path": ["auth", "profile"]
+              "path": ["farmers", "profile", "user-details"]
             }
           }
         },
@@ -527,8 +527,7 @@
               ]
             },
             "description": "Returns a paginated list of transactions for the authenticated farmer. Response includes:\n- Transaction details (id, status, prices, quantities)\n- Delivery and inspection timestamps\n- Buyer details (business name, rating, contact)\n- Produce information (name, quality grade)\n- Pagination metadata"
-          },
-          "response": []
+          }
         },
         {
           "name": "Get Transaction",
@@ -544,10 +543,8 @@
                   "value": ""
                 }
               ]
-            },
-            "description": "Returns details of a specific transaction. Response includes:\n- Transaction details\n- Buyer information\n- Produce details\n- Delivery status and timestamps"
-          },
-          "response": []
+            }
+          }
         },
         {
           "name": "Start Delivery",
@@ -563,10 +560,8 @@
                   "value": ""
                 }
               ]
-            },
-            "description": "Starts the delivery window for a transaction. Sets a 24-hour window and updates status to IN_PROGRESS."
-          },
-          "response": []
+            }
+          }
         },
         {
           "name": "Confirm Delivery",
@@ -582,19 +577,8 @@
                   "value": ""
                 }
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"notes\": \"Delivery completed successfully\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Confirms delivery completion. Updates delivery timestamp and allows adding notes."
-          },
-          "response": []
+            }
+          }
         },
         {
           "name": "Cancel Transaction",
@@ -610,19 +594,8 @@
                   "value": ""
                 }
               ]
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"reason\": \"Unable to fulfill order\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Cancels the transaction. Requires a reason and updates status to CANCELLED."
-          },
-          "response": []
+            }
+          }
         }
       ]
     },

@@ -8,6 +8,10 @@ import { InspectionRequest } from '../quality/entities/inspection-request.entity
 import { QualityModule } from '../quality/quality.module';
 import { FarmerHomeController } from './controllers/farmer-home.controller';
 import { FarmerHomeService } from './services/farmer-home.service';
+import { Farmer } from '../farmers/entities/farmer.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
+import { MarketTrendService } from '../market/services/market-trend.service';
+import { CacheModule } from '@nestjs/cache-manager';
 
 @Module({
   imports: [
@@ -16,12 +20,15 @@ import { FarmerHomeService } from './services/farmer-home.service';
       Offer,
       Produce,
       Buyer,
-      InspectionRequest
+      InspectionRequest,
+      Farmer,
+      Transaction
     ]),
-    QualityModule
+    QualityModule,
+    CacheModule.register()
   ],
   controllers: [FarmerHomeController],
-  providers: [FarmerHomeService],
+  providers: [FarmerHomeService, MarketTrendService],
   exports: [FarmerHomeService]
 })
 export class HomeModule {} 
