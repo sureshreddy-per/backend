@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -16,6 +16,18 @@ import { NotificationType } from '../../notifications/enums/notification-type.en
 import { OfferStatus } from '../enums/offer-status.enum';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { UsersService } from '../../users/services/users.service';
+import { ListOffersDto, OfferSortBy } from '../dto/list-offers.dto';
+
+interface TransformedBuyer {
+  id: string;
+  business_name: string;
+  address: string;
+  location: string;
+  name: string;
+  avatar_url: string | null;
+  rating: number;
+  total_completed_transactions: number;
+}
 
 const CACHE_PREFIX = 'offers:';
 const CACHE_TTL = 300; // 5 minutes
@@ -49,6 +61,50 @@ export class OffersService {
     await Promise.all(keys.map(key => this.cacheManager.del(key)));
   }
 
+  private transformBuyerData(offer: Offer): TransformedBuyer {
+    if (!offer.buyer || !offer.buyer.user) {
+      return null;
+    }
+
+    return {
+      id: offer.buyer.id,
+      business_name: offer.buyer.business_name,
+      address: offer.buyer.address || '',
+      location: offer.buyer.location || '',
+      name: offer.buyer.user.name,
+      avatar_url: offer.buyer.user.avatar_url,
+      rating: offer.buyer.user.rating || 0,
+      total_completed_transactions: offer.buyer.user.total_completed_transactions || 0
+    };
+  }
+
+  private async transformOfferResponse(offer: Offer): Promise<Offer> {
+    // Load full offer with relations if not already loaded
+    if (!offer.buyer?.user || !offer.produce) {
+      offer = await this.offerRepository.findOne({
+        where: { id: offer.id },
+        relations: [
+          "produce",
+          "produce.farmer",
+          "produce.farmer.user",
+          "produce.quality_assessments",
+          "buyer",
+          "buyer.user"
+        ],
+      });
+    }
+
+    // Transform produce data
+    if (offer.produce) {
+      offer.produce = this.produceService.transformProduceForResponse(offer.produce);
+    }
+
+    // Transform buyer data to match required structure
+    (offer.buyer as any) = this.transformBuyerData(offer);
+
+    return offer;
+  }
+
   async create(createOfferDto: CreateOfferDto): Promise<Offer> {
     try {
       // Validate produce exists
@@ -76,9 +132,22 @@ export class OffersService {
       
       const savedOffer = await this.offerRepository.save(offer);
 
-      // Notify the farmer about the new offer using their user_id
+      // Fetch the complete offer with all relations before transforming
+      const completeOffer = await this.offerRepository.findOne({
+        where: { id: savedOffer.id },
+        relations: [
+          "produce",
+          "produce.farmer",
+          "produce.farmer.user",
+          "produce.quality_assessments",
+          "buyer",
+          "buyer.user"
+        ],
+      });
+
+      // Notify the farmer about the new offer
       await this.notificationService.create({
-        user_id: farmer.user_id, // Use farmer's user_id directly
+        user_id: farmer.user_id,
         type: NotificationType.NEW_OFFER,
         data: {
           offer_id: savedOffer.id,
@@ -89,10 +158,11 @@ export class OffersService {
         },
       });
 
-      return savedOffer;
+      // Return transformed offer
+      return this.transformOfferResponse(completeOffer);
     } catch (error) {
       this.logger.error(`Error creating offer: ${error.message}`);
-      if (error.code === '23505') { // Unique violation
+      if (error.code === '23505') {
         throw new ConflictException('An offer with these details already exists');
       }
       throw error;
@@ -106,15 +176,23 @@ export class OffersService {
 
     const offer = await this.offerRepository.findOne({
       where: { id },
-      relations: ["produce", "buyer"],
+      relations: [
+        "produce",
+        "produce.farmer",
+        "produce.farmer.user",
+        "produce.quality_assessments",
+        "buyer",
+        "buyer.user"
+      ],
     });
 
     if (!offer) {
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
-    await this.cacheManager.set(cacheKey, offer, CACHE_TTL);
-    return offer;
+    const transformedOffer = await this.transformOfferResponse(offer);
+    await this.cacheManager.set(cacheKey, transformedOffer, CACHE_TTL);
+    return transformedOffer;
   }
 
   async accept(id: string): Promise<Offer> {
@@ -133,7 +211,7 @@ export class OffersService {
       },
     });
 
-    return updatedOffer;
+    return this.transformOfferResponse(updatedOffer);
   }
 
   async reject(id: string, reason: string): Promise<Offer> {
@@ -154,7 +232,7 @@ export class OffersService {
       },
     });
 
-    return updatedOffer;
+    return this.transformOfferResponse(updatedOffer);
   }
 
   async cancel(id: string, reason: string): Promise<Offer> {
@@ -188,65 +266,123 @@ export class OffersService {
       }),
     ]);
 
-    return updatedOffer;
+    return this.transformOfferResponse(updatedOffer);
   }
 
-  async findByBuyer(buyerId: string, options: { page?: number; limit?: number } = {}): Promise<PaginatedResponse<Offer>> {
-    const { page = 1, limit = 10 } = options;
-    const skip = (page - 1) * limit;
-
-    const cacheKey = this.getCacheKey(`buyer:${buyerId}:${page}:${limit}`);
-    const cached = await this.cacheManager.get<PaginatedResponse<Offer>>(cacheKey);
-    if (cached) return cached;
-
-    const [items, total] = await this.offerRepository.findAndCount({
-      where: { buyer_id: buyerId },
-      relations: ["produce", "buyer"],
-      order: { created_at: "DESC" },
-      skip,
-      take: limit,
-    });
-
-    const result = {
-      items,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
-    };
-
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL);
-    return result;
+  private createBaseQuery(): SelectQueryBuilder<Offer> {
+    return this.offerRepository
+      .createQueryBuilder('offer')
+      .leftJoinAndSelect('offer.produce', 'produce')
+      .leftJoinAndSelect('produce.farmer', 'farmer')
+      .leftJoinAndSelect('farmer.user', 'farmerUser')
+      .leftJoinAndSelect('produce.quality_assessments', 'quality_assessments')
+      .leftJoinAndSelect('offer.buyer', 'buyer')
+      .leftJoinAndSelect('buyer.user', 'buyerUser');
   }
 
-  async findByFarmer(farmerId: string, options: { page?: number; limit?: number } = {}): Promise<PaginatedResponse<Offer>> {
-    const { page = 1, limit = 10 } = options;
+  private buildOffersQuery(
+    queryBuilder: SelectQueryBuilder<Offer>,
+    { status, sort = [] }: ListOffersDto
+  ): SelectQueryBuilder<Offer> {
+    // Apply status filter if provided
+    if (status) {
+      queryBuilder.andWhere('offer.status = :status', { status });
+    }
+
+    // Apply multiple sorting options
+    if (sort.length > 0) {
+      sort.forEach((sortOption, index) => {
+        const { field, order } = sortOption;
+        
+        // For the first sort option, use orderBy
+        // For subsequent options, use addOrderBy
+        const orderMethod = index === 0 ? 'orderBy' : 'addOrderBy';
+
+        switch (field) {
+          case OfferSortBy.PRICE_PER_UNIT:
+            queryBuilder[orderMethod]('offer.price_per_unit', order);
+            break;
+          case OfferSortBy.TOTAL_PRICE:
+            queryBuilder[orderMethod]('offer.price_per_unit * offer.quantity', order);
+            break;
+          case OfferSortBy.QUANTITY:
+            queryBuilder[orderMethod]('offer.quantity', order);
+            break;
+          case OfferSortBy.QUALITY:
+            queryBuilder[orderMethod]('offer.quality_grade', order);
+            break;
+          case OfferSortBy.DISTANCE:
+            queryBuilder[orderMethod]('offer.distance_km', order);
+            break;
+          case OfferSortBy.BUYER_RATING:
+            queryBuilder[orderMethod]('buyerUser.rating', order);
+            break;
+          case OfferSortBy.FARMER_RATING:
+            queryBuilder[orderMethod]('farmerUser.rating', order);
+            break;
+          default:
+            queryBuilder[orderMethod]('offer.created_at', order);
+        }
+      });
+    } else {
+      // Default sorting if no sort options provided
+      queryBuilder.orderBy('offer.created_at', 'DESC');
+    }
+
+    return queryBuilder;
+  }
+
+  private async getPaginatedOffers(
+    queryBuilder: SelectQueryBuilder<Offer>,
+    query: ListOffersDto
+  ): Promise<PaginatedResponse<Offer>> {
+    const { page = 1, limit = 10 } = query;
     const skip = (page - 1) * limit;
 
-    const cacheKey = this.getCacheKey(`farmer:${farmerId}:${page}:${limit}`);
-    const cached = await this.cacheManager.get<PaginatedResponse<Offer>>(cacheKey);
-    if (cached) return cached;
-
-    const [items, total] = await this.offerRepository
-      .createQueryBuilder("offer")
-      .innerJoinAndSelect("offer.produce", "produce")
-      .innerJoinAndSelect("offer.buyer", "buyer")
-      .where("produce.farmer_id = :farmerId", { farmerId })
-      .orderBy("offer.created_at", "DESC")
+    const finalQuery = this.buildOffersQuery(queryBuilder, query);
+    const [items, total] = await finalQuery
       .skip(skip)
       .take(limit)
       .getManyAndCount();
 
-    const result = {
-      items,
+    const transformedItems = await Promise.all(
+      items.map(offer => this.transformOfferResponse(offer))
+    );
+
+    return {
+      items: transformedItems,
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
     };
+  }
 
-    await this.cacheManager.set(cacheKey, result, CACHE_TTL);
-    return result;
+  async findAll(query?: ListOffersDto): Promise<PaginatedResponse<Offer> | Offer[]> {
+    const queryBuilder = this.createBaseQuery();
+
+    // If no query params provided, return all offers without pagination
+    if (!query) {
+      const offers = await queryBuilder
+        .orderBy('offer.created_at', 'DESC')
+        .getMany();
+      return Promise.all(offers.map(offer => this.transformOfferResponse(offer)));
+    }
+
+    // Return paginated response with filters and sorting
+    return this.getPaginatedOffers(queryBuilder, query);
+  }
+
+  async findByBuyer(buyerId: string, query: ListOffersDto): Promise<PaginatedResponse<Offer>> {
+    const queryBuilder = this.createBaseQuery()
+      .where('offer.buyer_id = :buyerId', { buyerId });
+    return this.getPaginatedOffers(queryBuilder, query);
+  }
+
+  async findByFarmer(farmerId: string, query: ListOffersDto): Promise<PaginatedResponse<Offer>> {
+    const queryBuilder = this.createBaseQuery()
+      .where('produce.farmer_id = :farmerId', { farmerId });
+    return this.getPaginatedOffers(queryBuilder, query);
   }
 
   async updateStatus(id: string, status: OfferStatus): Promise<Offer> {
@@ -254,7 +390,7 @@ export class OffersService {
     offer.status = status;
     const updatedOffer = await this.offerRepository.save(offer);
     await this.clearOfferCache(id);
-    return updatedOffer;
+    return this.transformOfferResponse(updatedOffer);
   }
 
   async getStats() {
@@ -300,13 +436,6 @@ export class OffersService {
     return result;
   }
 
-  async findAll(): Promise<Offer[]> {
-    return this.offerRepository.find({
-      relations: ["produce", "buyer"],
-      order: { created_at: "DESC" },
-    });
-  }
-
   async remove(id: string): Promise<void> {
     const offer = await this.findOne(id);
     await this.offerRepository.remove(offer);
@@ -341,7 +470,7 @@ export class OffersService {
       }),
     ]);
 
-    return updatedOffer;
+    return this.transformOfferResponse(updatedOffer);
   }
 
   async handlePriceChange(
@@ -462,7 +591,7 @@ export class OffersService {
         timestamp: new Date(),
       });
 
-      return savedOffer;
+      return this.transformOfferResponse(savedOffer);
     } catch (error) {
       this.logger.error(`Error in createAdminOffer: ${error.message}`, error.stack);
       if (error instanceof BadRequestException) {

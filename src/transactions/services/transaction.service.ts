@@ -1,34 +1,241 @@
 import { Injectable, NotFoundException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { FindManyOptions, Repository, LessThan, IsNull } from "typeorm";
+import { FindManyOptions, Repository, LessThan, IsNull, Between } from "typeorm";
 import { Transaction, TransactionStatus } from "../entities/transaction.entity";
 import { BaseService } from "../../common/base.service";
 import { PaginatedResponse } from "../../common/interfaces/paginated-response.interface";
+import { User } from "../../users/entities/user.entity";
+import { Buyer } from "../../buyers/entities/buyer.entity";
+import { Farmer } from "../../farmers/entities/farmer.entity";
+import { TransactionHistoryService } from "./transaction-history.service";
+import { TransactionEvent } from "../entities/transaction-history.entity";
+
+export interface TransformedBuyer {
+  id: string;
+  business_name: string;
+  address: string;
+  location: string;
+  name: string;
+  avatar_url: string;
+  rating: number;
+  mobile_number: string;
+  total_completed_transactions: number;
+}
+
+export interface TransformedFarmer {
+  id: string;
+  name: string;
+  avatar_url: string;
+  rating: number;
+  mobile_number: string;
+  total_completed_transactions: number;
+}
+
+export interface TransformedProduce {
+  id: string;
+  name: string;
+  quality_grade: number;
+}
+
+export interface TransformedTransaction {
+  id: string;
+  offer_id: string;
+  produce_id: string;
+  buyer_id: string;
+  farmer_id: string;
+  final_price: number;
+  final_quantity: number;
+  status: TransactionStatus;
+  delivery_window_starts_at: Date | null;
+  delivery_window_ends_at: Date | null;
+  delivery_confirmed_at: Date | null;
+  buyer_inspection_completed_at: Date | null;
+  distance_km: number;
+  created_at: Date;
+  updated_at: Date;
+  requires_rating: boolean;
+  rating_completed: boolean;
+  produce: TransformedProduce;
+  buyer?: TransformedBuyer;
+  farmer?: TransformedFarmer;
+}
 
 @Injectable()
 export class TransactionService extends BaseService<Transaction> {
   constructor(
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
+    private readonly transactionHistoryService: TransactionHistoryService,
   ) {
     super(transactionRepository);
   }
 
-  async findOne(options: FindManyOptions<Transaction> | string) {
-    if (typeof options === "string") {
-      return this.transactionRepository.findOne({ where: { id: options } });
+  private transformTransactionResponse(transaction: Transaction, userRole: string): TransformedTransaction {
+    const transformedTransaction: TransformedTransaction = {
+      id: transaction.id,
+      offer_id: transaction.offer_id,
+      produce_id: transaction.produce_id,
+      buyer_id: transaction.buyer_id,
+      farmer_id: transaction.farmer_id,
+      final_price: transaction.final_price,
+      final_quantity: transaction.final_quantity,
+      status: transaction.status,
+      delivery_window_starts_at: transaction.delivery_window_starts_at,
+      delivery_window_ends_at: transaction.delivery_window_ends_at,
+      delivery_confirmed_at: transaction.delivery_confirmed_at,
+      buyer_inspection_completed_at: transaction.buyer_inspection_completed_at,
+      distance_km: 0, // This needs to be calculated based on location
+      created_at: transaction.created_at,
+      updated_at: transaction.updated_at,
+      requires_rating: transaction.requires_rating,
+      rating_completed: transaction.rating_completed,
+      produce: transaction.produce ? {
+        id: transaction.produce.id,
+        name: transaction.produce.name,
+        quality_grade: transaction.produce.quality_grade || 0
+      } : null
+    };
+
+    // Add buyer or farmer details based on role
+    if (userRole === 'FARMER' && transaction.offer?.buyer?.user) {
+      const buyer = transaction.offer.buyer;
+      const user = buyer.user;
+      transformedTransaction.buyer = {
+        id: buyer.id,
+        business_name: buyer.business_name || '',
+        address: buyer.address || '',
+        location: buyer.location || '',
+        name: user.name || '',
+        avatar_url: user.avatar_url || '',
+        rating: user.rating || 0,
+        mobile_number: user.mobile_number || '',
+        total_completed_transactions: user.total_completed_transactions || 0
+      };
+    } else if (userRole === 'BUYER' && transaction.offer?.produce?.farmer?.user) {
+      const farmer = transaction.offer.produce.farmer;
+      const user = farmer.user;
+      transformedTransaction.farmer = {
+        id: farmer.id,
+        name: user.name || '',
+        avatar_url: user.avatar_url || '',
+        rating: user.rating || 0,
+        mobile_number: user.mobile_number || '',
+        total_completed_transactions: user.total_completed_transactions || 0
+      };
     }
-    return this.transactionRepository.findOne(options);
+
+    return transformedTransaction;
   }
 
-  async findAll(
+  // Public methods for transformed responses
+  async findOneAndTransform(id: string, userRole: string): Promise<TransformedTransaction> {
+    const transaction = await this.findOne(id);
+    if (!transaction) {
+      return null;
+    }
+    return this.transformTransactionResponse(transaction, userRole);
+  }
+
+  async findAllAndTransform(
     options: FindManyOptions<Transaction>,
-  ): Promise<PaginatedResponse<Transaction>> {
-    const [items, total] =
-      await this.transactionRepository.findAndCount(options);
+    userRole: string,
+  ): Promise<PaginatedResponse<TransformedTransaction>> {
+    const [items, total] = await this.transactionRepository.findAndCount({
+      ...options,
+      relations: [
+        'offer',
+        'offer.buyer',
+        'offer.buyer.user',
+        'offer.produce',
+        'offer.produce.farmer',
+        'offer.produce.farmer.user',
+        'produce'
+      ]
+    });
+    
     const { take = 10, skip = 0 } = options;
     const page = Math.floor(skip / take) + 1;
     const totalPages = Math.ceil(total / take);
+
+    return {
+      items: items.map(item => this.transformTransactionResponse(item, userRole)),
+      total,
+      page,
+      limit: take,
+      totalPages,
+    };
+  }
+
+  // Original methods remain unchanged
+  async findOne(id: string): Promise<Transaction>;
+  async findOne(options: FindManyOptions<Transaction>): Promise<Transaction>;
+  async findOne(options: FindManyOptions<Transaction> | string): Promise<Transaction> {
+    let transaction: Transaction;
+    if (typeof options === "string") {
+      transaction = await this.transactionRepository.findOne({
+        where: { id: options },
+        relations: [
+          'offer',
+          'offer.buyer',
+          'offer.buyer.user',
+          'offer.produce',
+          'offer.produce.farmer',
+          'offer.produce.farmer.user',
+          'produce'
+        ]
+      });
+    } else {
+      transaction = await this.transactionRepository.findOne({
+        ...options,
+        relations: [
+          'offer',
+          'offer.buyer',
+          'offer.buyer.user',
+          'offer.produce',
+          'offer.produce.farmer',
+          'offer.produce.farmer.user',
+          'produce'
+        ]
+      });
+    }
+
+    return transaction;
+  }
+
+  async findAll(options?: FindManyOptions<Transaction>): Promise<PaginatedResponse<Transaction>>;
+  async findAll(options: FindManyOptions<Transaction>, userRole: string): Promise<PaginatedResponse<TransformedTransaction>>;
+  async findAll(
+    options?: FindManyOptions<Transaction>,
+    userRole?: string,
+  ): Promise<PaginatedResponse<Transaction> | PaginatedResponse<TransformedTransaction>> {
+    const [items, total] = await this.transactionRepository.findAndCount({
+      ...options,
+      relations: [
+        'offer',
+        'offer.buyer',
+        'offer.buyer.user',
+        'offer.produce',
+        'offer.produce.farmer',
+        'offer.produce.farmer.user',
+        'produce'
+      ]
+    });
+    
+    const { take = 10, skip = 0 } = options || {};
+    const page = Math.floor(skip / take) + 1;
+    const totalPages = Math.ceil(total / take);
+
+    if (userRole) {
+      return {
+        items: items.map(item => this.transformTransactionResponse(item, userRole)),
+        total,
+        page,
+        limit: take,
+        totalPages,
+      };
+    }
 
     return {
       items,
@@ -39,12 +246,13 @@ export class TransactionService extends BaseService<Transaction> {
     };
   }
 
-  async startDeliveryWindow(id: string): Promise<Transaction> {
+  async startDeliveryWindow(id: string, userId: string): Promise<Transaction> {
     const transaction = await this.findOne(id);
     if (!transaction) {
       throw new NotFoundException(`Transaction ${id} not found`);
     }
 
+    const oldStatus = transaction.status;
     const now = new Date();
     const endTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
 
@@ -56,15 +264,27 @@ export class TransactionService extends BaseService<Transaction> {
       delivery_notes: `Delivery window started at ${now.toISOString()}`,
     };
 
-    return this.transactionRepository.save(transaction);
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    await this.transactionHistoryService.createHistoryEntry(
+      id,
+      TransactionEvent.DELIVERY_WINDOW_STARTED,
+      userId,
+      oldStatus,
+      TransactionStatus.IN_PROGRESS,
+      { delivery_window_starts_at: now, delivery_window_ends_at: endTime }
+    );
+
+    return savedTransaction;
   }
 
-  async confirmDelivery(id: string, notes?: string): Promise<Transaction> {
+  async confirmDelivery(id: string, userId: string, notes?: string): Promise<Transaction> {
     const transaction = await this.findOne(id);
     if (!transaction) {
       throw new NotFoundException(`Transaction ${id} not found`);
     }
 
+    const oldStatus = transaction.status;
     const now = new Date();
     transaction.status = TransactionStatus.IN_PROGRESS;
     transaction.delivery_confirmed_at = now;
@@ -73,11 +293,23 @@ export class TransactionService extends BaseService<Transaction> {
       delivery_notes: notes || `Delivery confirmed at ${now.toISOString()}`,
     };
 
-    return this.transactionRepository.save(transaction);
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    await this.transactionHistoryService.createHistoryEntry(
+      id,
+      TransactionEvent.DELIVERY_CONFIRMED,
+      userId,
+      oldStatus,
+      TransactionStatus.IN_PROGRESS,
+      { delivery_confirmed_at: now, notes }
+    );
+
+    return savedTransaction;
   }
 
   async confirmBuyerInspection(
     id: string,
+    userId: string,
     notes?: string,
   ): Promise<Transaction> {
     const transaction = await this.findOne(id);
@@ -85,13 +317,25 @@ export class TransactionService extends BaseService<Transaction> {
       throw new NotFoundException(`Transaction ${id} not found`);
     }
 
-    transaction.buyer_inspection_completed_at = new Date();
+    const now = new Date();
+    transaction.buyer_inspection_completed_at = now;
     transaction.metadata = {
       ...transaction.metadata,
       inspection_notes: notes,
     };
 
-    return this.transactionRepository.save(transaction);
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    await this.transactionHistoryService.createHistoryEntry(
+      id,
+      TransactionEvent.INSPECTION_COMPLETED,
+      userId,
+      transaction.status,
+      transaction.status,
+      { buyer_inspection_completed_at: now, notes }
+    );
+
+    return savedTransaction;
   }
 
   async checkDeliveryWindows(): Promise<void> {
@@ -106,10 +350,19 @@ export class TransactionService extends BaseService<Transaction> {
     for (const transaction of expiredTransactions) {
       transaction.status = TransactionStatus.EXPIRED;
       await this.transactionRepository.save(transaction);
+
+      await this.transactionHistoryService.createHistoryEntry(
+        transaction.id,
+        TransactionEvent.STATUS_CHANGED,
+        'system', // System-triggered change
+        TransactionStatus.IN_PROGRESS,
+        TransactionStatus.EXPIRED,
+        { reason: 'Delivery window expired without confirmation' }
+      );
     }
   }
 
-  async reactivateExpiredTransaction(id: string): Promise<Transaction> {
+  async reactivateExpiredTransaction(id: string, userId: string): Promise<Transaction> {
     const transaction = await this.findOne(id);
     if (!transaction) {
       throw new NotFoundException(`Transaction ${id} not found`);
@@ -119,42 +372,107 @@ export class TransactionService extends BaseService<Transaction> {
       throw new Error("Only expired transactions can be reactivated");
     }
 
-    return this.startDeliveryWindow(id);
+    const oldStatus = transaction.status;
+    const now = new Date();
+    const endTime = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours from now
+
+    transaction.status = TransactionStatus.IN_PROGRESS;
+    transaction.delivery_window_starts_at = now;
+    transaction.delivery_window_ends_at = endTime;
+    transaction.metadata = {
+      ...transaction.metadata,
+      reactivated_at: now,
+      delivery_notes: `Delivery window restarted at ${now.toISOString()}`,
+    };
+
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    await this.transactionHistoryService.createHistoryEntry(
+      id,
+      TransactionEvent.DELIVERY_WINDOW_STARTED,
+      userId,
+      oldStatus,
+      TransactionStatus.IN_PROGRESS,
+      { 
+        reactivated_at: now,
+        delivery_window_starts_at: now, 
+        delivery_window_ends_at: endTime 
+      }
+    );
+
+    return savedTransaction;
   }
 
-  async completeTransaction(id: string): Promise<Transaction> {
+  private async incrementUserTransactionCount(userId: string): Promise<void> {
+    await this.userRepository.increment(
+      { id: userId },
+      'total_completed_transactions',
+      1
+    );
+  }
+
+  async completeTransaction(id: string, userId: string): Promise<Transaction> {
     const transaction = await this.findOne(id);
     if (!transaction) {
       throw new NotFoundException(`Transaction ${id} not found`);
     }
 
+    const oldStatus = transaction.status;
+    const now = new Date();
     transaction.status = TransactionStatus.COMPLETED;
     transaction.metadata = {
       ...transaction.metadata,
-      completed_at: new Date(),
+      completed_at: now,
     };
 
-    // Set requires_rating to true when transaction is completed
     transaction.requires_rating = true;
     transaction.rating_completed = false;
 
-    return this.transactionRepository.save(transaction);
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    await Promise.all([
+      this.incrementUserTransactionCount(transaction.buyer_id),
+      this.incrementUserTransactionCount(transaction.farmer_id),
+      this.transactionHistoryService.createHistoryEntry(
+        id,
+        TransactionEvent.STATUS_CHANGED,
+        userId,
+        oldStatus,
+        TransactionStatus.COMPLETED,
+        { completed_at: now }
+      )
+    ]);
+
+    return savedTransaction;
   }
 
-  async cancel(id: string, reason: string): Promise<Transaction> {
+  async cancel(id: string, userId: string, reason: string): Promise<Transaction> {
     const transaction = await this.findOne(id);
     if (!transaction) {
       throw new NotFoundException(`Transaction ${id} not found`);
     }
 
+    const oldStatus = transaction.status;
+    const now = new Date();
     transaction.status = TransactionStatus.CANCELLED;
     transaction.metadata = {
       ...transaction.metadata,
-      cancelled_at: new Date(),
+      cancelled_at: now,
       cancellation_reason: reason,
     };
 
-    return this.transactionRepository.save(transaction);
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    await this.transactionHistoryService.createHistoryEntry(
+      id,
+      TransactionEvent.STATUS_CHANGED,
+      userId,
+      oldStatus,
+      TransactionStatus.CANCELLED,
+      { cancelled_at: now, reason }
+    );
+
+    return savedTransaction;
   }
 
   async calculateTotalValue() {
@@ -177,36 +495,44 @@ export class TransactionService extends BaseService<Transaction> {
   }
 
   async countByStatus(status: TransactionStatus): Promise<number> {
-    return this.transactionRepository.count({ where: { status } });
+    return this.transactionRepository.count({
+      where: { status }
+    });
   }
 
   async getStats() {
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
     const [
       totalTransactions,
-      pendingTransactions,
-      inProgressTransactions,
       completedTransactions,
+      pendingTransactions,
       cancelledTransactions,
-      expiredTransactions,
-      totalValue,
+      recentTransactions,
+      totalValue
     ] = await Promise.all([
       this.count(),
-      this.countByStatus(TransactionStatus.PENDING),
-      this.countByStatus(TransactionStatus.IN_PROGRESS),
       this.countByStatus(TransactionStatus.COMPLETED),
+      this.countByStatus(TransactionStatus.PENDING),
       this.countByStatus(TransactionStatus.CANCELLED),
-      this.countByStatus(TransactionStatus.EXPIRED),
-      this.calculateTotalValue(),
+      this.transactionRepository.count({
+        where: {
+          created_at: Between(thirtyDaysAgo, now)
+        }
+      }),
+      this.calculateTotalValue()
     ]);
 
     return {
       total: totalTransactions,
-      pending: pendingTransactions,
-      in_progress: inProgressTransactions,
       completed: completedTransactions,
+      pending: pendingTransactions,
       cancelled: cancelledTransactions,
-      expired: expiredTransactions,
+      recent: recentTransactions,
       total_value: totalValue,
+      completion_rate: totalTransactions > 0 ? (completedTransactions / totalTransactions) * 100 : 0,
+      cancellation_rate: totalTransactions > 0 ? (cancelledTransactions / totalTransactions) * 100 : 0
     };
   }
 
@@ -231,5 +557,27 @@ export class TransactionService extends BaseService<Transaction> {
       revenue: parseFloat(item.revenue) || 0,
       count: parseInt(item.count),
     }));
+  }
+
+  async create(data: Partial<Transaction>): Promise<Transaction> {
+    const transaction = this.transactionRepository.create(data);
+    const savedTransaction = await this.transactionRepository.save(transaction);
+
+    // Record creation in history
+    await this.transactionHistoryService.createHistoryEntry(
+      savedTransaction.id,
+      TransactionEvent.CREATED,
+      data.buyer_id, // Use buyer_id as the creator since they initiate transactions
+      null,
+      TransactionStatus.PENDING,
+      {
+        offer_id: data.offer_id,
+        produce_id: data.produce_id,
+        final_price: data.final_price,
+        final_quantity: data.final_quantity
+      }
+    );
+
+    return savedTransaction;
   }
 }

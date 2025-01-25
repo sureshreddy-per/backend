@@ -12,6 +12,19 @@ import { FarmersService } from '../../farmers/farmers.service';
 import { InspectionDistanceFeeService } from '../../config/services/fee-config.service';
 import { InspectorsService } from '../../inspectors/inspectors.service';
 import { ProduceCategory } from '../enums/produce-category.enum';
+import { User } from '../../users/entities/user.entity';
+import { Farmer } from '../../farmers/entities/farmer.entity';
+import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
+
+interface TransformedFarmer {
+  id: string;
+  user_id: string;
+  name: string;
+  mobile_number: string;
+  rating: number;
+  total_completed_transactions: number;
+  avatar_url: string | null;
+}
 
 @Injectable()
 export class ProduceService {
@@ -300,52 +313,114 @@ export class ProduceService {
     }
   }
 
+  private transformFarmerData(produce: Produce) {
+    if (produce.farmer && produce.farmer.user) {
+      const user = produce.farmer.user;
+      (produce.farmer as unknown) = {
+        id: produce.farmer.id,
+        user_id: produce.farmer.user_id,
+        name: user.name,
+        mobile_number: user.mobile_number,
+        rating: user.rating,
+        total_completed_transactions: user.total_completed_transactions,
+        avatar_url: user.avatar_url
+      } as TransformedFarmer;
+    }
+    return produce;
+  }
+
+  private transformQualityAssessments(produce: Produce) {
+    if (produce.quality_assessments && produce.quality_assessments.length > 0) {
+      // Find manual assessment first
+      const manualAssessment = produce.quality_assessments.find(
+        qa => qa.metadata?.source === 'MANUAL_INSPECTION'
+      );
+
+      // If manual assessment exists, use it; otherwise use the latest AI assessment
+      produce.quality_assessments = manualAssessment 
+        ? [manualAssessment]
+        : [produce.quality_assessments[0]]; // First one is the latest due to DESC ordering
+    }
+    return produce;
+  }
+
+  private transformProduceData(produce: Produce) {
+    return this.transformQualityAssessments(this.transformFarmerData(produce));
+  }
+
+  // Public method for other services to transform produce data
+  transformProduceForResponse(produce: Produce) {
+    return this.transformProduceData(produce);
+  }
+
   async findAll(filters: any = {}): Promise<Produce[]> {
-    return this.produceRepository.find({
+    const produces = await this.produceRepository.find({
       where: filters,
-      relations: ['farmer'],
+      relations: ['farmer', 'farmer.user', 'quality_assessments'],
+      order: {
+        quality_assessments: {
+          created_at: 'DESC'
+        }
+      }
     });
+    return produces.map(produce => this.transformProduceData(produce));
   }
 
   async findOne(id: string): Promise<Produce> {
     const produce = await this.produceRepository.findOne({
       where: { id },
-      relations: ['farmer'],
+      relations: ['farmer', 'farmer.user', 'quality_assessments'],
+      order: {
+        quality_assessments: {
+          created_at: 'DESC'
+        }
+      }
     });
     if (!produce) {
       throw new NotFoundException(`Produce with ID ${id} not found`);
     }
-    return produce;
+    return this.transformProduceData(produce);
   }
 
   async findByFarmer(farmerId: string): Promise<Produce[]> {
-    return this.produceRepository.find({
+    const produces = await this.produceRepository.find({
       where: { farmer_id: farmerId },
-      relations: ['farmer'],
+      relations: ['farmer', 'farmer.user', 'quality_assessments'],
+      order: {
+        quality_assessments: {
+          created_at: 'DESC'
+        }
+      }
     });
+    return produces.map(produce => this.transformProduceData(produce));
   }
 
   async findAvailableInRadius(latitude: number, longitude: number, radiusInKm: number): Promise<Produce[]> {
-    // Simple distance calculation using latitude and longitude
     const produces = await this.produceRepository.find({
       where: { status: ProduceStatus.AVAILABLE },
-      relations: ['farmer'],
+      relations: ['farmer', 'farmer.user', 'quality_assessments'],
+      order: {
+        quality_assessments: {
+          created_at: 'DESC'
+        }
+      }
     });
 
-    // Filter produces within radius using Haversine formula
-    return produces.filter(produce => {
-      const [produceLat, produceLong] = produce.location.split(',').map(Number);
-      const R = 6371; // Earth's radius in kilometers
-      const dLat = this.toRad(produceLat - latitude);
-      const dLon = this.toRad(produceLong - longitude);
-      const a = 
-        Math.sin(dLat/2) * Math.sin(dLat/2) +
-        Math.cos(this.toRad(latitude)) * Math.cos(this.toRad(produceLat)) * 
-        Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      const distance = R * c;
-      return distance <= radiusInKm;
-    });
+    return produces
+      .filter(produce => {
+        const [produceLat, produceLong] = produce.location.split(',').map(Number);
+        const R = 6371; // Earth's radius in kilometers
+        const dLat = this.toRad(produceLat - latitude);
+        const dLon = this.toRad(produceLong - longitude);
+        const a = 
+          Math.sin(dLat/2) * Math.sin(dLat/2) +
+          Math.cos(this.toRad(latitude)) * Math.cos(this.toRad(produceLat)) * 
+          Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        return distance <= radiusInKm;
+      })
+      .map(produce => this.transformProduceData(produce));
   }
 
   private toRad(degrees: number): number {
@@ -353,9 +428,25 @@ export class ProduceService {
   }
 
   async findAndPaginate(options: any): Promise<any> {
+    // Ensure relations are included
+    options.relations = [
+      'farmer',
+      'farmer.user',
+      'quality_assessments'
+    ];
+    
+    // Ensure quality assessments are ordered by creation date
+    options.order = {
+      ...options.order,
+      quality_assessments: {
+        created_at: 'DESC'
+      }
+    };
+
     const [items, total] = await this.produceRepository.findAndCount(options);
+    
     return {
-      items,
+      items: items.map(produce => this.transformProduceData(produce)),
       total,
       page: options.page || 1,
       limit: options.take || 10,
@@ -399,10 +490,11 @@ export class ProduceService {
   }
 
   async findByIds(ids: string[]): Promise<Produce[]> {
-    return this.produceRepository.find({
+    const produces = await this.produceRepository.find({
       where: { id: In(ids) },
-      relations: ['farmer'],
+      relations: ['farmer', 'farmer.user'],
     });
+    return produces.map(produce => this.transformFarmerData(produce));
   }
 
   async findNearby(latitude: number, longitude: number, radiusInKm: number): Promise<Produce[]> {

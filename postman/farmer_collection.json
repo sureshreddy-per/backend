@@ -384,6 +384,54 @@
       "name": "Offers",
       "item": [
         {
+          "name": "List Offers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/offers?page=1&limit=10&status=PENDING&sort[0][field]=total_price&sort[0][order]=DESC&sort[1][field]=buyer_rating&sort[1][order]=DESC",
+              "host": ["{{base_url}}"],
+              "path": ["offers"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "sort[0][field]",
+                  "value": "total_price",
+                  "description": "First sort criteria - total price of the offer"
+                },
+                {
+                  "key": "sort[0][order]",
+                  "value": "DESC",
+                  "description": "Order for first sort criteria"
+                },
+                {
+                  "key": "sort[1][field]",
+                  "value": "buyer_rating",
+                  "description": "Second sort criteria - buyer's rating"
+                },
+                {
+                  "key": "sort[1][order]",
+                  "value": "DESC",
+                  "description": "Order for second sort criteria"
+                }
+              ]
+            },
+            "description": "List all offers for farmer's produce with pagination, filtering, and multiple sorting options. Available sort fields: price_per_unit, total_price, quantity, quality, distance, buyer_rating, farmer_rating, created_at"
+          },
+          "response": []
+        },
+        {
           "name": "Get Received Offers",
           "request": {
             "method": "GET",
@@ -460,32 +508,32 @@
       "name": "Transactions",
       "item": [
         {
-          "name": "Get My Transactions",
+          "name": "List Transactions",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{farmer_token}}"
-              }
-            ],
             "url": {
-              "raw": "{{base_url}}/transactions/my",
+              "raw": "{{base_url}}/transactions?page=1&limit=10",
               "host": ["{{base_url}}"],
-              "path": ["transactions", "my"]
-            }
-          }
+              "path": ["transactions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Returns a paginated list of transactions for the authenticated farmer. Response includes:\n- Transaction details (id, status, prices, quantities)\n- Delivery and inspection timestamps\n- Buyer details (business name, rating, contact)\n- Produce information (name, quality grade)\n- Pagination metadata"
+          },
+          "response": []
         },
         {
-          "name": "Get Transaction Details",
+          "name": "Get Transaction",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{farmer_token}}"
-              }
-            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id",
               "host": ["{{base_url}}"],
@@ -496,8 +544,85 @@
                   "value": ""
                 }
               ]
-            }
-          }
+            },
+            "description": "Returns details of a specific transaction. Response includes:\n- Transaction details\n- Buyer information\n- Produce details\n- Delivery status and timestamps"
+          },
+          "response": []
+        },
+        {
+          "name": "Start Delivery",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/transactions/:id/start-delivery",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", ":id", "start-delivery"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Starts the delivery window for a transaction. Sets a 24-hour window and updates status to IN_PROGRESS."
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm Delivery",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/transactions/:id/confirm-delivery",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", ":id", "confirm-delivery"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Delivery completed successfully\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Confirms delivery completion. Updates delivery timestamp and allows adding notes."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Transaction",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/transactions/:id/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", ":id", "cancel"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Unable to fulfill order\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Cancels the transaction. Requires a reason and updates status to CANCELLED."
+          },
+          "response": []
         }
       ]
     },
@@ -765,6 +890,105 @@
                 }
               ]
             }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inspections",
+      "item": [
+        {
+          "name": "List Inspections",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quality/inspections?page=1&limit=10&status=PENDING&sortBy=status&sortOrder=ASC",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "inspections"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "sortBy",
+                  "value": "status"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "ASC"
+                }
+              ]
+            },
+            "description": "Get a paginated list of inspections for the farmer's produce"
+          }
+        },
+        {
+          "name": "Get Inspection Details",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/quality/inspections/:id",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "inspections", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Get details of a specific inspection request"
+          }
+        },
+        {
+          "name": "Request Inspection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"produce_id\": \"uuid-here\",\n    \"location\": \"12.9716,77.5946\",\n    \"inspection_fee\": 500.00\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/quality/inspections",
+              "host": ["{{base_url}}"],
+              "path": ["quality", "inspections"]
+            },
+            "description": "Request a new inspection for produce"
           }
         }
       ]

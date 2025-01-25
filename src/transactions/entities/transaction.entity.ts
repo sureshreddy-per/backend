@@ -85,6 +85,7 @@ export class Transaction {
     inspection_result?: any;
     delivery_notes?: string;
     inspection_notes?: string;
+    reactivated_at?: Date;
   };
 
   @ManyToOne(() => Offer)

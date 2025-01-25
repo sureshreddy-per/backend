@@ -11,6 +11,9 @@ import {
   Request,
   NotFoundException,
   BadRequestException,
+  Query,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from "@nestjs/common";
 import {
   ApiTags,
@@ -33,6 +36,7 @@ import { CreateOfferDto } from "../dto/create-offer.dto";
 import { UpdateOfferDto } from "../dto/update-offer.dto";
 import { OfferStatus } from "../enums/offer-status.enum";
 import { CreateAdminOfferDto } from "../dto/create-admin-offer.dto";
+import { ListOffersDto } from "../dto/list-offers.dto";
 
 @ApiTags("Offers")
 @ApiBearerAuth()
@@ -46,12 +50,19 @@ export class OffersController {
   ) {}
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.BUYER)
-  async findAll(@GetUser() user: User) {
+  @Roles(UserRole.ADMIN, UserRole.BUYER, UserRole.FARMER)
+  @ApiOperation({ summary: "Get all offers with filtering and sorting options" })
+  @ApiResponse({ status: 200, description: "Returns paginated list of offers" })
+  async findAll(@GetUser() user: User, @Query() query: ListOffersDto) {
     if (user.role === UserRole.ADMIN) {
-      return this.offersService.findAll();
+      return this.offersService.findAll(query);
     }
-    return this.offersService.findByBuyer(user.id);
+    if (user.role === UserRole.BUYER) {
+      return this.offersService.findByBuyer(user.id, query);
+    }
+    // For farmers
+    const farmer = await this.produceService.getFarmerDetails(user.id);
+    return this.offersService.findByFarmer(farmer.id, query);
   }
 
   @Get(":id")

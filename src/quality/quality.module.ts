@@ -10,12 +10,19 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { QualityAssessment } from './entities/quality-assessment.entity';
 import { InspectionRequest } from './entities/inspection-request.entity';
 import { ProduceModule } from '../produce/produce.module';
+import { Produce } from "../produce/entities/produce.entity";
+import { Inspector } from "../inspectors/entities/inspector.entity";
 
 @Module({
   imports: [
     ConfigModule,
     HttpModule,
-    TypeOrmModule.forFeature([QualityAssessment, InspectionRequest]),
+    TypeOrmModule.forFeature([
+      QualityAssessment,
+      InspectionRequest,
+      Produce,
+      Inspector
+    ]),
     forwardRef(() => ProduceModule),
   ],
   providers: [
@@ -31,6 +38,6 @@ import { ProduceModule } from '../produce/produce.module';
     InspectionRequestService,
   ],
   controllers: [QualityController],
-  exports: [OpenAIService, QualityAssessmentService],
+  exports: [OpenAIService, QualityAssessmentService, InspectionRequestService],
 })
 export class QualityModule {}

@@ -32,7 +32,7 @@ export class SystemConfig {
   is_active: boolean;
 
   @Column({
-    type: 'uuid',
+    type: 'text',
     nullable: true
   })
   updated_by: string;

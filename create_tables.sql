@@ -49,6 +49,8 @@ CREATE TABLE users (
     fcm_token TEXT,
     avatar_url TEXT,
     login_attempts INTEGER DEFAULT 0,
+    rating DECIMAL(3, 2) DEFAULT 0,
+    total_completed_transactions INTEGER DEFAULT 0,
     last_login_at TIMESTAMP,
     scheduled_for_deletion_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -177,7 +179,10 @@ CREATE TABLE inspection_requests (
   completed_at TIMESTAMP,
   notes TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_inspection_requests_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inspection_requests_requester FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
+  CONSTRAINT fk_inspection_requests_inspector FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE INDEX idx_inspection_requests_produce_id ON inspection_requests(produce_id);
@@ -220,6 +225,7 @@ CREATE TABLE quality_assessments (
     CONSTRAINT check_confidence_level CHECK (confidence_level >= 0 AND confidence_level <= 100)
 );
 
+-- Add indexes for quality_assessments
 CREATE INDEX idx_quality_assessments_produce_id ON quality_assessments(produce_id);
 CREATE INDEX idx_quality_assessments_inspector_id ON quality_assessments(inspector_id);
 CREATE INDEX idx_quality_assessments_inspection_request_id ON quality_assessments(inspection_request_id);
@@ -401,6 +407,38 @@ CREATE INDEX idx_transactions_delivery_window ON transactions(delivery_window_st
 CREATE INDEX idx_transactions_rating ON transactions(requires_rating, rating_completed);
 CREATE INDEX idx_transactions_inspection_fee ON transactions(inspection_fee_paid);
 
+-- Create transaction history table for tracking all changes
+CREATE TABLE transaction_history (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+  event TEXT NOT NULL,
+  old_status TEXT,
+  new_status TEXT,
+  user_id UUID NOT NULL REFERENCES users(id),
+  metadata JSONB,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT valid_event CHECK (
+    event IN (
+      'CREATED',
+      'STATUS_CHANGED',
+      'DELIVERY_WINDOW_STARTED',
+      'DELIVERY_CONFIRMED',
+      'INSPECTION_COMPLETED',
+      'CANCELLED',
+      'EXPIRED',
+      'RATING_ADDED'
+    )
+  )
+);
+
+-- Add indexes for transaction history
+CREATE INDEX idx_transaction_history_transaction ON transaction_history(transaction_id);
+CREATE INDEX idx_transaction_history_event ON transaction_history(event);
+CREATE INDEX idx_transaction_history_user ON transaction_history(user_id);
+CREATE INDEX idx_transaction_history_created ON transaction_history(created_at);
+
+-- Add triggers for timestamp updates
 CREATE OR REPLACE FUNCTION update_transactions_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -413,6 +451,19 @@ CREATE TRIGGER update_transactions_updated_at
     BEFORE UPDATE ON transactions
     FOR EACH ROW
     EXECUTE FUNCTION update_transactions_updated_at();
+
+CREATE OR REPLACE FUNCTION update_transaction_history_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_transaction_history_updated_at
+    BEFORE UPDATE ON transaction_history
+    FOR EACH ROW
+    EXECUTE FUNCTION update_transaction_history_updated_at();
 
 -- Add check constraints
 ALTER TABLE produce
@@ -1025,7 +1076,7 @@ CREATE TABLE IF NOT EXISTS report (
   parameters JSONB,
   file_url VARCHAR(255),
   file_size INTEGER,
-  summary TEXT,
+  summary JSONB,
   error_message TEXT,
   completed_at TIMESTAMP WITH TIME ZONE,
   scheduled_time TIMESTAMP WITH TIME ZONE,
@@ -1283,3 +1334,46 @@ CREATE TABLE IF NOT EXISTS request_metrics (
     response_time INTEGER NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Create a view for transformed inspection requests
+CREATE OR REPLACE VIEW inspection_requests_view AS
+SELECT 
+  ir.id,
+  ir.produce_id,
+  ir.requester_id,
+  ir.inspector_id,
+  ir.location,
+  ir.inspection_fee,
+  ir.status,
+  ir.scheduled_at,
+  ir.assigned_at,
+  ir.completed_at,
+  ir.notes,
+  ir.created_at,
+  ir.updated_at,
+  -- Produce details
+  jsonb_build_object(
+    'id', p.id,
+    'name', p.name,
+    'images', p.images,
+    'location', p.location,
+    'quality_grade', p.quality_grade,
+    'quality_assessments', (
+      SELECT jsonb_agg(qa.*)
+      FROM quality_assessments qa
+      WHERE qa.produce_id = p.id
+      ORDER BY qa.created_at DESC
+    )
+  ) as produce,
+  -- Inspector details
+  CASE WHEN i.id IS NOT NULL THEN
+    jsonb_build_object(
+      'id', i.id,
+      'name', i.name,
+      'mobile_number', i.mobile_number,
+      'location', i.location
+    )
+  ELSE NULL END as inspector
+FROM inspection_requests ir
+LEFT JOIN produce p ON ir.produce_id = p.id
+LEFT JOIN inspectors i ON ir.inspector_id = i.user_id;

@@ -4,7 +4,11 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from "typeorm";
+import { Produce } from "../../produce/entities/produce.entity";
+import { Inspector } from "../../inspectors/entities/inspector.entity";
 
 export enum InspectionRequestStatus {
   PENDING = "PENDING",
@@ -58,4 +62,12 @@ export class InspectionRequest {
 
   @UpdateDateColumn()
   updated_at: Date;
+
+  @ManyToOne(() => Produce)
+  @JoinColumn({ name: "produce_id" })
+  produce: Produce;
+
+  @ManyToOne(() => Inspector)
+  @JoinColumn({ name: "inspector_id" })
+  inspector: Inspector;
 } 

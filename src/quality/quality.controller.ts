@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Param, UseGuards, BadRequestException, Put } from "@nestjs/common";
+import { Controller, Post, Body, Get, Param, UseGuards, BadRequestException, Put, Query } from "@nestjs/common";
 import { QualityAssessmentService } from "./services/quality-assessment.service";
 import { QualityAssessment } from "./entities/quality-assessment.entity";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -17,6 +17,7 @@ import { InspectionRequestService } from "./services/inspection-request.service"
 import { ProduceService } from "../produce/services/produce.service";
 import { validateRequiredFields } from "./utils/validation.util";
 import { EventEmitter2 } from "@nestjs/event-emitter";
+import { ListInspectionsDto } from './dto/list-inspections.dto';
 
 @ApiTags('Quality Assessment')
 @Controller("quality")
@@ -192,5 +193,19 @@ export class QualityController {
     });
 
     return assessment;
+  }
+
+  @Get("inspections")
+  @ApiOperation({ summary: 'Get paginated list of inspections' })
+  @ApiResponse({ status: 200, description: 'Returns paginated list of inspections' })
+  async listInspections(
+    @GetUser() user: User,
+    @Query() queryParams: ListInspectionsDto
+  ) {
+    return this.inspectionRequestService.findAll(
+      user.id,
+      user.role,
+      queryParams
+    );
   }
 }

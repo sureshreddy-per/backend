@@ -174,7 +174,8 @@ export class AdminService {
       throw new NotFoundException("Transaction not found");
     }
 
-    await this.transactionService.cancel(transaction_id, reason);
+    await this.transactionService.cancel(transaction_id, 'system', reason);
+    
     await this.logAction(
       admin_id,
       AdminActionType.CANCEL_TRANSACTION,
@@ -182,6 +183,8 @@ export class AdminService {
       { reason },
       ip_address,
     );
+
+    return transaction;
   }
 
   async assignInspector(

@@ -21,11 +21,29 @@ export class RatingsService {
   constructor(
     @InjectRepository(Rating)
     private readonly ratingRepository: Repository<Rating>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly transactionService: TransactionService,
     private readonly notificationService: NotificationService,
     private readonly buyersService: BuyersService,
     private readonly farmersService: FarmersService,
   ) {}
+
+  private async updateUserRating(userId: string): Promise<void> {
+    // Get all ratings received by the user
+    const ratings = await this.ratingRepository.find({
+      where: { rated_user_id: userId },
+    });
+
+    // Calculate average rating
+    const totalRating = ratings.reduce((sum, rating) => sum + rating.rating, 0);
+    const averageRating = ratings.length > 0 ? totalRating / ratings.length : 0;
+
+    // Update user's rating
+    await this.userRepository.update(userId, {
+      rating: Number(averageRating.toFixed(2)), // Round to 2 decimal places
+    });
+  }
 
   async create(createRatingDto: CreateRatingDto, user: User): Promise<Rating> {
     const transaction = await this.transactionService.findOne(createRatingDto.transaction_id);
@@ -86,6 +104,9 @@ export class RatingsService {
     });
 
     const savedRating = await this.ratingRepository.save(rating);
+
+    // Update the rated user's average rating
+    await this.updateUserRating(rated_user_id);
 
     // Send notification
     await this.notificationService.create({

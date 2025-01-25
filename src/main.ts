@@ -84,20 +84,48 @@ async function bootstrap() {
     }
     
     // Security headers
+    const trustedOrigins = Array.isArray(corsConfig.origin) 
+      ? corsConfig.origin.filter(origin => 
+          typeof origin === 'string' && 
+          (origin.startsWith('https://') || origin === 'localhost' || origin.endsWith('.localhost'))
+        )
+      : [];
+
     app.use(helmet({
       contentSecurityPolicy: {
+        useDefaults: true,
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'http:'],
-          connectSrc: ["'self'", ...corsConfig.origin],
-          fontSrc: ["'self'"],
+          scriptSrc: ["'self'"],  // Removed unsafe-inline and unsafe-eval
+          styleSrc: ["'self'", "'unsafe-inline'"],  // Keep unsafe-inline if needed for styling
+          imgSrc: ["'self'", 'data:', 'https:'],  // Only allow HTTPS images
+          connectSrc: ["'self'", ...trustedOrigins],  // Only add validated origins
+          fontSrc: ["'self'", 'https:'],  // Only allow HTTPS fonts
           objectSrc: ["'none'"],
           mediaSrc: ["'self'"],
           frameSrc: ["'none'"],
+          formAction: ["'self'"],
+          upgradeInsecureRequests: [],
+          workerSrc: ["'self'"],
+          manifestSrc: ["'self'"],
+          baseUri: ["'self'"],
         },
       },
+      crossOriginEmbedderPolicy: true,
+      crossOriginOpenerPolicy: { policy: "same-origin" },
+      crossOriginResourcePolicy: { policy: "same-origin" },
+      dnsPrefetchControl: { allow: false },
+      frameguard: { action: "deny" },
+      hidePoweredBy: true,
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+      },
+      ieNoOpen: true,
+      noSniff: true,
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      xssFilter: true
     }));
     console.log('11. Security headers configured');
 
@@ -151,3 +179,4 @@ async function bootstrap() {
 }
 
 bootstrap();
+

@@ -41,6 +41,12 @@ export class User extends BaseEntity {
   @Column({ default: 0 })
   login_attempts: number;
 
+  @Column({ type: "decimal", precision: 3, scale: 2, default: 0 })
+  rating: number;
+
+  @Column({ type: "integer", default: 0 })
+  total_completed_transactions: number;
+
   @Column({ type: "timestamp", nullable: true })
   last_login_at: Date;
 

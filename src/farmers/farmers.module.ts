@@ -9,10 +9,22 @@ import { UsersModule } from "../users/users.module";
 import { User } from "../users/entities/user.entity";
 import { Offer } from "../offers/entities/offer.entity";
 import { ConfigModule } from "../config/config.module";
+import { Produce } from "../produce/entities/produce.entity";
+import { InspectionRequest } from "../quality/entities/inspection-request.entity";
+import { Transaction } from "../transactions/entities/transaction.entity";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Farmer, Farm, BankAccount, User, Offer]),
+    TypeOrmModule.forFeature([
+      Farmer, 
+      Farm, 
+      BankAccount, 
+      User, 
+      Offer,
+      Produce,
+      InspectionRequest,
+      Transaction
+    ]),
     UsersModule,
     ConfigModule,
   ],

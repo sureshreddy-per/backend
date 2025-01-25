@@ -170,7 +170,7 @@
       "name": "Inspections",
       "item": [
         {
-          "name": "Get Pending Inspections",
+          "name": "List Inspections",
           "request": {
             "method": "GET",
             "header": [
@@ -180,14 +180,49 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/quality/inspections/pending",
+              "raw": "{{base_url}}/quality/inspections?page=1&limit=10&status=PENDING&sortBy=status&sortOrder=ASC&lat=12.9716&lng=77.5946",
               "host": ["{{base_url}}"],
-              "path": ["quality", "inspections", "pending"]
-            }
+              "path": ["quality", "inspections"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "PENDING"
+                },
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "sortBy",
+                  "value": "status"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "ASC"
+                },
+                {
+                  "key": "lat",
+                  "value": "12.9716"
+                },
+                {
+                  "key": "lng",
+                  "value": "77.5946"
+                }
+              ]
+            },
+            "description": "Get a paginated list of inspections available for the inspector"
           }
         },
         {
-          "name": "Get My Assigned Inspections",
+          "name": "Get Inspection Details",
           "request": {
             "method": "GET",
             "header": [
@@ -197,76 +232,45 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/quality/inspections/assigned",
+              "raw": "{{base_url}}/quality/inspections/:id",
               "host": ["{{base_url}}"],
-              "path": ["quality", "inspections", "assigned"]
-            }
-          }
-        },
-        {
-          "name": "Accept Inspection Request",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{inspector_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"scheduled_date\": \"2024-02-01T10:00:00Z\",\n    \"estimated_duration_minutes\": 60\n}"
-            },
-            "url": {
-              "raw": "{{base_url}}/quality/inspections/:id/accept",
-              "host": ["{{base_url}}"],
-              "path": ["quality", "inspections", ":id", "accept"],
+              "path": ["quality", "inspections", ":id"],
               "variable": [
                 {
                   "key": "id",
                   "value": ""
                 }
               ]
-            }
+            },
+            "description": "Get details of a specific inspection request"
           }
         },
         {
-          "name": "Submit Inspection Report",
+          "name": "Accept Inspection",
           "request": {
-            "method": "POST",
+            "method": "PUT",
             "header": [
               {
                 "key": "Authorization",
                 "value": "Bearer {{inspector_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
               }
             ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n    \"quality_score\": 85,\n    \"certification_status\": \"APPROVED\",\n    \"findings\": [\n        {\n            \"category\": \"APPEARANCE\",\n            \"score\": 90,\n            \"notes\": \"Good color and size consistency\"\n        },\n        {\n            \"category\": \"FRESHNESS\",\n            \"score\": 85,\n            \"notes\": \"Harvested within acceptable timeframe\"\n        },\n        {\n            \"category\": \"PACKAGING\",\n            \"score\": 80,\n            \"notes\": \"Proper packaging with minor improvements needed\"\n        }\n    ],\n    \"recommendations\": \"Improve packaging material for longer shelf life\",\n    \"validity_period_days\": 90,\n    \"attachments\": [\"photo1.jpg\", \"photo2.jpg\"]\n}"
-            },
             "url": {
-              "raw": "{{base_url}}/quality/inspections/:id/report",
+              "raw": "{{base_url}}/quality/inspections/:id/assign",
               "host": ["{{base_url}}"],
-              "path": ["quality", "inspections", ":id", "report"],
+              "path": ["quality", "inspections", ":id", "assign"],
               "variable": [
                 {
                   "key": "id",
                   "value": ""
                 }
               ]
-            }
+            },
+            "description": "Accept and assign an inspection request to self"
           }
         },
         {
-          "name": "Update Inspection Status",
+          "name": "Submit Inspection Result",
           "request": {
             "method": "PUT",
             "header": [
@@ -281,59 +285,20 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"status\": \"IN_PROGRESS\",\n    \"notes\": \"Started inspection process\"\n}"
+              "raw": "{\n    \"quality_grade\": 8.5,\n    \"confidence_level\": 95,\n    \"defects\": [\"minor_bruising\", \"slight_discoloration\"],\n    \"recommendations\": [\"improve_packaging\", \"adjust_storage_temperature\"],\n    \"category_specific_assessment\": {\n        \"moisture_content\": 12.5,\n        \"ripeness_level\": \"optimal\",\n        \"size_uniformity\": \"high\"\n    },\n    \"notes\": \"Overall good quality with minor improvements needed\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/quality/inspections/:id/status",
+              "raw": "{{base_url}}/quality/inspections/:id/submit-result",
               "host": ["{{base_url}}"],
-              "path": ["quality", "inspections", ":id", "status"],
+              "path": ["quality", "inspections", ":id", "submit-result"],
               "variable": [
                 {
                   "key": "id",
                   "value": ""
                 }
               ]
-            }
-          }
-        },
-        {
-          "name": "Get Completed Inspections",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{inspector_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/quality/completed",
-              "host": ["{{base_url}}"],
-              "path": ["quality", "completed"]
-            }
-          }
-        },
-        {
-          "name": "Get Inspection Details",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{inspector_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/quality/:id",
-              "host": ["{{base_url}}"],
-              "path": ["quality", ":id"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": ""
-                }
-              ]
-            }
+            },
+            "description": "Submit inspection results for a completed inspection"
           }
         }
       ]

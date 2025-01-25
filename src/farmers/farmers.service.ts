@@ -20,6 +20,10 @@ import { validateLocation } from "../common/utils/location.utils";
 import { SystemConfigService } from "../config/services/system-config.service";
 import { SystemConfigKey } from "../config/enums/system-config-key.enum";
 import { Not, IsNull, In } from "typeorm";
+import { Produce } from "../produce/entities/produce.entity";
+import { InspectionRequest } from "../quality/entities/inspection-request.entity";
+import { Transaction } from "../transactions/entities/transaction.entity";
+import { TransactionStatus } from "../transactions/entities/transaction.entity";
 
 @Injectable()
 export class FarmersService {
@@ -34,12 +38,18 @@ export class FarmersService {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Offer)
     private readonly offerRepository: Repository<Offer>,
+    @InjectRepository(Produce)
+    private readonly produceRepository: Repository<Produce>,
+    @InjectRepository(InspectionRequest)
+    private readonly inspectionRequestRepository: Repository<InspectionRequest>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
     private readonly systemConfigService: SystemConfigService,
   ) {}
 
   private async getFarmerWithUser(
     farmer: Farmer,
-  ): Promise<Farmer & { user: Partial<User> }> {
+  ): Promise<Farmer & { user: Partial<User>; total_produce_count: number; total_inspection_count: number; total_transactions_completed_count: number }> {
     const user = await this.userRepository.findOne({
       where: { id: farmer.user_id },
       select: ["id", "email", "avatar_url", "name", "status"],
@@ -51,7 +61,38 @@ export class FarmersService {
       );
     }
 
-    return { ...farmer, user };
+    // Get total produce count
+    const total_produce_count = await this.produceRepository.count({
+      where: { farmer_id: farmer.id },
+    });
+
+    // Get total inspection count
+    const total_inspection_count = await this.inspectionRequestRepository.count({
+      where: { produce_id: In(
+        await this.produceRepository
+          .createQueryBuilder('produce')
+          .select('produce.id')
+          .where('produce.farmer_id = :farmerId', { farmerId: farmer.id })
+          .getMany()
+          .then(produces => produces.map(p => p.id))
+      ) },
+    });
+
+    // Get total completed transactions count
+    const total_transactions_completed_count = await this.transactionRepository.count({
+      where: { 
+        farmer_id: farmer.id,
+        status: TransactionStatus.COMPLETED
+      },
+    });
+
+    return { 
+      ...farmer, 
+      user,
+      total_produce_count,
+      total_inspection_count,
+      total_transactions_completed_count
+    };
   }
 
   async createFarmer(

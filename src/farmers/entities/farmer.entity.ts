@@ -5,9 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
 } from "typeorm";
 import { Farm } from "./farm.entity";
 import { BankAccount } from "./bank-account.entity";
+import { User } from "../../users/entities/user.entity";
 
 @Entity("farmers")
 export class Farmer {
@@ -28,4 +31,8 @@ export class Farmer {
 
   @OneToMany(() => BankAccount, (bankAccount) => bankAccount.farmer)
   bank_accounts: BankAccount[];
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: "user_id" })
+  user: User;
 }

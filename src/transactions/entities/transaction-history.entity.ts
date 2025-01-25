@@ -3,6 +3,7 @@ import { BaseEntity } from "../../common/entities/base.entity";
 import { Transaction, TransactionStatus } from "./transaction.entity";
 
 export enum TransactionEvent {
+  CREATED = "CREATED",
   STATUS_CHANGED = "STATUS_CHANGED",
   DELIVERY_WINDOW_STARTED = "DELIVERY_WINDOW_STARTED",
   DELIVERY_CONFIRMED = "DELIVERY_CONFIRMED",

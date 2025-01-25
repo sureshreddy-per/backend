@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BuyerPreferences } from '../entities/buyer-preferences.entity';
@@ -6,6 +6,7 @@ import { OffersService } from '../../offers/services/offers.service';
 import { NotificationService } from '../../notifications/services/notification.service';
 import { NotificationType } from '../../notifications/enums/notification-type.enum';
 import { OfferStatus } from '../../offers/enums/offer-status.enum';
+import { OfferSortBy, SortOrder } from '../../offers/dto/list-offers.dto';
 import { ProduceService } from '../../produce/services/produce.service';
 import { AutoOfferService } from '../../offers/services/auto-offer.service';
 import { Buyer } from '../entities/buyer.entity';
@@ -34,7 +35,16 @@ export class BuyerPreferencesService {
   ) {}
 
   private async handlePendingOffers(buyerId: string, oldPreferences: string[], newPreferences: string[]): Promise<void> {
-    const pendingOffers = await this.offersService.findByBuyer(buyerId);
+    // Get pending offers for this buyer
+    const pendingOffers = await this.offersService.findByBuyer(buyerId, {
+      status: OfferStatus.PENDING,
+      sort: [{
+        field: OfferSortBy.CREATED_AT,
+        order: SortOrder.DESC
+      }],
+      page: 1,
+      limit: 100
+    });
 
     for (const offer of pendingOffers.items) {
       if (!newPreferences.includes(offer.produce.name)) {
