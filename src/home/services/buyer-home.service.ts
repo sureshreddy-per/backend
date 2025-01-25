@@ -113,22 +113,22 @@ export class BuyerHomeService {
     const preferences = await this.preferenceRepository
       .createQueryBuilder('bp')
       .select([
-        'bp.produce_name',
-        'bp.min_price',
-        'bp.max_price',
+        'bp.produce_price_preferences',
         'bp.last_price_updated'
       ])
       .where('bp.buyer_id = :buyerId', { buyerId })
       .orderBy('bp.created_at', 'DESC')
-      .cache(this.CACHE_TTL)
       .getRawMany();
 
-    const transformedPreferences = preferences.map(p => ({
-      produce_name: p.produce_name,
-      min_price: p.min_price,
-      max_price: p.max_price,
-      last_price_updated: p.last_price_updated
-    }));
+    const transformedPreferences = preferences.flatMap(p => {
+      if (!p.bp_produce_price_preferences) return [];
+      return p.bp_produce_price_preferences.map(pref => ({
+        produce_name: pref.produce_name,
+        min_price: pref.min_price,
+        max_price: pref.max_price,
+        last_price_updated: p.bp_last_price_updated
+      }));
+    });
 
     await this.cacheManager.set(cacheKey, transformedPreferences, this.CACHE_TTL);
     return transformedPreferences;
@@ -196,8 +196,8 @@ export class BuyerHomeService {
 
     const produces = await this.produceRepository
       .createQueryBuilder('p')
-      .select([
-        'DISTINCT p.name',
+      .select('DISTINCT ON (p.name) p.name')
+      .addSelect([
         'p.id',
         'p.icon_url'
       ])
@@ -213,7 +213,6 @@ export class BuyerHomeService {
       )
       .orderBy('p.name', 'ASC')
       .limit(15)
-      .cache(this.CACHE_TTL)
       .getRawMany();
 
     await this.cacheManager.set(cacheKey, produces, this.CACHE_TTL);
