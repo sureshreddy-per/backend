@@ -4,6 +4,7 @@ import { DailyPrice } from '../offers/entities/daily-price.entity';
 import { Offer } from '../offers/entities/offer.entity';
 import { Produce } from '../produce/entities/produce.entity';
 import { Buyer } from '../buyers/entities/buyer.entity';
+import { BuyerPreferences } from '../buyers/entities/buyer-preferences.entity';
 import { InspectionRequest } from '../quality/entities/inspection-request.entity';
 import { QualityModule } from '../quality/quality.module';
 import { FarmerHomeController } from './controllers/farmer-home.controller';
@@ -22,6 +23,7 @@ import { CacheModule } from '@nestjs/cache-manager';
       Offer,
       Produce,
       Buyer,
+      BuyerPreferences,
       InspectionRequest,
       Farmer,
       Transaction
