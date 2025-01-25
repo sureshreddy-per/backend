@@ -108,9 +108,9 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/auth/profile",
+              "raw": "{{base_url}}/users/me",
               "host": ["{{base_url}}"],
-              "path": ["auth", "profile"]
+              "path": ["users", "me"]
             }
           }
         },
@@ -133,9 +133,9 @@
               "raw": "{\n    \"name\": \"Updated Inspector Name\",\n    \"email\": \"updated.inspector@example.com\",\n    \"specializations\": [\"VEGETABLES\", \"FRUITS\", \"GRAINS\"]\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/profile",
+              "raw": "{{base_url}}/users/profile",
               "host": ["{{base_url}}"],
-              "path": ["auth", "profile"]
+              "path": ["users", "profile"]
             }
           }
         },
@@ -161,6 +161,31 @@
               "raw": "{{base_url}}/users/fcm-token",
               "host": ["{{base_url}}"],
               "path": ["users", "fcm-token"]
+            }
+          }
+        },
+        {
+          "name": "Update Avatar",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{inspector_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"avatar_url\": \"https://example.com/avatar.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/avatar",
+              "host": ["{{base_url}}"],
+              "path": ["users", "avatar"]
             }
           }
         }

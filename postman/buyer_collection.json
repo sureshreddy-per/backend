@@ -168,9 +168,9 @@
               "raw": "{\n    \"name\": \"Updated Buyer Name\",\n    \"email\": \"updated.buyer@example.com\",\n    \"app_version\": \"1.0.0\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/users/me",
+              "raw": "{{base_url}}/users/profile",
               "host": ["{{base_url}}"],
-              "path": ["users", "me"]
+              "path": ["users", "profile"]
             },
             "description": "Update current user's profile"
           }
@@ -197,6 +197,31 @@
               "raw": "{{base_url}}/users/fcm-token",
               "host": ["{{base_url}}"],
               "path": ["users", "fcm-token"]
+            }
+          }
+        },
+        {
+          "name": "Update Avatar",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"avatar_url\": \"https://example.com/avatar.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/avatar",
+              "host": ["{{base_url}}"],
+              "path": ["users", "avatar"]
             }
           }
         }

@@ -35,73 +35,66 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
-  @Get(":id")
-  @Roles(UserRole.ADMIN)
-  async findOne(@Param("id") id: string) {
-    return this.usersService.findOne(id);
-  }
-
   @Get("role/:role")
   @Roles(UserRole.ADMIN)
   async findByRole(@Param("role") role: UserRole) {
     return this.usersService.findByRole(role);
   }
 
-  @Put(":id")
-  @Roles(UserRole.ADMIN)
-  async update(@Param("id") id: string, @Body() updateUserDto: UpdateUserDto) {
-    return this.usersService.update(id, updateUserDto);
+  @Put("profile")
+  async update(@GetUser() user: User, @Body() updateUserDto: UpdateUserDto) {
+    return this.usersService.update(user.id, updateUserDto);
   }
 
-  @Put(":id/verify")
+  @Put("verify")
   @Roles(UserRole.ADMIN)
-  async verifyUser(@Param("id") id: string) {
-    return this.usersService.verifyUser(id);
+  async verifyUser(@GetUser() user: User) {
+    return this.usersService.verifyUser(user.id);
   }
 
-  @Post(":id/block")
+  @Post("block")
   @Roles(UserRole.ADMIN)
-  async blockUser(@Param("id") id: string, @Body() blockUserDto: BlockUserDto) {
-    return this.usersService.blockUser(id, blockUserDto.reason);
+  async blockUser(@GetUser() user: User, @Body() blockUserDto: BlockUserDto) {
+    return this.usersService.blockUser(user.id, blockUserDto.reason);
   }
 
-  @Post(":id/unblock")
+  @Post("unblock")
   @Roles(UserRole.ADMIN)
-  async unblockUser(@Param("id") id: string) {
-    return this.usersService.unblockUser(id);
+  async unblockUser(@GetUser() user: User) {
+    return this.usersService.unblockUser(user.id);
   }
 
-  @Post(":id/schedule-deletion")
+  @Post("schedule-deletion")
   @Roles(UserRole.ADMIN)
   async scheduleDeletion(
-    @Param("id") id: string,
+    @GetUser() user: User,
     @Body() scheduleDeletionDto: ScheduleDeletionDto,
   ) {
     return this.usersService.scheduleForDeletion(
-      id,
+      user.id,
       scheduleDeletionDto.daysUntilDeletion,
     );
   }
 
-  @Post(":id/cancel-deletion")
+  @Post("cancel-deletion")
   @Roles(UserRole.ADMIN)
-  async cancelDeletion(@Param("id") id: string) {
-    return this.usersService.cancelDeletionSchedule(id);
+  async cancelDeletion(@GetUser() user: User) {
+    return this.usersService.cancelDeletionSchedule(user.id);
   }
 
-  @Put(":id/fcm-token")
+  @Put("fcm-token")
   async updateFCMToken(
-    @Param("id") id: string,
+    @GetUser() user: User,
     @Body("fcm_token") fcmToken: string,
   ) {
-    return this.usersService.updateFCMToken(id, fcmToken);
+    return this.usersService.updateFCMToken(user.id, fcmToken);
   }
 
-  @Put(":id/avatar")
+  @Put("avatar")
   async updateAvatar(
-    @Param("id") id: string,
+    @GetUser() user: User,
     @Body("avatar_url") avatarUrl: string,
   ) {
-    return this.usersService.updateAvatar(id, avatarUrl);
+    return this.usersService.updateAvatar(user.id, avatarUrl);
   }
 }

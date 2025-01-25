@@ -98,6 +98,23 @@
       "name": "User Management",
       "item": [
         {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/me",
+              "host": ["{{base_url}}"],
+              "path": ["users", "me"]
+            }
+          }
+        },
+        {
           "name": "Get All Users",
           "request": {
             "method": "GET",
@@ -111,29 +128,6 @@
               "raw": "{{base_url}}/users",
               "host": ["{{base_url}}"],
               "path": ["users"]
-            }
-          }
-        },
-        {
-          "name": "Get User by ID",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{admin_token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/users/:id",
-              "host": ["{{base_url}}"],
-              "path": ["users", ":id"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": ""
-                }
-              ]
             }
           }
         },
@@ -161,7 +155,7 @@
           }
         },
         {
-          "name": "Update User",
+          "name": "Update Profile",
           "request": {
             "method": "PUT",
             "header": [
@@ -179,15 +173,9 @@
               "raw": "{\n    \"name\": \"Updated Name\",\n    \"email\": \"updated@example.com\",\n    \"status\": \"ACTIVE\",\n    \"app_version\": \"1.0.0\",\n    \"last_login_at\": \"2024-01-25T12:00:00Z\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/users/:id",
+              "raw": "{{base_url}}/users/profile",
               "host": ["{{base_url}}"],
-              "path": ["users", ":id"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": ""
-                }
-              ]
+              "path": ["users", "profile"]
             }
           }
         },
@@ -202,15 +190,9 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/users/:id/verify",
+              "raw": "{{base_url}}/users/verify",
               "host": ["{{base_url}}"],
-              "path": ["users", ":id", "verify"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": ""
-                }
-              ]
+              "path": ["users", "verify"]
             }
           }
         },
@@ -222,18 +204,20 @@
               {
                 "key": "Authorization",
                 "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
               }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Violation of terms\"\n}"
+            },
             "url": {
-              "raw": "{{base_url}}/users/:id/block",
+              "raw": "{{base_url}}/users/block",
               "host": ["{{base_url}}"],
-              "path": ["users", ":id", "block"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": ""
-                }
-              ]
+              "path": ["users", "block"]
             }
           }
         },
@@ -248,15 +232,101 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/users/:id/unblock",
+              "raw": "{{base_url}}/users/unblock",
               "host": ["{{base_url}}"],
-              "path": ["users", ":id", "unblock"],
-              "variable": [
-                {
-                  "key": "id",
-                  "value": ""
-                }
-              ]
+              "path": ["users", "unblock"]
+            }
+          }
+        },
+        {
+          "name": "Schedule Deletion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"daysUntilDeletion\": 30\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/schedule-deletion",
+              "host": ["{{base_url}}"],
+              "path": ["users", "schedule-deletion"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Deletion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/cancel-deletion",
+              "host": ["{{base_url}}"],
+              "path": ["users", "cancel-deletion"]
+            }
+          }
+        },
+        {
+          "name": "Update FCM Token",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"fcm_token\": \"your-fcm-token\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/fcm-token",
+              "host": ["{{base_url}}"],
+              "path": ["users", "fcm-token"]
+            }
+          }
+        },
+        {
+          "name": "Update Avatar",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"avatar_url\": \"https://example.com/avatar.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/avatar",
+              "host": ["{{base_url}}"],
+              "path": ["users", "avatar"]
             }
           }
         }
