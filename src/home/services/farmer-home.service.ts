@@ -139,10 +139,10 @@ export class FarmerHomeService {
         `ST_DWithin(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
-          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
+          ST_SetSRID(ST_MakePoint($1, $2), 4326),
           100000
         )`,
-        { lat, lng }
+        [lng, lat]
       )
       .select([
         'p.id as produce_id',
@@ -153,7 +153,7 @@ export class FarmerHomeService {
         `ST_Distance(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
-          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
+          ST_SetSRID(ST_MakePoint($3, $4), 4326)
         ) / 1000 as distance_km`,
         'p.is_inspection_requested as is_manually_inspected',
         'p.images',
@@ -161,6 +161,7 @@ export class FarmerHomeService {
         'u.name as farmer_name',
         'u.avatar_url as farmer_avatar_url'
       ])
+      .setParameters([lng, lat, lng, lat])
       .orderBy('p.created_at', 'DESC')
       .limit(7)
       .cache(this.CACHE_TTL)
@@ -200,9 +201,10 @@ export class FarmerHomeService {
         `ST_Distance(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
-          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
+          ST_SetSRID(ST_MakePoint($1, $2), 4326)
         ) / 1000 as distance_km`
       ])
+      .setParameters([lng, lat])
       .orderBy('p.created_at', 'DESC')
       .limit(7)
       .cache(this.CACHE_TTL)
@@ -279,10 +281,10 @@ export class FarmerHomeService {
         `ST_DWithin(
           ST_SetSRID(ST_MakePoint(CAST(split_part(i.location, ',', 2) AS FLOAT), 
                                  CAST(split_part(i.location, ',', 1) AS FLOAT)), 4326),
-          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
+          ST_SetSRID(ST_MakePoint($1, $2), 4326),
           100000
         )`,
-        { lat, lng }
+        [lng, lat]
       )
       .orderBy('i.created_at', 'DESC')
       .limit(7)

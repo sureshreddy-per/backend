@@ -988,33 +988,6 @@ CREATE TRIGGER update_inspection_base_fee_config_updated_at
 
 DROP TABLE IF EXISTS system_configs CASCADE;
 
-CREATE TABLE system_configs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    key TEXT NOT NULL UNIQUE,
-    value TEXT NOT NULL,
-    description TEXT NOT NULL,
-    is_active BOOLEAN DEFAULT true,
-    updated_by UUID REFERENCES users(id),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_system_configs_key ON system_configs(key);
-CREATE INDEX idx_system_configs_is_active ON system_configs(is_active);
-
-CREATE OR REPLACE FUNCTION update_system_configs_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_system_configs_updated_at
-    BEFORE UPDATE ON system_configs
-    FOR EACH ROW
-    EXECUTE FUNCTION update_system_configs_updated_at();
-
 DROP TABLE IF EXISTS config_audit_logs CASCADE;
 DROP TABLE IF EXISTS admin_audit_logs CASCADE;
 
@@ -1428,3 +1401,49 @@ CREATE TRIGGER update_app_version_control_updated_at
     BEFORE UPDATE ON app_version_control
     FOR EACH ROW
     EXECUTE FUNCTION update_app_version_control_updated_at();
+
+
+CREATE TABLE system_configs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    key TEXT NOT NULL UNIQUE,
+    value TEXT NOT NULL,
+    description TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    updated_by UUID REFERENCES users(id),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_system_configs_key ON system_configs(key);
+CREATE INDEX idx_system_configs_is_active ON system_configs(is_active);
+
+CREATE OR REPLACE FUNCTION update_system_configs_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_system_configs_updated_at
+    BEFORE UPDATE ON system_configs
+    FOR EACH ROW
+    EXECUTE FUNCTION update_system_configs_updated_at();
+
+    -- Insert default system configurations
+INSERT INTO system_configs (key, value, description) VALUES
+('max_daily_price_updates', '{"value": 3}', 'Maximum number of price updates allowed per produce per day'),
+('max_file_size_mb', '{"value": 10}', 'Maximum file size allowed for uploads in MB'),
+('default_pagination_limit', '{"value": 20}', 'Default number of items per page in paginated responses'),
+('cache_ttl_minutes', '{"value": 15}', 'Default cache time-to-live in minutes'),
+('allowed_file_types', '{"value": ["jpg", "jpeg", "png", "pdf"]}', 'Allowed file types for uploads'),
+('max_failed_login_attempts', '{"value": 5}', 'Maximum number of failed login attempts before account lockout'),
+('password_expiry_days', '{"value": 90}', 'Number of days after which passwords expire'),
+('session_timeout_minutes', '{"value": 30}', 'Session timeout in minutes'),
+('maintenance_mode', '{"value": false}', 'System maintenance mode flag'),
+('min_produce_images', '{"value": 1}', 'Minimum number of images required for produce listing'),
+('max_produce_images', '{"value": 5}', 'Maximum number of images allowed for produce listing'),
+('inspection_radius_km', '{"value": 100}', 'Maximum radius in kilometers for inspection requests'),
+('min_transaction_amount', '{"value": 100}', 'Minimum amount allowed for transactions'),
+('platform_fee_percentage', '{"value": 2.5}', 'Platform fee as percentage of transaction amount')
+ON CONFLICT (key) DO NOTHING; 
