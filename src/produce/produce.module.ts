@@ -17,10 +17,13 @@ import { InspectorsModule } from '../inspectors/inspectors.module';
 import { ConfigModule } from '../config/config.module';
 import { CommonModule } from '../common/common.module';
 import { QualityModule } from '../quality/quality.module';
+import { ProduceMaster } from './entities/produce-master.entity';
+import { ProduceMasterService } from './services/produce-master.service';
+import { ProduceMasterController } from './controllers/produce-master.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Produce, Synonym]),
+    TypeOrmModule.forFeature([Produce, Synonym, ProduceMaster]),
     NestConfigModule,
     ConfigModule,
     HttpModule,
@@ -29,10 +32,11 @@ import { QualityModule } from '../quality/quality.module';
     CommonModule,
     forwardRef(() => QualityModule),
   ],
-  controllers: [ProduceController, ProduceSynonymController],
+  controllers: [ProduceController, ProduceSynonymController, ProduceMasterController],
   providers: [
     ProduceService,
     ProduceSynonymService,
+    ProduceMasterService,
     LanguageService,
     {
       provide: AiSynonymService,
@@ -45,6 +49,6 @@ import { QualityModule } from '../quality/quality.module';
       inject: [ConfigService, HttpService, LanguageService],
     },
   ],
-  exports: [ProduceService, ProduceSynonymService, TypeOrmModule],
+  exports: [ProduceService, ProduceSynonymService, ProduceMasterService],
 })
 export class ProduceModule {}

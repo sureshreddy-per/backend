@@ -614,6 +614,215 @@
           }
         }
       ]
+    },
+    {
+      "name": "Produce Master",
+      "item": [
+        {
+          "name": "Get All Produces",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produce-master?isActive=true",
+              "host": ["{{base_url}}"],
+              "path": ["produce-master"],
+              "query": [
+                {
+                  "key": "isActive",
+                  "value": "true",
+                  "description": "Filter by active status"
+                },
+                {
+                  "key": "category",
+                  "value": "",
+                  "description": "Filter by category",
+                  "disabled": true
+                },
+                {
+                  "key": "subCategory",
+                  "value": "",
+                  "description": "Filter by sub-category",
+                  "disabled": true
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "Search in name and description",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get all supported produces with optional filters"
+          }
+        },
+        {
+          "name": "Get Categories",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produce-master/categories",
+              "host": ["{{base_url}}"],
+              "path": ["produce-master", "categories"]
+            },
+            "description": "Get all produce categories with their subcategories"
+          }
+        },
+        {
+          "name": "Get Produce by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produce-master/:id",
+              "host": ["{{base_url}}"],
+              "path": ["produce-master", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Produce Master ID"
+                }
+              ]
+            },
+            "description": "Get specific produce details by ID"
+          }
+        },
+        {
+          "name": "Create Produce",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"tomato\",\n  \"description\": \"Fresh red tomatoes\",\n  \"category\": \"vegetables\",\n  \"subCategory\": \"nightshades\",\n  \"scientificName\": \"Solanum lycopersicum\",\n  \"imageUrl\": \"https://example.com/tomato.jpg\",\n  \"iconUrl\": \"https://example.com/tomato-icon.jpg\",\n  \"metadata\": {\n    \"seasonality\": [\"summer\", \"fall\"],\n    \"nutritionalValue\": {\n      \"vitamins\": [\"A\", \"C\"],\n      \"minerals\": [\"potassium\"]\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/produce-master",
+              "host": ["{{base_url}}"],
+              "path": ["produce-master"]
+            },
+            "description": "Create a new produce master entry"
+          }
+        },
+        {
+          "name": "Update Produce",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description\",\n  \"category\": \"vegetables\",\n  \"subCategory\": \"nightshades\",\n  \"imageUrl\": \"https://example.com/updated-tomato.jpg\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/produce-master/:id",
+              "host": ["{{base_url}}"],
+              "path": ["produce-master", ":id"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Produce Master ID"
+                }
+              ]
+            },
+            "description": "Update an existing produce master entry"
+          }
+        },
+        {
+          "name": "Deactivate Produce",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produce-master/:id/deactivate",
+              "host": ["{{base_url}}"],
+              "path": ["produce-master", ":id", "deactivate"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Produce Master ID"
+                }
+              ]
+            },
+            "description": "Deactivate a produce master entry"
+          }
+        },
+        {
+          "name": "Activate Produce",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/produce-master/:id/activate",
+              "host": ["{{base_url}}"],
+              "path": ["produce-master", ":id", "activate"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "Produce Master ID"
+                }
+              ]
+            },
+            "description": "Activate a produce master entry"
+          }
+        }
+      ]
     }
   ]
 } 

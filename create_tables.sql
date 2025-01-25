@@ -1388,3 +1388,43 @@ SELECT
 FROM inspection_requests ir
 LEFT JOIN produce p ON ir.produce_id = p.id
 LEFT JOIN inspectors i ON ir.inspector_id = i.user_id;
+
+-- Create produce_master table for tracking unique produce names
+DROP TABLE IF EXISTS produce_master CASCADE;
+
+CREATE TABLE produce_master (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL UNIQUE,
+    description TEXT,
+    category TEXT,
+    sub_category TEXT,
+    scientific_name TEXT,
+    image_url TEXT,
+    icon_url TEXT,
+    is_active BOOLEAN DEFAULT true,
+    metadata JSONB,
+    created_by UUID REFERENCES users(id),
+    updated_by UUID REFERENCES users(id),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_name_lowercase CHECK (name = LOWER(name))
+);
+
+-- Add indexes for produce_master
+CREATE INDEX idx_produce_master_name ON produce_master(name);
+CREATE INDEX idx_produce_master_category ON produce_master(category);
+CREATE INDEX idx_produce_master_sub_category ON produce_master(sub_category);
+CREATE INDEX idx_produce_master_is_active ON produce_master(is_active);
+CREATE INDEX idx_produce_master_metadata ON produce_master USING gin(metadata);
+
+-- Add trigger for updating timestamp
+CREATE TRIGGER update_produce_master_updated_at
+    BEFORE UPDATE ON produce_master
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Add foreign key constraint to produce_synonyms table
+ALTER TABLE produce_synonyms
+ADD CONSTRAINT fk_produce_synonyms_master
+FOREIGN KEY (produce_name) REFERENCES produce_master(name)
+ON DELETE CASCADE;
