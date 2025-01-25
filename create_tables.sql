@@ -4,6 +4,11 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Enable PostGIS extension
 CREATE EXTENSION IF NOT EXISTS postgis;
 
+-- If that fails, we need to install the postgis extension first
+-- This requires superuser privileges which Railway provides by default
+CREATE EXTENSION IF NOT EXISTS postgis_topology;
+CREATE EXTENSION IF NOT EXISTS fuzzystrmatch;
+CREATE EXTENSION IF NOT EXISTS postgis_tiger_geocoder;
 -- First, handle enum dependencies
 
 -- First, drop all tables in reverse order of dependencies
