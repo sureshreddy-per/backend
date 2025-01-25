@@ -16,11 +16,47 @@ import { AuthGuard } from "@nestjs/passport";
 import { RolesGuard } from "../../auth/guards/roles.guard";
 import { Roles } from "../../auth/decorators/roles.decorator";
 import { UserRole } from "../../enums/user-role.enum";
+import { IsNotEmpty, IsString, IsArray, IsBoolean, IsOptional } from "class-validator";
 
 class AddSynonymDto {
+  @IsNotEmpty()
+  @IsString()
   canonical_name: string;
+
+  @IsNotEmpty()
+  @IsArray()
+  @IsString({ each: true })
   synonyms: string[];
-  language: string;
+
+  @IsOptional()
+  @IsString()
+  language?: string;
+}
+
+class ValidateSynonymDto {
+  @IsNotEmpty()
+  @IsString()
+  produce_name: string;
+
+  @IsNotEmpty()
+  @IsString()
+  synonym: string;
+
+  @IsNotEmpty()
+  @IsBoolean()
+  is_valid: boolean;
+
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  season?: string;
+
+  @IsOptional()
+  @IsString()
+  market_context?: string;
 }
 
 @ApiTags("Produce Synonyms")
@@ -83,5 +119,64 @@ export class ProduceSynonymController {
     @Request() req: any,
   ): Promise<void> {
     await this.synonymService.deactivateSynonym(canonical_name, req.user.id);
+  }
+
+  @Post("validate")
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(UserRole.FARMER, UserRole.ADMIN)
+  @ApiOperation({ summary: 'Validate a synonym' })
+  @ApiResponse({
+    status: 201,
+    description: "Synonym validation recorded successfully"
+  })
+  async validateSynonym(
+    @Body() dto: ValidateSynonymDto,
+    @Request() req: any,
+  ): Promise<void> {
+    return this.synonymService.validateSynonymByUser(
+      dto.produce_name,
+      dto.synonym,
+      dto.is_valid,
+      {
+        region: dto.region,
+        season: dto.season,
+        market_context: dto.market_context
+      }
+    );
+  }
+
+  @Get("stats")
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({ summary: 'Get synonym statistics' })
+  @ApiResponse({
+    status: 200,
+    description: "Returns synonym statistics"
+  })
+  async getSynonymStats() {
+    return this.synonymService.getSynonymStats();
+  }
+
+  @Get("needs-validation")
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.FARMER)
+  @ApiOperation({ summary: 'Get synonyms that need validation' })
+  @ApiResponse({
+    status: 200,
+    description: "Returns synonyms needing validation",
+    type: [Synonym]
+  })
+  async getSynonymsNeedingValidation(
+    @Query('limit') limit: number = 10,
+    @Query('offset') offset: number = 0
+  ) {
+    const query = this.synonymService.createQueryBuilder('synonym')
+      .where('synonym.is_active = :isActive', { isActive: true })
+      .andWhere('synonym.validation_count < :minValidations', { minValidations: 3 })
+      .orderBy('synonym.created_at', 'DESC')
+      .take(limit)
+      .skip(offset);
+
+    return query.getMany();
   }
 }

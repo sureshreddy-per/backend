@@ -963,6 +963,13 @@ CREATE TABLE produce_synonyms (
     is_ai_generated BOOLEAN DEFAULT false,
     confidence_score DECIMAL(5,2),
     last_validated_at TIMESTAMP,
+    validation_count INTEGER DEFAULT 0,
+    positive_validations INTEGER DEFAULT 0,
+    negative_validations INTEGER DEFAULT 0,
+    usage_count INTEGER DEFAULT 0,
+    region TEXT,
+    season TEXT,
+    market_context TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -971,6 +978,10 @@ CREATE INDEX idx_produce_synonyms_produce_name ON produce_synonyms(produce_name)
 CREATE INDEX idx_produce_synonyms_synonym ON produce_synonyms(synonym);
 CREATE INDEX idx_produce_synonyms_is_active ON produce_synonyms(is_active);
 CREATE INDEX idx_produce_synonyms_last_validated_at ON produce_synonyms(last_validated_at);
+CREATE INDEX idx_produce_synonyms_validation_count ON produce_synonyms(validation_count);
+CREATE INDEX idx_produce_synonyms_usage_count ON produce_synonyms(usage_count);
+CREATE INDEX idx_produce_synonyms_region ON produce_synonyms(region);
+CREATE INDEX idx_produce_synonyms_season ON produce_synonyms(season);
 
 CREATE OR REPLACE FUNCTION update_produce_synonyms_updated_at()
 RETURNS TRIGGER AS $$
@@ -1074,14 +1085,14 @@ CREATE TABLE IF NOT EXISTS report (
   format TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'DRAFT',
   parameters JSONB,
-  file_url VARCHAR(255),
+  file_url TEXT,
   file_size INTEGER,
   summary JSONB,
   error_message TEXT,
-  completed_at TIMESTAMP WITH TIME ZONE,
-  scheduled_time TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+  completed_at TIMESTAMP,
+  scheduled_time TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Add indexes for Report table

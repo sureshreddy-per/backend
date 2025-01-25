@@ -4,11 +4,31 @@ import { Repository } from 'typeorm';
 import { Synonym } from '../entities/synonym.entity';
 import { LanguageService } from '../../config/language.service';
 
+interface SynonymMatch {
+  produce_name: string;
+  similarity: number;
+}
+
+interface SynonymContext {
+  region?: string;
+  season?: string;
+  market_context?: string;
+}
+
+interface ValidationResult {
+  isValid: boolean;
+  confidence: number;
+  needsManualReview: boolean;
+}
+
 @Injectable()
 export class ProduceSynonymService {
   private readonly logger = new Logger(ProduceSynonymService.name);
   private synonymCache: Map<string, string[]> = new Map();
   private produceNameCache: Map<string, string> = new Map();
+  private readonly SIMILARITY_THRESHOLD = 0.8; // Configurable threshold for fuzzy matching
+  private readonly VALIDATION_THRESHOLD = 0.7;
+  private readonly MIN_VALIDATIONS_REQUIRED = 3;
 
   constructor(
     @InjectRepository(Synonym)
@@ -46,61 +66,233 @@ export class ProduceSynonymService {
     }
   }
 
-  async findProduceName(word: string): Promise<string> {
+  private calculateLevenshteinDistance(str1: string, str2: string): number {
+    const m = str1.length;
+    const n = str2.length;
+    const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
+
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (str1[i - 1] === str2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = Math.min(
+            dp[i - 1][j - 1] + 1, // substitution
+            dp[i - 1][j] + 1,     // deletion
+            dp[i][j - 1] + 1      // insertion
+          );
+        }
+      }
+    }
+
+    return dp[m][n];
+  }
+
+  private calculateSimilarity(str1: string, str2: string): number {
+    const maxLength = Math.max(str1.length, str2.length);
+    if (maxLength === 0) return 1.0;
+    const distance = this.calculateLevenshteinDistance(str1, str2);
+    return 1 - distance / maxLength;
+  }
+
+  private async findSimilarProduceNames(word: string): Promise<SynonymMatch[]> {
     const lowercaseWord = word.toLowerCase();
+    const matches: SynonymMatch[] = [];
+
+    // Check cache first
+    this.produceNameCache.forEach((produceName, synonym) => {
+      const similarity = this.calculateSimilarity(lowercaseWord, synonym);
+      if (similarity >= this.SIMILARITY_THRESHOLD) {
+        matches.push({ produce_name: produceName, similarity });
+      }
+    });
+
+    // Check database for additional matches
+    const allSynonyms = await this.synonymRepository.find({
+      where: { is_active: true },
+    });
+
+    allSynonyms.forEach((synonym) => {
+      const similarity = this.calculateSimilarity(lowercaseWord, synonym.synonym.toLowerCase());
+      if (similarity >= this.SIMILARITY_THRESHOLD) {
+        matches.push({ produce_name: synonym.produce_name, similarity });
+      }
+    });
+
+    // Sort by similarity score in descending order
+    return matches.sort((a, b) => b.similarity - a.similarity);
+  }
+
+  private async validateSynonym(synonym: Synonym): Promise<ValidationResult> {
+    const totalValidations = synonym.positive_validations + synonym.negative_validations;
+    
+    if (totalValidations < this.MIN_VALIDATIONS_REQUIRED) {
+      return {
+        isValid: true, // Assume valid until proven otherwise
+        confidence: synonym.confidence_score || 0,
+        needsManualReview: true
+      };
+    }
+
+    const validationRatio = synonym.positive_validations / totalValidations;
+    const confidence = validationRatio * (synonym.confidence_score || 1);
+
+    return {
+      isValid: validationRatio >= this.VALIDATION_THRESHOLD,
+      confidence,
+      needsManualReview: false
+    };
+  }
+
+  async validateSynonymByUser(
+    produce_name: string,
+    synonym_text: string,
+    isValid: boolean,
+    context?: SynonymContext
+  ): Promise<void> {
+    const synonym = await this.synonymRepository.findOne({
+      where: {
+        produce_name,
+        synonym: synonym_text,
+        is_active: true
+      }
+    });
+
+    if (!synonym) {
+      throw new Error('Synonym not found');
+    }
+
+    // Update validation counts
+    if (isValid) {
+      synonym.positive_validations++;
+    } else {
+      synonym.negative_validations++;
+    }
+    synonym.validation_count++;
+    synonym.last_validated_at = new Date();
+
+    // Update context if provided
+    if (context) {
+      synonym.region = context.region || synonym.region;
+      synonym.season = context.season || synonym.season;
+      synonym.market_context = context.market_context || synonym.market_context;
+    }
+
+    await this.synonymRepository.save(synonym);
+    await this.initializeSynonymCache(); // Refresh cache
+  }
+
+  private async findContextualMatches(
+    word: string,
+    context?: SynonymContext
+  ): Promise<SynonymMatch[]> {
+    const baseMatches = await this.findSimilarProduceNames(word);
+    
+    if (!context) {
+      return baseMatches;
+    }
+
+    // Boost similarity scores based on context matches
+    const matchesWithContext = await Promise.all(baseMatches.map(async match => {
+      let contextBoost = 0;
+      const synonym = await this.synonymRepository.findOne({
+        where: {
+          produce_name: match.produce_name,
+          synonym: word,
+          is_active: true
+        }
+      });
+
+      if (synonym) {
+        if (context.region && synonym.region === context.region) contextBoost += 0.1;
+        if (context.season && synonym.season === context.season) contextBoost += 0.1;
+        if (context.market_context && synonym.market_context === context.market_context) contextBoost += 0.1;
+      }
+
+      return {
+        ...match,
+        similarity: Math.min(1, match.similarity + contextBoost)
+      };
+    }));
+
+    return matchesWithContext.sort((a, b) => b.similarity - a.similarity);
+  }
+
+  async findProduceName(
+    word: string,
+    context?: SynonymContext
+  ): Promise<string> {
+    const lowercaseWord = word.toLowerCase();
+    
+    // Try exact matches first (with language handling)
+    const exactMatch = await this.findExactMatch(lowercaseWord);
+    if (exactMatch) {
+      await this.incrementUsageCount(exactMatch);
+      return exactMatch;
+    }
+
+    // Try contextual fuzzy matching
+    const similarMatches = await this.findContextualMatches(word, context);
+    if (similarMatches.length > 0) {
+      const bestMatch = similarMatches[0];
+      
+      // Validate the match
+      const synonym = await this.synonymRepository.findOne({
+        where: {
+          produce_name: bestMatch.produce_name,
+          is_active: true
+        }
+      });
+
+      if (synonym) {
+        const validation = await this.validateSynonym(synonym);
+        if (validation.isValid) {
+          await this.incrementUsageCount(bestMatch.produce_name);
+          this.logger.log(
+            `Found contextual match for "${word}": "${bestMatch.produce_name}" ` +
+            `(similarity: ${bestMatch.similarity}, confidence: ${validation.confidence})`
+          );
+          return bestMatch.produce_name;
+        }
+      }
+    }
+
+    return word;
+  }
+
+  private async incrementUsageCount(produceName: string): Promise<void> {
+    await this.synonymRepository.update(
+      { produce_name: produceName },
+      { usage_count: () => 'usage_count + 1' }
+    );
+  }
+
+  private async findExactMatch(word: string): Promise<string | null> {
     const defaultLanguage = this.languageService.getDefaultLanguage();
     const supportedLanguages = this.languageService.getActiveLanguageCodes();
 
-    // First try with default language
-    const defaultLanguageKey = `${lowercaseWord}:${defaultLanguage}`;
+    // Check cache first
+    const defaultLanguageKey = `${word}:${defaultLanguage}`;
     if (this.produceNameCache.has(defaultLanguageKey)) {
       return this.produceNameCache.get(defaultLanguageKey);
     }
 
-    // Then try other supported languages
     for (const language of supportedLanguages) {
       if (language === defaultLanguage) continue;
-      const languageKey = `${lowercaseWord}:${language}`;
+      const languageKey = `${word}:${language}`;
       if (this.produceNameCache.has(languageKey)) {
         return this.produceNameCache.get(languageKey);
       }
     }
 
-    // Check general cache
-    if (this.produceNameCache.has(lowercaseWord)) {
-      return this.produceNameCache.get(lowercaseWord);
+    if (this.produceNameCache.has(word)) {
+      return this.produceNameCache.get(word);
     }
 
-    // If not in cache, check database
-    const query = this.synonymRepository
-      .createQueryBuilder('synonym')
-      .where('LOWER(synonym.produce_name) = LOWER(:word)', { word: lowercaseWord })
-      .orWhere('LOWER(synonym.synonym) = LOWER(:word)', { word: lowercaseWord })
-      .andWhere('synonym.is_active = :isActive', { isActive: true });
-
-    // First try with default language
-    query.andWhere('synonym.language = :language', { language: defaultLanguage });
-    let synonym = await query.getOne();
-
-    // If not found, try other languages
-    if (!synonym) {
-      for (const language of supportedLanguages) {
-        if (language === defaultLanguage) continue;
-        query.orWhere('synonym.language = :language', { language });
-      }
-      synonym = await query.getOne();
-    }
-
-    if (synonym) {
-      // Update cache
-      this.produceNameCache.set(lowercaseWord, synonym.produce_name);
-      if (synonym.language) {
-        this.produceNameCache.set(`${lowercaseWord}:${synonym.language}`, synonym.produce_name);
-      }
-      return synonym.produce_name;
-    }
-
-    return word;
+    return null;
   }
 
   async addSynonyms(produce_name: string, synonyms: string[], language?: string, is_ai_generated: boolean = false, confidence_score?: number): Promise<void> {
@@ -266,5 +458,66 @@ export class ProduceSynonymService {
     );
 
     return result;
+  }
+
+  async getSynonymStats(): Promise<{
+    totalProduceNames: number;
+    totalSynonyms: number;
+    synonymsByLanguage: { [language: string]: number };
+    aiGeneratedStats: {
+      total: number;
+      needsValidation: number;
+      averageConfidence: number;
+    };
+  }> {
+    const [
+      totalProduceNames,
+      totalSynonyms,
+      synonymsByLanguage,
+      aiStats
+    ] = await Promise.all([
+      this.synonymRepository
+        .createQueryBuilder('synonym')
+        .select('COUNT(DISTINCT synonym.produce_name)', 'count')
+        .where('synonym.is_active = :isActive', { isActive: true })
+        .getRawOne()
+        .then(result => parseInt(result.count)),
+      this.synonymRepository.count({ where: { is_active: true } }),
+      Promise.all(
+        this.languageService.getActiveLanguageCodes().map(async language => ({
+          language,
+          count: await this.synonymRepository.count({
+            where: { language, is_active: true }
+          })
+        }))
+      ),
+      this.synonymRepository
+        .createQueryBuilder('synonym')
+        .select([
+          'COUNT(*) as total',
+          'COUNT(CASE WHEN last_validated_at IS NULL THEN 1 END) as needs_validation',
+          'AVG(confidence_score) as avg_confidence'
+        ])
+        .where('is_ai_generated = :isAi', { isAi: true })
+        .andWhere('is_active = :isActive', { isActive: true })
+        .getRawOne()
+    ]);
+
+    return {
+      totalProduceNames,
+      totalSynonyms,
+      synonymsByLanguage: Object.fromEntries(
+        synonymsByLanguage.map(({ language, count }) => [language, count])
+      ),
+      aiGeneratedStats: {
+        total: parseInt(aiStats.total),
+        needsValidation: parseInt(aiStats.needs_validation),
+        averageConfidence: parseFloat(aiStats.avg_confidence) || 0
+      }
+    };
+  }
+
+  createQueryBuilder(alias: string) {
+    return this.synonymRepository.createQueryBuilder(alias);
   }
 }

@@ -26,6 +26,27 @@ export class Synonym {
   @Column({ name: 'last_validated_at', type: 'timestamp', nullable: true })
   last_validated_at: Date;
 
+  @Column({ name: 'validation_count', default: 0 })
+  validation_count: number;
+
+  @Column({ name: 'positive_validations', default: 0 })
+  positive_validations: number;
+
+  @Column({ name: 'negative_validations', default: 0 })
+  negative_validations: number;
+
+  @Column({ name: 'usage_count', default: 0 })
+  usage_count: number;
+
+  @Column({ name: 'region', nullable: true })
+  region: string;
+
+  @Column({ name: 'season', nullable: true })
+  season: string;
+
+  @Column({ name: 'market_context', nullable: true })
+  market_context: string;
+
   @CreateDateColumn({ name: 'created_at' })
   created_at: Date;
 
