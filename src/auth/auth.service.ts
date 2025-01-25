@@ -18,6 +18,8 @@ import { UserStatus } from "../users/enums/user-status.enum";
 import { UserRole } from "../enums/user-role.enum";
 import * as crypto from "crypto";
 import { TwoFactorService } from "../two-factor/two-factor.service";
+import { AppVersionService } from "../admin/services/app-version.service";
+import { AppType } from "../admin/dto/update-app-version.dto";
 
 @Injectable()
 export class AuthService {
@@ -32,6 +34,7 @@ export class AuthService {
     private readonly buyersService: BuyersService,
     private readonly inspectorsService: InspectorsService,
     private readonly twoFactorService: TwoFactorService,
+    private readonly appVersionService: AppVersionService,
   ) {}
 
   private hashOtp(otp: string, mobile_number: string): string {
@@ -186,6 +189,7 @@ export class AuthService {
   async verifyOtp(
     mobile_number: string,
     otp: string,
+    app_version: string,
   ): Promise<{ token: string; user: User }> {
     // Verify OTP using Twofatctor
     const isValid = await this.twoFactorService.verifyOTP(mobile_number, otp);
@@ -200,10 +204,15 @@ export class AuthService {
         throw new UnauthorizedException("User not found");
       }
 
-      // Always set status to ACTIVE on successful login
-      if (user.status !== UserStatus.ACTIVE) {
-        await this.usersService.updateStatus(user.id, UserStatus.ACTIVE);
+      // Always set status to ACTIVE and update app version on successful login
+      if (user.status !== UserStatus.ACTIVE || user.app_version !== app_version) {
+        await this.usersService.update(user.id, {
+          status: UserStatus.ACTIVE,
+          app_version: app_version,
+          last_login_at: new Date(),
+        });
         user.status = UserStatus.ACTIVE;
+        user.app_version = app_version;
       }
 
       // Generate JWT token
@@ -253,7 +262,17 @@ export class AuthService {
     return !!blacklisted;
   }
 
-  async validateToken(token: string): Promise<{ valid: boolean; user?: User }> {
+  async validateToken(token: string, currentVersion?: string): Promise<{ 
+    valid: boolean; 
+    user?: User;
+    app_status?: {
+      needsUpdate: boolean;
+      forceUpdate: boolean;
+      maintenanceMode: boolean;
+      message?: string;
+      storeUrl?: string;
+    };
+  }> {
     try {
       // Check if token is blacklisted
       const isBlacklisted = await this.isTokenBlacklisted(token);
@@ -270,9 +289,17 @@ export class AuthService {
         throw new UnauthorizedException("User not found");
       }
 
+      // Check app version if version is provided
+      let app_status = undefined;
+      if (currentVersion) {
+        const appType = user.role === UserRole.BUYER ? AppType.BUYER : AppType.FARMER;
+        app_status = await this.appVersionService.checkAppStatus(appType, currentVersion);
+      }
+
       return {
         valid: true,
         user,
+        app_status,
       };
     } catch (error) {
       if (error instanceof UnauthorizedException) {

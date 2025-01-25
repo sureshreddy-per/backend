@@ -52,4 +52,7 @@ export class User extends BaseEntity {
 
   @Column({ type: "timestamp", nullable: true })
   scheduled_for_deletion_at: Date;
+
+  @Column({ type: "varchar", length: 20, nullable: true })
+  app_version: string;
 }

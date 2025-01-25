@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { AuthService } from "./auth.service";
@@ -13,6 +13,7 @@ import { APP_GUARD } from "@nestjs/core";
 import { InspectorsModule } from "../inspectors/inspectors.module";
 import { TwoFactorService } from "../two-factor/two-factor.service";
 import { HttpModule } from "@nestjs/axios";
+import { AdminModule } from "../admin/admin.module";
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { HttpModule } from "@nestjs/axios";
     FarmersModule,
     BuyersModule,
     InspectorsModule,
+    forwardRef(() => AdminModule),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({

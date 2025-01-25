@@ -15,12 +15,12 @@ import { FarmersModule } from "../farmers/farmers.module";
 @Module({
   imports: [
     TypeOrmModule.forFeature([Rating, User, Offer]),
-    AuthModule,
-    OffersModule,
+    forwardRef(() => AuthModule),
+    forwardRef(() => OffersModule),
     forwardRef(() => TransactionsModule),
     NotificationsModule,
-    BuyersModule,
-    FarmersModule,
+    forwardRef(() => BuyersModule),
+    forwardRef(() => FarmersModule),
   ],
   providers: [RatingsService],
   controllers: [RatingsController],

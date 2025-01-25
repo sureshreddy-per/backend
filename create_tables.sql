@@ -53,6 +53,7 @@ CREATE TABLE users (
     total_completed_transactions INTEGER DEFAULT 0,
     last_login_at TIMESTAMP,
     scheduled_for_deletion_at TIMESTAMP,
+    app_version VARCHAR(20),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT valid_mobile_number CHECK (mobile_number ~ '^\+[1-9]\d{1,14}$')
@@ -63,6 +64,7 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_users_last_login_at ON users(last_login_at);
+CREATE INDEX idx_users_app_version ON users(app_version);
 
 CREATE OR REPLACE FUNCTION update_users_updated_at()
 RETURNS TRIGGER AS $$
@@ -1428,3 +1430,41 @@ ALTER TABLE produce_synonyms
 ADD CONSTRAINT fk_produce_synonyms_master
 FOREIGN KEY (produce_name) REFERENCES produce_master(name)
 ON DELETE CASCADE;
+
+-- Create app version control table
+DROP TABLE IF EXISTS app_version_control CASCADE;
+
+CREATE TABLE app_version_control (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    app_type TEXT NOT NULL,
+    min_version VARCHAR(20) NOT NULL,
+    latest_version VARCHAR(20) NOT NULL,
+    force_update BOOLEAN DEFAULT false,
+    maintenance_mode BOOLEAN DEFAULT false,
+    maintenance_message TEXT,
+    update_message TEXT,
+    store_url VARCHAR(255),
+    is_active BOOLEAN DEFAULT true,
+    updated_by UUID REFERENCES users(id),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_app_type CHECK (app_type IN ('BUYER', 'FARMER')),
+    CONSTRAINT check_min_version_format CHECK (min_version ~ '^\d+\.\d+\.\d+$'),
+    CONSTRAINT check_latest_version_format CHECK (latest_version ~ '^\d+\.\d+\.\d+$')
+);
+
+CREATE INDEX idx_app_version_control_app_type ON app_version_control(app_type);
+CREATE INDEX idx_app_version_control_is_active ON app_version_control(is_active);
+
+CREATE OR REPLACE FUNCTION update_app_version_control_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_app_version_control_updated_at
+    BEFORE UPDATE ON app_version_control
+    FOR EACH ROW
+    EXECUTE FUNCTION update_app_version_control_updated_at();

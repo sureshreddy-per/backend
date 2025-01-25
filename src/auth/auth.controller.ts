@@ -6,12 +6,14 @@ import {
   Request,
   Get,
   Delete,
+  Query,
 } from "@nestjs/common";
 import {
   ApiOperation,
   ApiResponse,
   ApiTags,
   ApiBearerAuth,
+  ApiQuery,
 } from "@nestjs/swagger";
 import { AuthService } from "./auth.service";
 import { RequestOtpDto, RequestOtpResponseDto } from "./dto/request-otp.dto";
@@ -81,6 +83,7 @@ export class AuthController {
     return this.authService.verifyOtp(
       verifyOtpDto.mobile_number,
       verifyOtpDto.otp,
+      verifyOtpDto.app_version,
     );
   }
 
@@ -104,7 +107,13 @@ export class AuthController {
   @Get("validate")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Validate JWT token and check expiration" })
+  @ApiOperation({ summary: "Validate JWT token and check app version" })
+  @ApiQuery({
+    name: 'current_version',
+    required: false,
+    type: String,
+    description: 'Current app version in format x.x.x',
+  })
   @ApiResponse({
     status: 200,
     description: "Token is valid",
@@ -113,6 +122,16 @@ export class AuthController {
       properties: {
         valid: { type: "boolean" },
         user: { type: "object" },
+        app_status: {
+          type: "object",
+          properties: {
+            needsUpdate: { type: "boolean" },
+            forceUpdate: { type: "boolean" },
+            maintenanceMode: { type: "boolean" },
+            message: { type: "string" },
+            storeUrl: { type: "string" },
+          },
+        },
       },
     },
   })
@@ -120,7 +139,10 @@ export class AuthController {
     status: 401,
     description: "Token is invalid or expired",
   })
-  async validate(@Token() token: string) {
-    return this.authService.validateToken(token);
+  async validate(
+    @Token() token: string,
+    @Query('current_version') currentVersion?: string,
+  ) {
+    return this.authService.validateToken(token, currentVersion);
   }
 }

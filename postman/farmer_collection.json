@@ -164,7 +164,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"Updated Farmer Name\",\n    \"email\": \"updated.farmer@example.com\"\n}"
+              "raw": "{\n    \"name\": \"Updated Farmer Name\",\n    \"email\": \"updated.farmer@example.com\",\n    \"app_version\": \"1.0.0\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/auth/profile",

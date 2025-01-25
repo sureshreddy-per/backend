@@ -176,7 +176,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"Updated Name\",\n    \"email\": \"updated@example.com\"\n}"
+              "raw": "{\n    \"name\": \"Updated Name\",\n    \"email\": \"updated@example.com\",\n    \"status\": \"ACTIVE\",\n    \"app_version\": \"1.0.0\",\n    \"last_login_at\": \"2024-01-25T12:00:00Z\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/users/:id",
