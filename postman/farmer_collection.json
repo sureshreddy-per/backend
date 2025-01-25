@@ -142,16 +142,17 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/farmers/profile",
+              "raw": "{{base_url}}/users/me",
               "host": ["{{base_url}}"],
-              "path": ["farmers", "profile"]
-            }
+              "path": ["users", "me"]
+            },
+            "description": "Get current user's profile details"
           }
         },
         {
           "name": "Update Profile",
           "request": {
-            "method": "PATCH",
+            "method": "PUT",
             "header": [
               {
                 "key": "Authorization",
@@ -167,10 +168,11 @@
               "raw": "{\n    \"name\": \"Updated Farmer Name\",\n    \"email\": \"updated.farmer@example.com\",\n    \"app_version\": \"1.0.0\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/farmers/profile/user-details",
+              "raw": "{{base_url}}/users/me",
               "host": ["{{base_url}}"],
-              "path": ["farmers", "profile", "user-details"]
-            }
+              "path": ["users", "me"]
+            },
+            "description": "Update current user's profile"
           }
         },
         {
@@ -214,10 +216,38 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/produce/my",
+              "raw": "{{base_url}}/produce?page=1&limit=10&role=FARMER",
               "host": ["{{base_url}}"],
-              "path": ["produce", "my"]
-            }
+              "path": ["produce"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "role",
+                  "value": "FARMER",
+                  "description": "Filter produce by user role"
+                },
+                {
+                  "key": "sort[0][field]",
+                  "value": "created_at",
+                  "description": "Sort by creation date"
+                },
+                {
+                  "key": "sort[0][order]",
+                  "value": "DESC",
+                  "description": "Sort order"
+                }
+              ]
+            },
+            "description": "List all produce for the current farmer with pagination. Role-based filtering is handled automatically based on the authenticated user."
           }
         },
         {
@@ -432,7 +462,7 @@
           "response": []
         },
         {
-          "name": "Get Received Offers",
+          "name": "List Received Offers",
           "request": {
             "method": "GET",
             "header": [
@@ -442,11 +472,63 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/offers/received",
+              "raw": "{{base_url}}/offers?page=1&limit=10&role=FARMER",
               "host": ["{{base_url}}"],
-              "path": ["offers", "received"]
+              "path": ["offers"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "FARMER"
+                }
+              ]
+            },
+            "description": "List all offers received by the farmer with pagination. Role-based filtering is handled automatically based on the authenticated user."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/offers?page=1&limit=10&role=FARMER"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "items": [
+                  {
+                    "id": "uuid",
+                    "produce_id": "uuid",
+                    "buyer_id": "uuid",
+                    "quantity": 100,
+                    "price_per_unit": 50,
+                    "total_price": 5000,
+                    "notes": "Sample offer notes",
+                    "validity_period": "2024-01-25T10:30:00.000Z",
+                    "status": "PENDING",
+                    "created_at": "2024-01-20T10:30:00.000Z",
+                    "updated_at": "2024-01-20T10:30:00.000Z"
+                  }
+                ],
+                "meta": {
+                  "total": 1,
+                  "page": 1,
+                  "limit": 10,
+                  "has_more": false
+                }
+              }
             }
-          }
+          ]
         },
         {
           "name": "Accept Offer",
@@ -511,28 +593,97 @@
           "name": "List Transactions",
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
             "url": {
-              "raw": "{{base_url}}/transactions?page=1&limit=10",
+              "raw": "{{base_url}}/transactions?page=1&limit=10&role=FARMER",
               "host": ["{{base_url}}"],
               "path": ["transactions"],
               "query": [
                 {
                   "key": "page",
-                  "value": "1"
+                  "value": "1",
+                  "description": "Page number for pagination"
                 },
                 {
                   "key": "limit",
-                  "value": "10"
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "role",
+                  "value": "FARMER",
+                  "description": "Filter transactions by user role"
                 }
               ]
             },
-            "description": "Returns a paginated list of transactions for the authenticated farmer. Response includes:\n- Transaction details (id, status, prices, quantities)\n- Delivery and inspection timestamps\n- Buyer details (business name, rating, contact)\n- Produce information (name, quality grade)\n- Pagination metadata"
-          }
+            "description": "Get paginated list of transactions for the current farmer. Returns transformed transactions with proper relations."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/transactions?page=1&limit=10&role=FARMER"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "data": [
+                  {
+                    "id": "uuid",
+                    "offer_id": "uuid",
+                    "produce_id": "uuid",
+                    "buyer_id": "uuid",
+                    "farmer_id": "uuid",
+                    "status": "PENDING",
+                    "final_price": 100,
+                    "final_quantity": 50,
+                    "delivery_window_starts_at": null,
+                    "delivery_window_ends_at": null,
+                    "delivery_confirmed_at": null,
+                    "buyer_inspection_completed_at": null,
+                    "created_at": "2024-01-20T10:30:00.000Z",
+                    "updated_at": "2024-01-20T10:30:00.000Z",
+                    "metadata": {},
+                    "offer": {
+                      "id": "uuid",
+                      "status": "ACCEPTED"
+                    },
+                    "produce": {
+                      "id": "uuid",
+                      "name": "Organic Tomatoes",
+                      "quality_grade": 8
+                    }
+                  }
+                ],
+                "meta": {
+                  "total": 100,
+                  "page": 1,
+                  "limit": 10,
+                  "has_more": true
+                }
+              }
+            }
+          ]
         },
         {
           "name": "Get Transaction",
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id",
               "host": ["{{base_url}}"],
@@ -543,13 +694,60 @@
                   "value": ""
                 }
               ]
+            },
+            "description": "Get details of a specific transaction. Returns transformed transaction with proper relations."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "offer_id": "uuid",
+                "produce_id": "uuid",
+                "buyer_id": "uuid",
+                "farmer_id": "uuid",
+                "status": "PENDING",
+                "final_price": 100,
+                "final_quantity": 50,
+                "delivery_window_starts_at": null,
+                "delivery_window_ends_at": null,
+                "delivery_confirmed_at": null,
+                "buyer_inspection_completed_at": null,
+                "created_at": "2024-01-20T10:30:00.000Z",
+                "updated_at": "2024-01-20T10:30:00.000Z",
+                "metadata": {},
+                "offer": {
+                  "id": "uuid",
+                  "status": "ACCEPTED"
+                },
+                "produce": {
+                  "id": "uuid",
+                  "name": "Organic Tomatoes",
+                  "quality_grade": 8
+                }
+              }
             }
-          }
+          ]
         },
         {
           "name": "Start Delivery",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id/start-delivery",
               "host": ["{{base_url}}"],
@@ -560,13 +758,43 @@
                   "value": ""
                 }
               ]
+            },
+            "description": "Starts the delivery window for a transaction. Sets a 24-hour window and updates status to IN_PROGRESS."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id/start-delivery"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "status": "IN_PROGRESS",
+                "delivery_window_starts_at": "2024-01-20T10:30:00.000Z",
+                "delivery_window_ends_at": "2024-01-21T10:30:00.000Z",
+                "metadata": {
+                  "delivery_notes": "Delivery window started at 2024-01-20T10:30:00.000Z"
+                }
+              }
             }
-          }
+          ]
         },
         {
           "name": "Confirm Delivery",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id/confirm-delivery",
               "host": ["{{base_url}}"],
@@ -577,13 +805,51 @@
                   "value": ""
                 }
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Delivery completed successfully\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Confirms delivery completion. Updates delivery timestamp and allows adding notes."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id/confirm-delivery"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "status": "IN_PROGRESS",
+                "delivery_confirmed_at": "2024-01-20T11:30:00.000Z",
+                "metadata": {
+                  "delivery_notes": "Delivery completed successfully"
+                }
+              }
             }
-          }
+          ]
         },
         {
           "name": "Cancel Transaction",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{farmer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id/cancel",
               "host": ["{{base_url}}"],
@@ -594,8 +860,40 @@
                   "value": ""
                 }
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Unable to fulfill order\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Cancels the transaction. Requires a reason and updates status to CANCELLED."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id/cancel"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "status": "CANCELLED",
+                "metadata": {
+                  "cancellation_reason": "Unable to fulfill order",
+                  "cancelled_at": "2024-01-20T13:30:00.000Z"
+                }
+              }
             }
-          }
+          ]
         }
       ]
     },
@@ -718,14 +1016,40 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"My Farm\",\n    \"location\": \"12.9716,77.5946\",\n    \"area\": 100,\n    \"area_unit\": \"ACRES\",\n    \"address\": \"123 Farm Road, City\",\n    \"soil_type\": \"BLACK\"\n}"
+              "raw": "{\n    \"name\": \"My Farm\",\n    \"size_in_acres\": 100,\n    \"address\": \"123 Farm Road, City\",\n    \"location\": \"12.9716,77.5946\",\n    \"description\": \"Organic farm with multiple crops\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/farmers/farms",
               "host": ["{{base_url}}"],
               "path": ["farmers", "farms"]
+            },
+            "description": "Add a new farm to the farmer's profile"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/farmers/farms"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "farmer_id": "uuid",
+                "name": "My Farm",
+                "size_in_acres": 100,
+                "address": "123 Farm Road, City",
+                "location": "12.9716,77.5946",
+                "description": "Organic farm with multiple crops",
+                "created_at": "2024-01-20T10:30:00.000Z",
+                "updated_at": "2024-01-20T10:30:00.000Z"
+              }
             }
-          }
+          ]
         },
         {
           "name": "Get Farm Details",
@@ -747,8 +1071,34 @@
                   "value": ""
                 }
               ]
+            },
+            "description": "Get details of a specific farm"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/farmers/farms/:farmId"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "farmer_id": "uuid",
+                "name": "My Farm",
+                "size_in_acres": 100,
+                "address": "123 Farm Road, City",
+                "location": "12.9716,77.5946",
+                "description": "Organic farm with multiple crops",
+                "created_at": "2024-01-20T10:30:00.000Z",
+                "updated_at": "2024-01-20T10:30:00.000Z"
+              }
             }
-          }
+          ]
         },
         {
           "name": "Update Farm",
@@ -766,7 +1116,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"name\": \"Updated Farm Name\",\n    \"area\": 150,\n    \"area_unit\": \"ACRES\",\n    \"address\": \"Updated Farm Address\",\n    \"soil_type\": \"RED\"\n}"
+              "raw": "{\n    \"name\": \"Updated Farm Name\",\n    \"size_in_acres\": 150,\n    \"address\": \"Updated Farm Address\",\n    \"description\": \"Updated farm description\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/farmers/farms/:farmId",
@@ -778,8 +1128,34 @@
                   "value": ""
                 }
               ]
+            },
+            "description": "Update farm details"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "PATCH",
+                "url": {
+                  "raw": "{{base_url}}/farmers/farms/:farmId"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "farmer_id": "uuid",
+                "name": "Updated Farm Name",
+                "size_in_acres": 150,
+                "address": "Updated Farm Address",
+                "description": "Updated farm description",
+                "location": "12.9716,77.5946",
+                "created_at": "2024-01-20T10:30:00.000Z",
+                "updated_at": "2024-01-20T11:30:00.000Z"
+              }
             }
-          }
+          ]
         }
       ]
     },
@@ -802,14 +1178,40 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"account_holder_name\": \"Farmer Name\",\n    \"account_number\": \"1234567890\",\n    \"ifsc_code\": \"BANK0001234\",\n    \"bank_name\": \"Sample Bank\",\n    \"branch_name\": \"Sample Branch\"\n}"
+              "raw": "{\n    \"account_name\": \"Farmer Name\",\n    \"account_number\": \"1234567890\",\n    \"bank_name\": \"Sample Bank\",\n    \"branch_code\": \"BANK0001234\",\n    \"is_primary\": true\n}"
             },
             "url": {
               "raw": "{{base_url}}/farmers/bank-accounts",
               "host": ["{{base_url}}"],
               "path": ["farmers", "bank-accounts"]
+            },
+            "description": "Add a new bank account"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/farmers/bank-accounts"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "farmer_id": "uuid",
+                "account_name": "Farmer Name",
+                "account_number": "1234567890",
+                "bank_name": "Sample Bank",
+                "branch_code": "BANK0001234",
+                "is_primary": true,
+                "created_at": "2024-01-20T10:30:00.000Z",
+                "updated_at": "2024-01-20T10:30:00.000Z"
+              }
             }
-          }
+          ]
         },
         {
           "name": "Get Bank Account Details",
@@ -831,8 +1233,34 @@
                   "value": ""
                 }
               ]
+            },
+            "description": "Get details of a specific bank account"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/farmers/bank-accounts/:accountId"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "farmer_id": "uuid",
+                "account_name": "Farmer Name",
+                "account_number": "1234567890",
+                "bank_name": "Sample Bank",
+                "branch_code": "BANK0001234",
+                "is_primary": true,
+                "created_at": "2024-01-20T10:30:00.000Z",
+                "updated_at": "2024-01-20T10:30:00.000Z"
+              }
             }
-          }
+          ]
         },
         {
           "name": "Update Bank Account",
@@ -850,7 +1278,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"account_holder_name\": \"Updated Name\",\n    \"branch_name\": \"Updated Branch\"\n}"
+              "raw": "{\n    \"account_name\": \"Updated Name\",\n    \"is_primary\": false\n}"
             },
             "url": {
               "raw": "{{base_url}}/farmers/bank-accounts/:accountId",
@@ -862,8 +1290,34 @@
                   "value": ""
                 }
               ]
+            },
+            "description": "Update bank account details"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "PATCH",
+                "url": {
+                  "raw": "{{base_url}}/farmers/bank-accounts/:accountId"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "farmer_id": "uuid",
+                "account_name": "Updated Name",
+                "account_number": "1234567890",
+                "bank_name": "Sample Bank",
+                "branch_code": "BANK0001234",
+                "is_primary": false,
+                "created_at": "2024-01-20T10:30:00.000Z",
+                "updated_at": "2024-01-20T11:30:00.000Z"
+              }
             }
-          }
+          ]
         }
       ]
     },

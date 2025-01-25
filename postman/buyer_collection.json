@@ -142,10 +142,11 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/auth/profile",
+              "raw": "{{base_url}}/users/me",
               "host": ["{{base_url}}"],
-              "path": ["auth", "profile"]
-            }
+              "path": ["users", "me"]
+            },
+            "description": "Get current user's profile details"
           }
         },
         {
@@ -167,10 +168,11 @@
               "raw": "{\n    \"name\": \"Updated Buyer Name\",\n    \"email\": \"updated.buyer@example.com\",\n    \"app_version\": \"1.0.0\"\n}"
             },
             "url": {
-              "raw": "{{base_url}}/auth/profile",
+              "raw": "{{base_url}}/users/me",
               "host": ["{{base_url}}"],
-              "path": ["auth", "profile"]
-            }
+              "path": ["users", "me"]
+            },
+            "description": "Update current user's profile"
           }
         },
         {
@@ -214,32 +216,58 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/produce/search?category=VEGETABLES&min_price=10&max_price=100&location=12.9716,77.5946&radius=10",
+              "raw": "{{base_url}}/produce?category=VEGETABLES&min_price=10&max_price=100&location=12.9716,77.5946&radius=10&page=1&limit=10&sort[0][field]=quality&sort[0][order]=DESC",
               "host": ["{{base_url}}"],
-              "path": ["produce", "search"],
+              "path": ["produce"],
               "query": [
                 {
                   "key": "category",
-                  "value": "VEGETABLES"
+                  "value": "VEGETABLES",
+                  "description": "Filter by produce category"
                 },
                 {
                   "key": "min_price",
-                  "value": "10"
+                  "value": "10",
+                  "description": "Minimum price filter"
                 },
                 {
                   "key": "max_price",
-                  "value": "100"
+                  "value": "100",
+                  "description": "Maximum price filter"
                 },
                 {
                   "key": "location",
-                  "value": "12.9716,77.5946"
+                  "value": "12.9716,77.5946",
+                  "description": "Center point for geospatial search (lat,lng)"
                 },
                 {
                   "key": "radius",
-                  "value": "10"
+                  "value": "10",
+                  "description": "Search radius in kilometers"
+                },
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "sort[0][field]",
+                  "value": "quality",
+                  "description": "Sort by quality grade"
+                },
+                {
+                  "key": "sort[0][order]",
+                  "value": "DESC",
+                  "description": "Sort order"
                 }
               ]
-            }
+            },
+            "description": "Search produce with filtering, sorting, and pagination. Supports geospatial search within radius."
           }
         },
         {
@@ -306,10 +334,28 @@
               }
             ],
             "url": {
-              "raw": "{{base_url}}/offers/my",
+              "raw": "{{base_url}}/offers?page=1&limit=10&role=BUYER",
               "host": ["{{base_url}}"],
-              "path": ["offers", "my"]
-            }
+              "path": ["offers"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number for pagination"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "role",
+                  "value": "BUYER",
+                  "description": "Filter offers by user role"
+                }
+              ]
+            },
+            "description": "List all offers for the current buyer with pagination. Role-based filtering is handled automatically based on the authenticated user."
           }
         },
         {
@@ -448,6 +494,12 @@
           "name": "List Transactions",
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions?page=1&limit=10",
               "host": ["{{base_url}}"],
@@ -463,14 +515,69 @@
                 }
               ]
             },
-            "description": "Returns a paginated list of transactions for the authenticated buyer. Response includes:\n- Transaction details (id, status, prices, quantities)\n- Delivery and inspection timestamps\n- Farmer details (name, rating, contact)\n- Produce information (name, quality grade)\n- Pagination metadata"
+            "description": "Get paginated list of transactions. Returns transformed transactions with proper relations."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/transactions?page=1&limit=10"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "data": [
+                  {
+                    "id": "uuid",
+                    "offer_id": "uuid",
+                    "produce_id": "uuid",
+                    "buyer_id": "uuid",
+                    "farmer_id": "uuid",
+                    "status": "PENDING",
+                    "final_price": 100,
+                    "final_quantity": 50,
+                    "delivery_window_starts_at": null,
+                    "delivery_window_ends_at": null,
+                    "delivery_confirmed_at": null,
+                    "buyer_inspection_completed_at": null,
+                    "created_at": "2024-01-20T10:30:00.000Z",
+                    "updated_at": "2024-01-20T10:30:00.000Z",
+                    "metadata": {},
+                    "offer": {
+                      "id": "uuid",
+                      "status": "ACCEPTED"
+                    },
+                    "produce": {
+                      "id": "uuid",
+                      "name": "Organic Tomatoes",
+                      "quality_grade": 8
+                    }
+                  }
+                ],
+                "meta": {
+                  "total": 100,
+                  "page": 1,
+                  "limit": 10,
+                  "has_more": true
+                }
+              }
+            }
+          ]
         },
         {
           "name": "Get Transaction",
           "request": {
             "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id",
               "host": ["{{base_url}}"],
@@ -482,9 +589,48 @@
                 }
               ]
             },
-            "description": "Returns details of a specific transaction. Response includes:\n- Transaction details\n- Farmer information\n- Produce details\n- Delivery status and timestamps"
+            "description": "Get details of a specific transaction. Returns transformed transaction with proper relations."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "offer_id": "uuid",
+                "produce_id": "uuid",
+                "buyer_id": "uuid",
+                "farmer_id": "uuid",
+                "status": "PENDING",
+                "final_price": 100,
+                "final_quantity": 50,
+                "delivery_window_starts_at": null,
+                "delivery_window_ends_at": null,
+                "delivery_confirmed_at": null,
+                "buyer_inspection_completed_at": null,
+                "created_at": "2024-01-20T10:30:00.000Z",
+                "updated_at": "2024-01-20T10:30:00.000Z",
+                "metadata": {},
+                "offer": {
+                  "id": "uuid",
+                  "status": "ACCEPTED"
+                },
+                "produce": {
+                  "id": "uuid",
+                  "name": "Organic Tomatoes",
+                  "quality_grade": 8
+                }
+              }
+            }
+          ]
         },
         {
           "name": "Create Transaction",
@@ -512,6 +658,12 @@
           "name": "Start Delivery",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id/start-delivery",
               "host": ["{{base_url}}"],
@@ -525,12 +677,40 @@
             },
             "description": "Starts the delivery window for a transaction. Sets a 24-hour window and updates status to IN_PROGRESS."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id/start-delivery"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "status": "IN_PROGRESS",
+                "delivery_window_starts_at": "2024-01-20T10:30:00.000Z",
+                "delivery_window_ends_at": "2024-01-21T10:30:00.000Z",
+                "metadata": {
+                  "delivery_notes": "Delivery window started at 2024-01-20T10:30:00.000Z"
+                }
+              }
+            }
+          ]
         },
         {
           "name": "Confirm Delivery",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id/confirm-delivery",
               "host": ["{{base_url}}"],
@@ -553,12 +733,39 @@
             },
             "description": "Confirms delivery receipt. Updates delivery timestamp and allows adding notes."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id/confirm-delivery"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "status": "IN_PROGRESS",
+                "delivery_confirmed_at": "2024-01-20T11:30:00.000Z",
+                "metadata": {
+                  "delivery_notes": "Delivery received in good condition"
+                }
+              }
+            }
+          ]
         },
         {
           "name": "Confirm Inspection",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id/confirm-inspection",
               "host": ["{{base_url}}"],
@@ -581,12 +788,39 @@
             },
             "description": "Confirms buyer inspection. Updates inspection timestamp and allows adding notes."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id/confirm-inspection"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "status": "IN_PROGRESS",
+                "buyer_inspection_completed_at": "2024-01-20T12:30:00.000Z",
+                "metadata": {
+                  "inspection_notes": "Produce quality verified"
+                }
+              }
+            }
+          ]
         },
         {
           "name": "Complete Transaction",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id/complete",
               "host": ["{{base_url}}"],
@@ -600,12 +834,37 @@
             },
             "description": "Completes the transaction. Updates status and enables rating."
           },
-          "response": []
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id/complete"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "status": "COMPLETED",
+                "requires_rating": true,
+                "rating_completed": false
+              }
+            }
+          ]
         },
         {
           "name": "Cancel Transaction",
           "request": {
             "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
             "url": {
               "raw": "{{base_url}}/transactions/:id/cancel",
               "host": ["{{base_url}}"],
@@ -627,6 +886,52 @@
               }
             },
             "description": "Cancels the transaction. Requires a reason and updates status to CANCELLED."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "url": {
+                  "raw": "{{base_url}}/transactions/:id/cancel"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": {
+                "id": "uuid",
+                "status": "CANCELLED",
+                "metadata": {
+                  "cancellation_reason": "Cancellation reason",
+                  "cancelled_at": "2024-01-20T13:30:00.000Z"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reactivate Transaction",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{buyer_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/transactions/:id/reactivate",
+              "host": ["{{base_url}}"],
+              "path": ["transactions", ":id", "reactivate"],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "description": "Reactivates an expired transaction. Only available for transactions in EXPIRED status."
           },
           "response": []
         }

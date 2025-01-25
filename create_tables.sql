@@ -1,6 +1,9 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Enable PostGIS extension
+CREATE EXTENSION IF NOT EXISTS postgis;
+
 -- First, handle enum dependencies
 
 -- First, drop all tables in reverse order of dependencies

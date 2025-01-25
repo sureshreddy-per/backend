@@ -231,7 +231,7 @@ export class FarmerHomeService {
         'b.business_name',
         'u.name',
         'u.avatar_url',
-        'AVG(t.metadata->>\'buyer_rating\')::float as rating',
+        'AVG(CAST(t.metadata->>\'buyer_rating\' AS NUMERIC))::float as rating',
         'COUNT(t.id) as total_completed_transactions'
       ])
       .groupBy('b.id, b.business_name, u.name, u.avatar_url')
