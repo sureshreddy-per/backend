@@ -197,9 +197,9 @@ export class BuyerHomeService {
     const produces = await this.produceRepository
       .createQueryBuilder('p')
       .select([
-        'p.name',
         'p.id',
-        'p.icon_url'
+        'p.name',
+        'p.images'
       ])
       .distinctOn(['p.name'])
       .where('p.status = :status', { status: 'ACTIVE' })
@@ -219,7 +219,7 @@ export class BuyerHomeService {
     const transformedProduces = produces.map(p => ({
       id: p.p_id,
       name: p.p_name,
-      icon_url: p.p_icon_url
+      icon_url: p.p_images?.[0] || null // Use first image as icon
     }));
 
     await this.cacheManager.set(cacheKey, transformedProduces, this.CACHE_TTL);
