@@ -419,19 +419,7 @@ CREATE TABLE transaction_history (
   user_id UUID NOT NULL REFERENCES users(id),
   metadata JSONB,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT valid_event CHECK (
-    event IN (
-      'CREATED',
-      'STATUS_CHANGED',
-      'DELIVERY_WINDOW_STARTED',
-      'DELIVERY_CONFIRMED',
-      'INSPECTION_COMPLETED',
-      'CANCELLED',
-      'EXPIRED',
-      'RATING_ADDED'
-    )
-  )
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Add indexes for transaction history
@@ -800,11 +788,6 @@ ALTER TABLE quality_assessments
   ADD CONSTRAINT fk_quality_assessments_inspector FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL,
   ADD CONSTRAINT fk_quality_assessments_request FOREIGN KEY (inspection_request_id) REFERENCES inspection_requests(id) ON DELETE CASCADE;
 
-ALTER TABLE inspection_requests
-  ADD CONSTRAINT fk_inspection_requests_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_inspection_requests_requester FOREIGN KEY (requester_id) REFERENCES users(id) ON DELETE CASCADE,
-  ADD CONSTRAINT fk_inspection_requests_inspector FOREIGN KEY (inspector_id) REFERENCES users(id) ON DELETE SET NULL;
-
 ALTER TABLE offers
   ADD CONSTRAINT fk_offers_produce FOREIGN KEY (produce_id) REFERENCES produce(id) ON DELETE CASCADE,
   ADD CONSTRAINT fk_offers_buyer FOREIGN KEY (buyer_id) REFERENCES buyers(id) ON DELETE CASCADE,
@@ -928,31 +911,6 @@ CREATE INDEX idx_media_entity_category ON media(entity_category);
 CREATE INDEX idx_notifications_read_at ON notifications(read_at);
 CREATE INDEX idx_support_tickets_priority ON support_tickets(priority);
 CREATE INDEX idx_support_tickets_category ON support_tickets(category);
-
--- Create transaction history table
-CREATE TABLE transaction_history (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-  event TEXT NOT NULL,
-  old_status TEXT,
-  new_status TEXT,
-  user_id UUID NOT NULL REFERENCES users(id),
-  metadata JSONB,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
-
--- Add indexes for transaction history
-CREATE INDEX idx_transaction_history_transaction ON transaction_history(transaction_id);
-CREATE INDEX idx_transaction_history_event ON transaction_history(event);
-CREATE INDEX idx_transaction_history_user ON transaction_history(user_id);
-CREATE INDEX idx_transaction_history_created ON transaction_history(created_at);
-
--- Add trigger for transaction history timestamp update
-CREATE TRIGGER update_transaction_history_updated_at
-    BEFORE UPDATE ON transaction_history
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
 
 DROP TABLE IF EXISTS produce_synonyms CASCADE;
 
@@ -1372,10 +1330,9 @@ SELECT
     'location', p.location,
     'quality_grade', p.quality_grade,
     'quality_assessments', (
-      SELECT jsonb_agg(qa.*)
+      SELECT jsonb_agg(qa.* ORDER BY qa.created_at DESC)
       FROM quality_assessments qa
       WHERE qa.produce_id = p.id
-      ORDER BY qa.created_at DESC
     )
   ) as produce,
   -- Inspector details
