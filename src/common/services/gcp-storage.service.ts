@@ -101,8 +101,10 @@ export class GcpStorageService implements StorageService {
       // Get file metadata
       const [metadata] = await gcpFile.getMetadata();
 
-      // Generate a public URL without any query parameters or trailing semicolons
-      const publicUrl = `https://storage.googleapis.com/${this.bucket}/${encodeURIComponent(filePath)}`;
+      // Generate a public URL with proper path encoding
+      const bucketPath = `${this.bucket}/${filePath}`;
+      const encodedPath = bucketPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const publicUrl = `https://storage.googleapis.com/${encodedPath}`;
 
       return {
         url: publicUrl,
@@ -155,7 +157,9 @@ export class GcpStorageService implements StorageService {
     if (!bucketName) {
       throw new Error('A bucket name is needed to use Cloud Storage');
     }
-    return `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(key)}`;
+    const bucketPath = `${bucketName}/${key}`;
+    const encodedPath = bucketPath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+    return `https://storage.googleapis.com/${encodedPath}`;
   }
 
   async downloadFile(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
