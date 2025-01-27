@@ -109,13 +109,14 @@ export class ProduceController {
 
   private async analyzeImageWithRetry(
     file: Express.Multer.File,
+    produceId: string,
   ) {
     return this.openAIService.analyzeProduceWithMultipleImages([
       {
         buffer: file.buffer,
         mimeType: file.mimetype
       }
-    ]);
+    ], produceId);
   }
 
   @Post()
@@ -144,61 +145,76 @@ export class ProduceController {
     files.images.forEach(file => fileValidationPipe.transform(file, { type: 'body', data: 'images' }));
 
     try {
-      // Upload images in parallel and analyze the first image
-      const [uploadedImages, aiAnalysis] = await Promise.all([
-        // Upload all images
-        Promise.all(files.images.map(async (file) => {
-          try {
-            const result = await this.uploadFileWithRetry(
-              file,
-              'produce-images',
-              {
-                userId: user.id,
-                farmerId: farmer.id,
-                contentType: file.mimetype,
-              }
-            );
-            return result.url;
-          } catch (error) {
-            this.logger.error(`Failed to upload image: ${error.message}`, error.stack);
-            throw new InternalServerErrorException(`Failed to upload image: ${error.message}`);
-          }
-        })),
-        // Analyze first image
-        this.analyzeImageWithRetry(files.images[0])
-      ]);
-
-      // Create produce with uploaded image URLs
+      // Create produce first (without images)
       const produceInput: CreateProduceInput = {
         ...createProduceDto,
         farmer_id: farmer.id,
-        images: uploadedImages,
+        images: [], // Initially empty, will update after upload
         status: ProduceStatus.PENDING_AI_ASSESSMENT
       };
 
       const produce = await this.produceService.create(produceInput);
 
-      // Emit event for AI verification
-      this.eventEmitter.emit('quality.assessment.completed', {
-        produce_id: produce.id,
-        quality_grade: aiAnalysis.quality_grade,
-        confidence_level: aiAnalysis.confidence_level,
-        farmer_id: farmer.id,
-        image_analysis: aiAnalysis,
-        detected_name: aiAnalysis.name,
-        description: aiAnalysis.description,
-        product_variety: aiAnalysis.product_variety,
-        produce_category: aiAnalysis.produce_category,
-        category_specific_attributes: aiAnalysis.category_specific_attributes,
-        assessment_details: {
-          defects: aiAnalysis.detected_defects,
-          recommendations: aiAnalysis.recommendations
-        }
-      });
+      try {
+        // Run image uploads and AI analysis in parallel
+        const [uploadedImages, aiAnalysis] = await Promise.all([
+          // Upload all images
+          Promise.all(files.images.map(async (file) => {
+            try {
+              const result = await this.uploadFileWithRetry(
+                file,
+                'produce-images',
+                {
+                  userId: user.id,
+                  farmerId: farmer.id,
+                  produceId: produce.id,
+                  contentType: file.mimetype,
+                }
+              );
+              return result.url;
+            } catch (error) {
+              this.logger.error(`Failed to upload image: ${error.message}`, error.stack);
+              throw new InternalServerErrorException(`Failed to upload image: ${error.message}`);
+            }
+          })),
+          // Analyze first image with correct produce ID
+          this.analyzeImageWithRetry(files.images[0], produce.id)
+        ]);
 
-      return produce;
+        // Update produce with uploaded image URLs
+        await this.produceService.update(produce.id, { images: uploadedImages });
+
+        // Emit event for AI verification
+        this.eventEmitter.emit('quality.assessment.completed', {
+          produce_id: produce.id,
+          quality_grade: aiAnalysis.quality_grade,
+          confidence_level: aiAnalysis.confidence_level,
+          farmer_id: farmer.id,
+          image_analysis: aiAnalysis,
+          detected_name: aiAnalysis.name,
+          description: aiAnalysis.description,
+          product_variety: aiAnalysis.product_variety,
+          produce_category: aiAnalysis.produce_category,
+          category_specific_attributes: aiAnalysis.category_specific_attributes,
+          assessment_details: {
+            defects: aiAnalysis.detected_defects,
+            recommendations: aiAnalysis.recommendations
+          }
+        });
+
+        // Return the updated produce
+        return this.produceService.findById(produce.id);
+      } catch (error) {
+        // If any error occurs during upload or analysis, delete the produce and cleanup
+        await this.produceService.deleteById(produce.id);
+        if (error instanceof InternalServerErrorException) {
+          throw error;
+        }
+        this.logger.error(`Error processing produce: ${error.message}`);
+        throw new InternalServerErrorException('Failed to process produce');
+      }
     } catch (error) {
-      // If any error occurs during upload or produce creation, cleanup uploaded files
+      // If any error occurs during produce creation, cleanup uploaded files
       if (error instanceof InternalServerErrorException) {
         throw error;
       }

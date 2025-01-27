@@ -117,11 +117,9 @@ export class QualityController {
     @GetUser() user: User,
     @Body() data: RequestQualityInspectionDto,
   ): Promise<InspectionRequest> {
-    validateLocation(data.location);
     return this.inspectionRequestService.create({
       produce_id: data.produce_id,
       requester_id: user.id,
-      location: data.location,
     });
   }
 

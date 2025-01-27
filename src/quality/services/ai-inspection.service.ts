@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { OpenAIService } from './openai.service';
+import { OpenAIService, AIAnalysisResult, ImageData } from './openai.service';
 import { GcpStorageService } from '../../common/services/gcp-storage.service';
 
 @Injectable()
@@ -11,19 +11,19 @@ export class AIInspectionService {
     private readonly storageService: GcpStorageService,
   ) {}
 
-  async analyzeImage(event: { image_url: string }): Promise<any> {
+  async analyzeImage(produceId: string, imageUrl: string): Promise<AIAnalysisResult> {
     try {
       // Download the image from GCP
-      const { buffer, mimeType } = await this.storageService.downloadFile(event.image_url);
+      const { buffer, mimeType } = await this.storageService.downloadFile(imageUrl);
       
       // Analyze the image using OpenAI
       const analysis = await this.openaiService.analyzeProduceWithMultipleImages([
         { buffer, mimeType }
-      ]);
+      ], produceId);
       
       return analysis;
     } catch (error) {
-      this.logger.error(`Error analyzing image: ${error.message}`, error.stack);
+      this.logger.error(`Error analyzing image for produce ${produceId}: ${error.message}`);
       throw error;
     }
   }

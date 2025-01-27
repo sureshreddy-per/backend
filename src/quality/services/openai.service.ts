@@ -5,6 +5,7 @@ import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 import { firstValueFrom } from 'rxjs';
 import sharp from 'sharp';
 import heicConvert from 'heic-convert';
+import { QualityAssessmentService } from '../services/quality-assessment.service';
 
 export interface AIAnalysisResult {
   name: string;
@@ -36,6 +37,7 @@ export class OpenAIService {
   constructor(
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
+    protected readonly qualityAssessmentService: QualityAssessmentService,
   ) {
     // Load API key directly from environment and other configs from configuration service
     this.apiKey = process.env.OPENAI_API_KEY;
@@ -120,7 +122,7 @@ export class OpenAIService {
       .trim();                    // Remove any extra whitespace
   }
 
-  async analyzeProduceWithMultipleImages(images: ImageData[]): Promise<AIAnalysisResult> {
+  async analyzeProduceWithMultipleImages(images: ImageData[], produceId: string): Promise<AIAnalysisResult> {
     try {
       this.logger.debug(`Making OpenAI API request with ${images.length} images...`);
       const headers: Record<string, string> = {
@@ -198,7 +200,7 @@ export class OpenAIService {
       }
 
       // Validate and transform the response
-      return {
+      result = {
         name: result.name || 'Unknown',
         produce_category: result.produce_category || ProduceCategory.VEGETABLES,
         product_variety: result.product_variety || 'Unknown',
@@ -209,6 +211,23 @@ export class OpenAIService {
         recommendations: Array.isArray(result.recommendations) ? result.recommendations : [],
         category_specific_attributes: result.category_specific_attributes || {},
       };
+
+      // Store the AI assessment results
+      await this.qualityAssessmentService.create({
+        produce_id: produceId,
+        quality_grade: result.quality_grade,
+        confidence_level: result.confidence_level,
+        defects: result.detected_defects,
+        recommendations: result.recommendations,
+        category_specific_assessment: result.category_specific_attributes,
+        metadata: {
+          source: 'AI_ASSESSMENT',
+          ai_model_version: this.model,
+          analysis_date: new Date().toISOString()
+        }
+      });
+
+      return result;
     } catch (error) {
       this.logger.error(`Error analyzing produce with multiple images: ${error.message}`, error.stack);
       if (error.response) {

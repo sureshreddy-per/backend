@@ -24,9 +24,8 @@ export class InspectionRequestService {
   async create(data: {
     produce_id: string;
     requester_id: string;
-    location: string;
   }): Promise<InspectionRequest> {
-    // Get produce to access its inspection fee
+    // Get produce to access its location and inspection fee
     const produce = await this.produceRepository.findOne({
       where: { id: data.produce_id }
     });
@@ -37,6 +36,7 @@ export class InspectionRequestService {
 
     const request = this.inspectionRequestRepository.create({
       ...data,
+      location: produce.location, // Use produce's location
       inspection_fee: produce.inspection_fee,
       status: InspectionRequestStatus.PENDING,
     });
