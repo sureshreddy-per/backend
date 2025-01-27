@@ -236,9 +236,9 @@ export class ProduceService {
       });
 
       // Update produce status based on confidence and quality grade
-      if (event.confidence_level >= 85 && event.quality_grade >= 7) {
+      if (event.confidence_level >= 70) {
         produce.status = ProduceStatus.ASSESSED;
-      } else if (event.confidence_level >= 70) {
+      } else if (event.confidence_level >= 50) {
         produce.status = ProduceStatus.PENDING_INSPECTION;
       } else {
         produce.status = ProduceStatus.ASSESSMENT_FAILED;

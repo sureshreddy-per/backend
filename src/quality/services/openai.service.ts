@@ -142,113 +142,111 @@ export class OpenAIService {
         ...(this.orgId && { 'OpenAI-Organization': this.orgId })
       };
 
-      const requestBody = {
-        model: this.model,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `Analyze this agricultural produce image and provide a detailed assessment in the following JSON format:
+      const prompt = `Analyze this agricultural produce image and provide a detailed assessment in the following JSON format:
 {
-  "name": "produce name",
-  "produce_category": "one of [FOOD_GRAINS, OILSEEDS, FRUITS, VEGETABLES, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS]",
-  "product_variety": "specific variety name",
-  "description": "detailed description",
-  "quality_grade": "number between 1-10",
+  "name": "detected produce name",
+  "produce_category": "one of: FOOD_GRAINS, OILSEEDS, FRUITS, VEGETABLES, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS",
+  "product_variety": "specific variety of the produce",
+  "description": "detailed description of the produce",
+  "quality_grade": "number between 0-10",
   "confidence_level": "number between 0-100",
-  "detected_defects": ["list of defects"],
+  "detected_defects": ["list of visible defects"],
   "recommendations": ["list of recommendations"],
   "category_specific_attributes": {
-    // Category-specific fields will be included based on the detected category
-    // For FOOD_GRAINS:
-    "variety": "string",
-    "moisture_content": "number (0-100)",
-    "foreign_matter": "number (0-100)",
-    "protein_content": "number (0-100)",
-    "wastage": "number (0-100)",
-    // For OILSEEDS:
-    "oil_content": "number (0-100)",
-    "moisture_content": "number (0-100)",
-    "foreign_matter": "number (0-100)",
-    "seed_size": "string",
-    "seed_color": "string",
-    // For FRUITS:
-    "sweetness_brix": "number (0-100)",
-    "size": "string (small/medium/large)",
-    "color": "string",
-    "ripeness": "string (ripe/unripe)",
-    // For VEGETABLES:
-    "freshness_level": "string (fresh/slightly wilted)",
-    "size": "string (small/medium/large)",
-    "color": "string",
-    "moisture_content": "number (0-100)",
-    "foreign_matter": "number (0-100)",
-    // For SPICES:
-    "essential_oil": "number (0-100)",
-    "moisture_content": "number (0-100)",
-    "foreign_matter": "number (0-100)",
-    "aroma_quality": "string",
-    "color_intensity": "string",
-    // For FIBERS:
-    "fiber_length": "number (min: 0)",
-    "fiber_strength": "number (min: 0)",
-    "micronaire": "number (0-10)",
-    "uniformity": "number (0-100)",
-    "trash_content": "number (0-100)",
-    // For SUGARCANE:
-    "brix_value": "number (0-100)",
-    "pol_reading": "number (0-100)",
-    "purity": "number (0-100)",
-    "fiber_content": "number (0-100)",
-    "juice_quality": "string",
-    // For FLOWERS:
-    "freshness": "string",
-    "color_intensity": "string",
-    "stem_length": "number (min: 0)",
-    "bud_size": "string",
-    "fragrance_quality": "string",
-    // For MEDICINAL_PLANTS:
-    "active_compounds": "number (0-100)",
-    "moisture_content": "number (0-100)",
-    "foreign_matter": "number (0-100)",
-    "potency": "string",
-    "purity": "number (0-100)"
+    // For FOOD_GRAINS
+    "moisture_content": "percentage (0-100)",
+    "foreign_matter": "percentage (0-100)",
+    "protein_content": "percentage (0-100)",
+    "broken_grains": "percentage (0-100)",
+
+    // For OILSEEDS
+    "moisture_content": "percentage (0-100)",
+    "oil_content": "percentage (0-100)",
+    "foreign_matter": "percentage (0-100)",
+
+    // For FRUITS
+    "ripeness": "number (0-10)",
+    "brix_content": "number (0-100)",
+    "color": "string description",
+    "size": "number (0-10)",
+
+    // For VEGETABLES
+    "freshness_level": "number (0-10)",
+    "size": "number (0-10)",
+    "color": "string description",
+    "moisture_content": "percentage (0-100)",
+    "foreign_matter": "percentage (0-100)",
+
+    // For SPICES
+    "moisture_content": "percentage (0-100)",
+    "oil_content": "percentage (0-100)",
+    "foreign_matter": "percentage (0-100)",
+    "aroma": "number (0-10)",
+
+    // For FIBERS
+    "staple_length": "length in mm",
+    "fiber_strength": "g/tex value",
+    "trash_content": "percentage (0-100)",
+
+    // For SUGARCANE
+    "brix_content": "percentage (0-100)",
+    "fiber_content": "percentage (0-100)",
+    "stalk_length": "length in cm",
+
+    // For FLOWERS
+    "freshness": "number (0-10)",
+    "fragrance": "number (0-10)",
+    "stem_length": "length in cm",
+
+    // For MEDICINAL_PLANTS
+    "moisture_content": "percentage (0-100)",
+    "essential_oil_content": "percentage (0-100)",
+    "purity": "percentage (0-100)"
   }
 }
 
-Important notes:
-1. Include ONLY the category-specific attributes that match the detected produce_category
-2. All numeric values should be within their specified ranges
-3. String enums must match exactly as specified (e.g., "fresh"/"slightly wilted" for vegetables freshness_level)
-4. All required fields for the detected category must be included
-5. The response must be valid JSON without any additional text or markdown`
-              },
-              ...processedImages.map(img => ({
-                type: 'image_url',
-                image_url: {
-                  url: `data:${img.mimeType};base64,${img.buffer.toString('base64')}`
-                }
-              }))
-            ]
-          }
-        ],
-        max_tokens: this.maxTokens,
-        temperature: this.temperature,
-        response_format: { type: "json_object" }
-      };
+Important:
+1. Provide ALL required fields for the detected category
+2. Use numeric values for measurements (no text descriptions for measurements)
+3. Ensure confidence_level reflects your certainty in the assessment
+4. Include specific defects and actionable recommendations
+5. For percentage values, use numbers between 0-100
+6. For quality grades, use numbers between 0-10
+
+Analyze the image and provide the assessment:`;
+
+      const messages = [
+        {
+          role: 'system',
+          content: 'You are an expert agricultural produce quality assessor. Provide detailed, accurate assessments in the exact JSON format requested.'
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: prompt
+            },
+            ...processedImages.map(img => ({
+              type: 'image_url',
+              image_url: {
+                url: `data:${img.mimeType};base64,${img.buffer.toString('base64')}`
+              }
+            }))
+          ]
+        }
+      ];
 
       this.logger.debug('OpenAI request details:', {
         url: this.apiEndpoint,
         method: 'POST',
         headerKeys: Object.keys(headers),
         bodyStructure: {
-          model: requestBody.model,
-          messageCount: requestBody.messages.length,
-          contentCount: requestBody.messages[0].content.length,
-          maxTokens: requestBody.max_tokens,
-          temperature: requestBody.temperature
+          model: this.model,
+          messageCount: messages.length,
+          contentCount: messages.reduce((acc, msg) => acc + msg.content.length, 0),
+          maxTokens: this.maxTokens,
+          temperature: this.temperature
         }
       });
 
@@ -256,7 +254,13 @@ Important notes:
         const response = await firstValueFrom(
           this.httpService.post(
             this.apiEndpoint,
-            requestBody,
+            {
+              model: this.model,
+              messages,
+              max_tokens: this.maxTokens,
+              temperature: this.temperature,
+              response_format: { type: "json_object" }
+            },
             {
               headers,
               timeout: 30000, // 30 seconds timeout
@@ -286,7 +290,7 @@ Important notes:
           }
 
           // Validate numeric ranges
-          result.quality_grade = Math.min(Math.max(result.quality_grade, 1), 10);
+          result.quality_grade = Math.min(Math.max(result.quality_grade, 0), 10);
           result.confidence_level = Math.min(Math.max(result.confidence_level, 0), 100);
 
           // Ensure arrays are present
