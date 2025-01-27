@@ -7,6 +7,8 @@ import {
   Body,
   Param,
   UseGuards,
+  UploadedFile,
+  UseInterceptors,
 } from "@nestjs/common";
 import { UsersService } from "../services/users.service";
 import { JwtAuthGuard } from "../../auth/guards/jwt-auth.guard";
@@ -18,11 +20,18 @@ import { BlockUserDto } from "../dto/block-user.dto";
 import { ScheduleDeletionDto } from "../dto/schedule-deletion.dto";
 import { GetUser } from "../../auth/decorators/get-user.decorator";
 import { User } from "../entities/user.entity";
+import { MediaService } from "../../media/services/media.service";
+import { FileUploadInterceptor } from "../../common/interceptors/file-upload.interceptor";
+import { ApiConsumes, ApiBody } from "@nestjs/swagger";
+import { FileInterceptor } from "@nestjs/platform-express";
 
 @Controller("users")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly mediaService: MediaService,
+  ) {}
 
   @Get("me")
   async getProfile(@GetUser() user: User) {
@@ -90,11 +99,39 @@ export class UsersController {
     return this.usersService.updateFCMToken(user.id, fcmToken);
   }
 
-  @Put("avatar")
-  async updateAvatar(
+  @Post("avatar")
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+        },
+      },
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+      },
+      fileFilter: (req, file, cb) => {
+        // Allow common image formats and iPhone HEIC/HEIF formats
+        if (!file.mimetype.match(/^(image\/(jpg|jpeg|png|gif|heic|heif)|image\/heic-sequence|image\/heif-sequence)$/i)) {
+          return cb(new Error('Only image files are allowed (JPG, PNG, GIF, HEIC, HEIF)!'), false);
+        }
+        cb(null, true);
+      },
+    }),
+    FileUploadInterceptor,
+  )
+  async uploadAvatar(
     @GetUser() user: User,
-    @Body("avatar_url") avatarUrl: string,
+    @UploadedFile() file: Express.Multer.File,
   ) {
-    return this.usersService.updateAvatar(user.id, avatarUrl);
+    const uploadedFile = await this.mediaService.uploadFile(file);
+    return this.usersService.updateAvatar(user.id, uploadedFile.url);
   }
 }
