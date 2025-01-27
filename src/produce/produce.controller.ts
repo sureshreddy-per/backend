@@ -123,12 +123,30 @@ export class ProduceController {
   @UseInterceptors(FileFieldsInterceptor([
     { name: 'images', maxCount: 3 },
     { name: 'video', maxCount: 1 }
-  ]))
+  ], {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB
+    },
+    fileFilter: (req, file, callback) => {
+      if (!file.mimetype.match(/^image\/(jpg|jpeg|png|gif|heic|heif)$/)) {
+        return callback(new BadRequestException('Only image files are allowed!'), false);
+      }
+      callback(null, true);
+    }
+  }))
   async create(
     @UploadedFiles() files: { images?: Express.Multer.File[]; video?: Express.Multer.File[] },
     @Body('data', new ParseJsonPipe()) createProduceDto: Omit<CreateProduceDto, 'images'>,
     @GetUser() user: User,
   ) {
+    this.logger.debug('Create produce request received', {
+      hasFiles: !!files,
+      filesContent: files,
+      hasImages: !!files?.images,
+      imageCount: files?.images?.length,
+      body: createProduceDto
+    });
+
     // Validate farmer exists
     const farmer = await this.farmerService.findByUserId(user.id);
     if (!farmer) {
@@ -137,12 +155,29 @@ export class ProduceController {
 
     // Validate at least one image is uploaded
     if (!files?.images || files.images.length === 0) {
+      this.logger.error('Image validation failed', {
+        files: files,
+        hasImages: !!files?.images,
+        imageCount: files?.images?.length
+      });
       throw new BadRequestException('At least one image is required');
     }
 
     // Validate images
-    const fileValidationPipe = FileValidationPipe.forType(StorageUploadType.IMAGES);
-    files.images.forEach(file => fileValidationPipe.transform(file, { type: 'body', data: 'images' }));
+    try {
+      const fileValidationPipe = FileValidationPipe.forType(StorageUploadType.IMAGES);
+      files.images.forEach(file => {
+        this.logger.debug('Validating image', {
+          filename: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size
+        });
+        fileValidationPipe.transform(file, { type: 'body', data: 'images' });
+      });
+    } catch (error) {
+      this.logger.error('Image validation error', { error: error.message });
+      throw error;
+    }
 
     try {
       // Create produce first (without images)
@@ -184,7 +219,8 @@ export class ProduceController {
         // Update produce with uploaded image URLs
         await this.produceService.update(produce.id, { images: uploadedImages });
 
-        // Emit event for AI verification
+        // Wait for the quality assessment to be stored (it's done inside analyzeImageWithRetry)
+        // Then emit event for AI verification
         this.eventEmitter.emit('quality.assessment.completed', {
           produce_id: produce.id,
           quality_grade: aiAnalysis.quality_grade,
@@ -202,7 +238,7 @@ export class ProduceController {
           }
         });
 
-        // Return the updated produce
+        // Return the updated produce with quality assessment
         return this.produceService.findById(produce.id);
       } catch (error) {
         // If any error occurs during upload or analysis, delete the produce and cleanup
@@ -303,17 +339,21 @@ export class ProduceController {
 
   @Delete(":id")
   async remove(@GetUser() user: User, @Param("id") id: string) {
+    // Find the produce and verify it exists
     const produce = await this.produceService.findById(id);
     if (!produce) {
       throw new UnauthorizedException("Produce not found");
     }
 
+    // Verify ownership
     const farmer = await this.farmerService.findByUserId(user.id);
-    if (produce.farmer_id !== farmer.id) {
+    if (!farmer || produce.farmer_id !== farmer.id) {
       throw new UnauthorizedException("You can only delete your own produce");
     }
 
-    return this.produceService.deleteById(id);
+    // Delete the produce record
+    await this.produceService.deleteById(id);
+    return { message: "Produce deleted successfully" };
   }
 
   @Post('request-ai-verification')
