@@ -428,29 +428,34 @@ export class ProduceService {
   }
 
   async findAndPaginate(options: any): Promise<any> {
-    // Ensure relations are included
-    options.relations = [
-      'farmer',
-      'farmer.user',
-      'quality_assessments'
-    ];
-    
-    // Ensure quality assessments are ordered by creation date
-    options.order = {
-      ...options.order,
-      quality_assessments: {
-        created_at: 'DESC'
-      }
-    };
+    const queryBuilder = this.produceRepository.createQueryBuilder('produce')
+      .leftJoinAndSelect('produce.farmer', 'farmer')
+      .leftJoinAndSelect('farmer.user', 'user')
+      .leftJoinAndSelect('produce.quality_assessments', 'quality_assessments')
+      .orderBy('quality_assessments.created_at', 'DESC');
 
-    const [items, total] = await this.produceRepository.findAndCount(options);
+    // Apply where conditions if any
+    if (options.where) {
+      Object.entries(options.where).forEach(([key, value]) => {
+        queryBuilder.andWhere(`produce.${key} = :${key}`, { [key]: value });
+      });
+    }
+
+    // Apply pagination
+    const page = options.page || 1;
+    const take = options.take || 10;
+    const skip = (page - 1) * take;
+
+    queryBuilder.skip(skip).take(take);
+
+    const [items, total] = await queryBuilder.getManyAndCount();
     
     return {
       items: items.map(produce => this.transformProduceData(produce)),
       total,
-      page: options.page || 1,
-      limit: options.take || 10,
-      totalPages: Math.ceil(total / (options.take || 10)),
+      page,
+      limit: take,
+      totalPages: Math.ceil(total / take),
     };
   }
 

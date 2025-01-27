@@ -96,7 +96,9 @@ export class UsersController {
     @GetUser() user: User,
     @Body("fcm_token") fcmToken: string,
   ) {
-    return this.usersService.updateFCMToken(user.id, fcmToken);
+    await this.usersService.updateFCMToken(user.id, fcmToken);
+    // Return the updated user object
+    return this.usersService.findOne(user.id);
   }
 
   @Post("avatar")
