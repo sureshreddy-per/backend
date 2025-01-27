@@ -133,8 +133,11 @@ export class InspectionRequestService {
 
     // Apply role-based filters
     if (role === 'FARMER') {
-      queryBuilder.where('produce.farmer_id = :userId', { userId });
-      this.logger.debug('Applied FARMER filter');
+      queryBuilder.where(new Brackets(qb => {
+        qb.where('produce.farmer_id = :userId', { userId })
+          .orWhere('inspection.requester_id = :userId', { userId });
+      }));
+      this.logger.debug('Applied FARMER filter (produce and requests)');
     } else if (role === 'INSPECTOR') {
       queryBuilder.where('inspection.inspector_id = :userId', { userId });
       this.logger.debug('Applied INSPECTOR filter');
@@ -148,14 +151,16 @@ export class InspectionRequestService {
 
     // Apply status filter
     if (status) {
-      queryBuilder.andWhere('inspection.status = :status', { status });
+      queryBuilder.andWhere('inspection.status = :status', { status: status.toUpperCase() });
       this.logger.debug(`Applied status filter: ${status}`);
     }
 
     // Apply search filter
     if (search) {
-      queryBuilder.andWhere('produce.name ILIKE :search', { search: `%${search}%` });
-      this.logger.debug(`Applied search filter: ${search}`);
+      // Remove quotes if present and clean the search term
+      const cleanSearch = search.replace(/^["']|["']$/g, '').trim();
+      queryBuilder.andWhere('LOWER(produce.name) LIKE LOWER(:search)', { search: `%${cleanSearch}%` });
+      this.logger.debug(`Applied search filter: ${cleanSearch}`);
     }
 
     // Apply sorting
