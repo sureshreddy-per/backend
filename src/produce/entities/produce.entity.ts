@@ -15,6 +15,7 @@ import { QualityAssessment } from "../../quality/entities/quality-assessment.ent
 import { QualityGrade } from "../enums/quality-grade.enum";
 import { ProduceCategory } from "../enums/produce-category.enum";
 import { ProduceStatus } from "../enums/produce-status.enum";
+import { Offer } from "../../offers/entities/offer.entity";
 
 @Entity("produce")
 @Index("idx_produce_status_location", ["status", "location"])
@@ -121,4 +122,7 @@ export class Produce {
 
   @OneToMany(() => QualityAssessment, (assessment) => assessment.produce)
   quality_assessments: QualityAssessment[];
+
+  @OneToMany(() => Offer, (offer) => offer.produce)
+  offers: Offer[];
 }
