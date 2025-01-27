@@ -8,9 +8,13 @@ import { ListInspectionsDto, InspectionSortBy, SortOrder } from "../dto/list-ins
 import { Inspector } from "../../inspectors/entities/inspector.entity";
 import { PaginatedResponse } from "../../common/interfaces/paginated-response.interface";
 import { TransformedInspection } from '../interfaces/transformed-inspection.interface';
+import { Logger } from "@nestjs/common";
+import { Brackets } from "typeorm";
 
 @Injectable()
 export class InspectionRequestService {
+  private readonly logger = new Logger(InspectionRequestService.name);
+
   constructor(
     @InjectRepository(InspectionRequest)
     private readonly inspectionRequestRepository: Repository<InspectionRequest>,
@@ -116,40 +120,53 @@ export class InspectionRequestService {
     const { page = 1, limit = 10, status, search, sortBy, sortOrder, lat, lng } = queryParams;
     const skip = (page - 1) * limit;
 
+    this.logger.debug(`Finding inspections for user ${userId} with role ${role}`);
+    this.logger.debug(`Query params: ${JSON.stringify(queryParams)}`);
+
     const queryBuilder = this.inspectionRequestRepository
       .createQueryBuilder('inspection')
       .leftJoinAndSelect('inspection.produce', 'produce')
       .leftJoinAndSelect('produce.quality_assessments', 'quality_assessments')
       .leftJoinAndSelect('inspection.inspector', 'inspector')
-      .leftJoinAndSelect('inspector.user', 'inspector_user');
+      .leftJoinAndSelect('inspector.user', 'inspector_user')
+      .leftJoin('produce.offers', 'offers');
 
     // Apply role-based filters
     if (role === 'FARMER') {
-      queryBuilder.where('inspection.requester_id = :userId', { userId });
+      queryBuilder.where('produce.farmer_id = :userId', { userId });
+      this.logger.debug('Applied FARMER filter');
     } else if (role === 'INSPECTOR') {
       queryBuilder.where('inspection.inspector_id = :userId', { userId });
+      this.logger.debug('Applied INSPECTOR filter');
     } else if (role === 'BUYER') {
-      queryBuilder.innerJoin('produce.offers', 'offers')
-        .where('offers.buyer_id = :userId', { userId });
+      queryBuilder.where(new Brackets(qb => {
+        qb.where('offers.buyer_id = :userId', { userId })
+          .orWhere('inspection.requester_id = :userId', { userId });
+      }));
+      this.logger.debug('Applied BUYER filter (offers and requests)');
     }
 
     // Apply status filter
     if (status) {
       queryBuilder.andWhere('inspection.status = :status', { status });
+      this.logger.debug(`Applied status filter: ${status}`);
     }
 
     // Apply search filter
     if (search) {
       queryBuilder.andWhere('produce.name ILIKE :search', { search: `%${search}%` });
+      this.logger.debug(`Applied search filter: ${search}`);
     }
 
     // Apply sorting
     switch (sortBy) {
       case InspectionSortBy.STATUS:
         queryBuilder.orderBy('inspection.status', sortOrder);
+        this.logger.debug(`Sorting by status ${sortOrder}`);
         break;
       case InspectionSortBy.QUALITY:
         queryBuilder.orderBy('produce.quality_grade', sortOrder);
+        this.logger.debug(`Sorting by quality ${sortOrder}`);
         break;
       case InspectionSortBy.DISTANCE:
         if (lat && lng) {
@@ -164,20 +181,30 @@ export class InspectionRequestService {
           )
           .setParameters({ lat, lng })
           .orderBy('distance', sortOrder);
+          this.logger.debug(`Sorting by distance ${sortOrder} with lat=${lat}, lng=${lng}`);
         }
         break;
       default:
         queryBuilder.orderBy('inspection.created_at', sortOrder);
+        this.logger.debug(`Sorting by created_at ${sortOrder}`);
     }
+
+    // Log the final SQL query
+    const rawQuery = queryBuilder.getSql();
+    const parameters = queryBuilder.getParameters();
+    this.logger.debug('Final SQL query:', rawQuery);
+    this.logger.debug('Query parameters:', parameters);
 
     // Get total count
     const total = await queryBuilder.getCount();
+    this.logger.debug(`Total count before pagination: ${total}`);
 
     // Apply pagination
     queryBuilder.skip(skip).take(limit);
 
     // Execute query
     const items = await queryBuilder.getMany();
+    this.logger.debug(`Found ${items.length} items after pagination`);
 
     // Transform response
     const transformedItems = items.map(inspection => ({
