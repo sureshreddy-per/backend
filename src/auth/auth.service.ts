@@ -277,16 +277,14 @@ export class AuthService {
     let valid = false;
     let user = undefined;
     
-    // First try to get app status if version is provided, regardless of token validity
+    // First try to get app status if version is provided
     if (currentVersion) {
       try {
         // Use provided app type or default to FARMER
         const initialAppType = appType ? AppType[appType] : AppType.FARMER;
         app_status = await this.appVersionService.checkAppStatus(initialAppType, currentVersion);
       } catch (appError) {
-        // If app status check fails, log error but continue with token validation
         this.logger.error('Failed to check app status:', appError);
-        // Provide default app status to ensure we always return this data
         app_status = {
           needsUpdate: false,
           forceUpdate: false,
@@ -294,44 +292,55 @@ export class AuthService {
         };
       }
     }
-    
-    try {
-      // Check if token is blacklisted
-      const isBlacklisted = await this.isTokenBlacklisted(token);
-      if (isBlacklisted) {
-        throw new UnauthorizedException("Token has been invalidated");
-      }
 
-      // Verify the token
-      const decoded = this.jwtService.verify(token);
-
-      // Get user information
-      user = await this.usersService.findOne(decoded.sub);
-      if (!user) {
-        throw new UnauthorizedException("User not found");
-      }
-
-      // If we have user info and version is provided, update app status with correct app type
-      if (currentVersion) {
-        try {
-          // Use provided app type or determine from user role
-          const userAppType = appType ? AppType[appType] : 
-                            user.role === UserRole.BUYER ? AppType.BUYER : 
-                            user.role === UserRole.INSPECTOR ? AppType.INSPECTOR : 
-                            AppType.FARMER;
-          app_status = await this.appVersionService.checkAppStatus(userAppType, currentVersion);
-        } catch (appError) {
-          this.logger.error('Failed to check app status with user role:', appError);
-          // Keep existing app_status from earlier check
+    // Only try to validate token if one is provided
+    if (token) {
+      try {
+        // Check if token is blacklisted
+        const isBlacklisted = await this.isTokenBlacklisted(token);
+        if (isBlacklisted) {
+          return {
+            valid: false,
+            app_status
+          };
         }
-      }
 
-      valid = true;
-    } catch (error) {
-      valid = false;
-      user = undefined;
-      // Log the error but don't throw since we want to return app status
-      this.logger.error('Token validation failed:', error);
+        // Verify the token
+        const decoded = this.jwtService.verify(token);
+
+        // Get user information
+        user = await this.usersService.findOne(decoded.sub);
+        if (!user) {
+          return {
+            valid: false,
+            app_status
+          };
+        }
+
+        // If we have user info and version is provided, update app status with correct app type
+        if (currentVersion) {
+          try {
+            // Use provided app type or determine from user role
+            const userAppType = appType ? AppType[appType] : 
+                              user.role === UserRole.BUYER ? AppType.BUYER : 
+                              user.role === UserRole.INSPECTOR ? AppType.INSPECTOR : 
+                              AppType.FARMER;
+            app_status = await this.appVersionService.checkAppStatus(userAppType, currentVersion);
+          } catch (appError) {
+            this.logger.error('Failed to check app status with user role:', appError);
+            // Keep existing app_status from earlier check
+          }
+        }
+
+        valid = true;
+      } catch (error) {
+        this.logger.error('Token validation failed:', error);
+        // Don't throw error, just return invalid with app status
+        return {
+          valid: false,
+          app_status
+        };
+      }
     }
 
     return {

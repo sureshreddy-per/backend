@@ -105,7 +105,7 @@ export class AuthController {
   }
 
   @Get("validate")
-  @UseGuards(JwtAuthGuard)
+  @Public()
   @ApiBearerAuth()
   @ApiOperation({ summary: "Validate JWT token and check app version" })
   @ApiQuery({
