@@ -38,6 +38,18 @@ export class InspectionRequestService {
       throw new NotFoundException(`Produce with ID ${data.produce_id} not found`);
     }
 
+    // Check for existing pending inspection requests for this produce
+    const existingRequest = await this.inspectionRequestRepository.findOne({
+      where: {
+        produce_id: data.produce_id,
+        status: InspectionRequestStatus.PENDING
+      }
+    });
+
+    if (existingRequest) {
+      throw new BadRequestException(`A pending inspection request already exists for produce ${data.produce_id}`);
+    }
+
     const request = this.inspectionRequestRepository.create({
       ...data,
       location: produce.location, // Use produce's location

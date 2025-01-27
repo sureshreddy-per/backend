@@ -169,6 +169,15 @@ export class AutoInspectorAssignmentService {
     // Query to find nearest inspector within radius using PostGIS
     const query = this.inspectorRepository
       .createQueryBuilder('inspector')
+      .leftJoinAndSelect('inspector.user', 'user')
+      // Count active inspections for workload
+      .leftJoin(
+        InspectionRequest,
+        'active_inspections',
+        'active_inspections.inspector_id = inspector.id AND active_inspections.status = :activeStatus',
+        { activeStatus: InspectionRequestStatus.IN_PROGRESS }
+      )
+      .addSelect('COUNT(active_inspections.id)', 'active_inspection_count')
       .addSelect(
         `ST_Distance(
           ST_SetSRID(ST_MakePoint(CAST(split_part(inspector.location, ',', 2) AS FLOAT), 
@@ -177,7 +186,18 @@ export class AutoInspectorAssignmentService {
         ) * 111.32`,
         'distance'
       )
-      .setParameters({ lat, lng })
+      // Calculate weighted score (90% distance, 10% workload)
+      .addSelect(
+        `(
+          ST_Distance(
+            ST_SetSRID(ST_MakePoint(CAST(split_part(inspector.location, ',', 2) AS FLOAT), 
+                                   CAST(split_part(inspector.location, ',', 1) AS FLOAT)), 4326),
+            ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
+          ) * 111.32 * 0.9 +
+          (COUNT(active_inspections.id) * :maxRadius * 0.1)
+        )`,
+        'score'
+      )
       .where(
         `ST_DWithin(
           ST_SetSRID(ST_MakePoint(CAST(split_part(inspector.location, ',', 2) AS FLOAT), 
@@ -185,17 +205,34 @@ export class AutoInspectorAssignmentService {
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
           :radius
         )`,
-        { radius: maxRadius / 111.32 } // Convert km to degrees
+        { lat, lng, radius: maxRadius / 111.32, maxRadius } // Convert km to degrees
       )
-      .orderBy('distance', 'ASC')
+      // Only consider active inspectors
+      .andWhere('inspector.is_active = :isActive', { isActive: true })
+      .groupBy('inspector.id')
+      .addGroupBy('user.id')
+      // Order by weighted score
+      .orderBy('score', 'ASC')
       .limit(1);
 
-    const result = await query.getRawOne();
+    const result = await query.getOne();
     if (!result) return null;
 
+    const rawResult = await query.getRawOne();
+    const distance = parseFloat(rawResult?.distance || '0');
+    const activeInspectionCount = parseInt(rawResult?.active_inspection_count || '0');
+    const score = parseFloat(rawResult?.score || '0');
+
+    this.logger.debug(
+      `Selected inspector ${result.id} with score ${score.toFixed(2)} ` +
+      `(distance: ${distance.toFixed(2)}km, active inspections: ${activeInspectionCount})`
+    );
+
     return {
-      ...result.inspector,
-      distance: parseFloat(result.distance)
+      ...result,
+      distance,
+      activeInspectionCount,
+      score
     };
   }
 } 
