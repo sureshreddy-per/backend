@@ -88,14 +88,14 @@ export class QualityController {
     return this.qualityAssessmentService.findOne(id);
   }
 
-  @Get("produce/:produceId")
+  @Get("assessments/by-produce/:produceId")
   @ApiOperation({ summary: 'Get all quality assessments for a produce' })
   @ApiResponse({ status: 200, description: 'Assessments found', type: [QualityAssessment] })
   async findByProduceId(@Param("produceId") produceId: string): Promise<QualityAssessment[]> {
     return this.qualityAssessmentService.findByProduceId(produceId);
   }
 
-  @Get("produce/:produceId/latest")
+  @Get("assessments/by-produce/:produceId/latest")
   @ApiOperation({ summary: 'Get the latest quality assessment for a produce' })
   @ApiResponse({ status: 200, description: 'Latest assessment found', type: QualityAssessment })
   async findLatestByProduceId(@Param("produceId") produceId: string): Promise<QualityAssessment> {
