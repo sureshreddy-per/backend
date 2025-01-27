@@ -18,6 +18,7 @@ import {
   UsePipes,
   Logger,
   InternalServerErrorException,
+  NotFoundException,
 } from "@nestjs/common";
 import { FileFieldsInterceptor } from "@nestjs/platform-express";
 import { ProduceService } from "./services/produce.service";
@@ -44,6 +45,7 @@ import { Express } from 'express';
 import { StorageService } from '../common/interfaces/storage.interface';
 import { Inject } from '@nestjs/common';
 import { STORAGE_SERVICE } from '../common/providers/storage.provider';
+import { ApiOperation, ApiResponse } from '@nestjs/swagger';
 
 interface CreateProduceInput extends CreateProduceDto {
   farmer_id: string;
@@ -398,12 +400,17 @@ export class ProduceController {
     return this.produceService.update(id, updateProduceDto);
   }
 
-  @Delete(":id")
-  async remove(@GetUser() user: User, @Param("id") id: string) {
+  @Delete(':id')
+  @ApiOperation({ summary: 'Delete a produce' })
+  @ApiResponse({ status: 200, description: 'Produce deleted successfully' })
+  async remove(
+    @GetUser() user: User,
+    @Param('id') id: string
+  ): Promise<{ message: string }> {
     // Find the produce and verify it exists
     const produce = await this.produceService.findById(id);
     if (!produce) {
-      throw new UnauthorizedException("Produce not found");
+      throw new NotFoundException("Produce not found");
     }
 
     // Verify ownership
@@ -412,9 +419,9 @@ export class ProduceController {
       throw new UnauthorizedException("You can only delete your own produce");
     }
 
-    // Delete the produce record
+    // Delete the produce and its related data
     await this.produceService.deleteById(id);
-    return { message: "Produce deleted successfully" };
+    return { message: 'Produce deleted successfully' };
   }
 
   @Post('request-ai-verification')

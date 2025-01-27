@@ -529,10 +529,37 @@ export class ProduceService {
     return this.produceRepository.save(produce);
   }
 
-  async deleteById(id: string): Promise<{ message: string }> {
-    const produce = await this.findOne(id);
-    await this.produceRepository.remove(produce);
-    return { message: 'Produce deleted successfully' };
+  async deleteById(id: string): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const produce = await queryRunner.manager.findOne(Produce, {
+        where: { id },
+        relations: ['quality_assessments']
+      });
+
+      if (!produce) {
+        throw new NotFoundException(`Produce with ID ${id} not found`);
+      }
+
+      // First delete all quality assessments
+      if (produce.quality_assessments?.length > 0) {
+        await queryRunner.manager.delete('quality_assessments', { produce_id: id });
+      }
+
+      // Then delete the produce
+      await queryRunner.manager.delete(Produce, { id });
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      this.logger.error(`Failed to delete produce ${id}: ${error.message}`);
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
   }
 
   async getFarmerDetails(farmerId: string) {
