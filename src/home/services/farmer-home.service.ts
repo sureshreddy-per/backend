@@ -177,15 +177,15 @@ export class FarmerHomeService {
 
   private async getRecentProduces(farmerId: string, location: string): Promise<RecentProduce[]> {
     const cacheKey = `${this.CACHE_PREFIX}recent_produces:${farmerId}:${location}`;
-    const cachedProduces = await this.cacheManager.get<RecentProduce[]>(cacheKey);
     
-    if (cachedProduces) {
-      return cachedProduces;
-    }
+    // Clear cache to ensure fresh data
+    await this.cacheManager.del(cacheKey);
+    
+    this.logger.debug(`Getting recent produces for farmer ${farmerId} at location ${location}`);
 
     const [lat, lng] = location.split(',').map(Number);
 
-    const produces = await this.produceRepository
+    const queryBuilder = this.produceRepository
       .createQueryBuilder('p')
       .where('p.farmer_id = :farmerId', { farmerId })
       .andWhere('p.status != :status', { status: ProduceStatus.CANCELLED })
@@ -203,14 +203,33 @@ export class FarmerHomeService {
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
         ) / 1000 as distance_km`
       ])
-      .setParameters({ lng, lat })
+      .setParameters({ farmerId, lng, lat })
       .orderBy('p.created_at', 'DESC')
-      .limit(7)
-      .cache(this.CACHE_TTL)
-      .getRawMany();
+      .limit(7);
 
-    await this.cacheManager.set(cacheKey, produces, this.CACHE_TTL);
-    return produces;
+    // Log the generated SQL
+    const sql = queryBuilder.getSql();
+    const params = queryBuilder.getParameters();
+    this.logger.debug('Generated SQL:', sql);
+    this.logger.debug('Query parameters:', params);
+
+    const produces = await queryBuilder.getRawMany();
+    this.logger.debug(`Found ${produces.length} recent produces`);
+
+    // Transform the results to ensure correct format
+    const transformedProduces = produces.map(p => ({
+      produce_id: p.produce_id,
+      name: p.name,
+      quantity: parseFloat(p.quantity),
+      unit: p.unit,
+      quality_grade: parseFloat(p.quality_grade),
+      distance_km: parseFloat(p.distance_km),
+      is_manually_inspected: p.is_manually_inspected,
+      produce_images: Array.isArray(p.produce_images) ? p.produce_images : []
+    }));
+
+    await this.cacheManager.set(cacheKey, transformedProduces, this.CACHE_TTL);
+    return transformedProduces;
   }
 
   private async getTopBuyers(farmerId: string): Promise<TopBuyer[]> {

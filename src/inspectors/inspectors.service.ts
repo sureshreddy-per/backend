@@ -8,6 +8,7 @@ import { UserRole } from "../enums/user-role.enum";
 import { UsersService } from "../users/services/users.service";
 import { SystemConfigService } from "../config/services/system-config.service";
 import { SystemConfigKey } from "../config/enums/system-config-key.enum";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 
 @Injectable()
 export class InspectorsService {
@@ -18,6 +19,7 @@ export class InspectorsService {
     private readonly inspectorRepository: Repository<Inspector>,
     private readonly usersService: UsersService,
     private readonly systemConfigService: SystemConfigService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private calculateDistance(
@@ -169,8 +171,22 @@ export class InspectorsService {
     updateInspectorDto: UpdateInspectorDto,
   ): Promise<Inspector> {
     const inspector = await this.findOne(id);
+    const oldLocation = inspector.location;
+
     Object.assign(inspector, updateInspectorDto);
-    return this.inspectorRepository.save(inspector);
+    const updatedInspector = await this.inspectorRepository.save(inspector);
+
+    // If location was updated, emit event
+    if (updateInspectorDto.location && updateInspectorDto.location !== oldLocation) {
+      await this.eventEmitter.emit('inspector.location.updated', {
+        inspector_id: updatedInspector.id,
+        user_id: updatedInspector.user_id,
+        location: updatedInspector.location
+      });
+      this.logger.log(`Inspector ${id} location updated to ${updatedInspector.location}`);
+    }
+
+    return updatedInspector;
   }
 
   async remove(id: string): Promise<void> {

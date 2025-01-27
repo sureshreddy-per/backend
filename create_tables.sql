@@ -1451,4 +1451,6 @@ INSERT INTO system_configs (key, value, description) VALUES
 ('inspection_radius_km', '{"value": 100}', 'Maximum radius in kilometers for inspection requests'),
 ('min_transaction_amount', '{"value": 100}', 'Minimum amount allowed for transactions'),
 ('platform_fee_percentage', '{"value": 2.5}', 'Platform fee as percentage of transaction amount')
+('use_auto_inspector_assignment', 'true'),
+('auto_inspector_assignment_radius_km', '200');
 ON CONFLICT (key) DO NOTHING; 

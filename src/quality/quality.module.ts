@@ -6,6 +6,7 @@ import { MockOpenAIService } from './services/mock-openai.service';
 import { QualityController } from './quality.controller';
 import { QualityAssessmentService } from './services/quality-assessment.service';
 import { InspectionRequestService } from './services/inspection-request.service';
+import { AutoInspectorAssignmentService } from './services/auto-inspector-assignment.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { QualityAssessment } from './entities/quality-assessment.entity';
 import { InspectionRequest } from './entities/inspection-request.entity';
@@ -14,6 +15,8 @@ import { Produce } from "../produce/entities/produce.entity";
 import { Inspector } from "../inspectors/entities/inspector.entity";
 import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { InspectorsModule } from '../inspectors/inspectors.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -26,6 +29,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
       Inspector
     ]),
     forwardRef(() => ProduceModule),
+    InspectorsModule,
+    NotificationsModule,
   ],
   providers: [
     {
@@ -52,6 +57,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
     },
     QualityAssessmentService,
     InspectionRequestService,
+    AutoInspectorAssignmentService,
   ],
   controllers: [QualityController],
   exports: [OpenAIService, QualityAssessmentService, InspectionRequestService],
