@@ -141,10 +141,12 @@ export class ProduceController {
   ) {
     this.logger.debug('Create produce request received', {
       hasFiles: !!files,
-      filesContent: files,
-      hasImages: !!files?.images,
-      imageCount: files?.images?.length,
-      body: createProduceDto
+      imageFiles: files?.images?.map(file => ({
+        filename: file.originalname,
+        size: `${(file.size / 1024).toFixed(2)}KB`,
+        mimetype: file.mimetype
+      })),
+      produceData: createProduceDto
     });
 
     // Validate farmer exists
@@ -156,7 +158,7 @@ export class ProduceController {
     // Validate at least one image is uploaded
     if (!files?.images || files.images.length === 0) {
       this.logger.error('Image validation failed', {
-        files: files,
+        hasFiles: !!files,
         hasImages: !!files?.images,
         imageCount: files?.images?.length
       });
@@ -169,8 +171,8 @@ export class ProduceController {
       files.images.forEach(file => {
         this.logger.debug('Validating image', {
           filename: file.originalname,
-          mimetype: file.mimetype,
-          size: file.size
+          size: `${(file.size / 1024).toFixed(2)}KB`,
+          mimetype: file.mimetype
         });
         fileValidationPipe.transform(file, { type: 'body', data: 'images' });
       });
