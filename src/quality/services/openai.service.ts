@@ -113,14 +113,33 @@ export class OpenAIService {
 
   async analyzeProduceWithMultipleImages(images: ImageData[], produceId: string): Promise<AIAnalysisResult> {
     try {
+      // Log environment variables (safely)
+      this.logger.debug('Environment configuration:', {
+        OPENAI_API_KEY_EXISTS: !!process.env.OPENAI_API_KEY,
+        OPENAI_API_KEY_LENGTH: process.env.OPENAI_API_KEY?.length,
+        NODE_ENV: process.env.NODE_ENV,
+        apiEndpoint: this.apiEndpoint,
+        model: this.model,
+        maxTokens: this.maxTokens,
+        temperature: this.temperature,
+        orgId: this.orgId
+      });
+
       // Process images first
       const processedImages = await Promise.all(
         images.map(img => this.processImageBuffer(img.buffer, img.mimeType))
       );
 
+      this.logger.debug('Processed images:', {
+        count: processedImages.length,
+        mimeTypes: processedImages.map(img => img.mimeType),
+        sizes: processedImages.map(img => `${(img.buffer.length / 1024).toFixed(2)}KB`)
+      });
+
       const headers = {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
+        ...(this.orgId && { 'OpenAI-Organization': this.orgId })
       };
 
       const requestBody = {
@@ -131,7 +150,80 @@ export class OpenAIService {
             content: [
               {
                 type: 'text',
-                text: 'Please analyze this produce image and provide details about its quality, category, and any defects.'
+                text: `Analyze this agricultural produce image and provide a detailed assessment in the following JSON format:
+{
+  "name": "produce name",
+  "produce_category": "one of [FOOD_GRAINS, OILSEEDS, FRUITS, VEGETABLES, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS]",
+  "product_variety": "specific variety name",
+  "description": "detailed description",
+  "quality_grade": "number between 1-10",
+  "confidence_level": "number between 0-100",
+  "detected_defects": ["list of defects"],
+  "recommendations": ["list of recommendations"],
+  "category_specific_attributes": {
+    // Category-specific fields will be included based on the detected category
+    // For FOOD_GRAINS:
+    "variety": "string",
+    "moisture_content": "number (0-100)",
+    "foreign_matter": "number (0-100)",
+    "protein_content": "number (0-100)",
+    "wastage": "number (0-100)",
+    // For OILSEEDS:
+    "oil_content": "number (0-100)",
+    "moisture_content": "number (0-100)",
+    "foreign_matter": "number (0-100)",
+    "seed_size": "string",
+    "seed_color": "string",
+    // For FRUITS:
+    "sweetness_brix": "number (0-100)",
+    "size": "string (small/medium/large)",
+    "color": "string",
+    "ripeness": "string (ripe/unripe)",
+    // For VEGETABLES:
+    "freshness_level": "string (fresh/slightly wilted)",
+    "size": "string (small/medium/large)",
+    "color": "string",
+    "moisture_content": "number (0-100)",
+    "foreign_matter": "number (0-100)",
+    // For SPICES:
+    "essential_oil": "number (0-100)",
+    "moisture_content": "number (0-100)",
+    "foreign_matter": "number (0-100)",
+    "aroma_quality": "string",
+    "color_intensity": "string",
+    // For FIBERS:
+    "fiber_length": "number (min: 0)",
+    "fiber_strength": "number (min: 0)",
+    "micronaire": "number (0-10)",
+    "uniformity": "number (0-100)",
+    "trash_content": "number (0-100)",
+    // For SUGARCANE:
+    "brix_value": "number (0-100)",
+    "pol_reading": "number (0-100)",
+    "purity": "number (0-100)",
+    "fiber_content": "number (0-100)",
+    "juice_quality": "string",
+    // For FLOWERS:
+    "freshness": "string",
+    "color_intensity": "string",
+    "stem_length": "number (min: 0)",
+    "bud_size": "string",
+    "fragrance_quality": "string",
+    // For MEDICINAL_PLANTS:
+    "active_compounds": "number (0-100)",
+    "moisture_content": "number (0-100)",
+    "foreign_matter": "number (0-100)",
+    "potency": "string",
+    "purity": "number (0-100)"
+  }
+}
+
+Important notes:
+1. Include ONLY the category-specific attributes that match the detected produce_category
+2. All numeric values should be within their specified ranges
+3. String enums must match exactly as specified (e.g., "fresh"/"slightly wilted" for vegetables freshness_level)
+4. All required fields for the detected category must be included
+5. The response must be valid JSON without any additional text or markdown`
               },
               ...processedImages.map(img => ({
                 type: 'image_url',
@@ -143,83 +235,102 @@ export class OpenAIService {
           }
         ],
         max_tokens: this.maxTokens,
-        temperature: this.temperature
+        temperature: this.temperature,
+        response_format: { type: "json_object" }
       };
 
-      this.logger.debug('OpenAI request configuration:', {
-        endpoint: this.apiEndpoint,
-        model: this.model,
-        imageCount: processedImages.length
-      });
-
-      const response = await firstValueFrom(
-        this.httpService.post(
-          this.apiEndpoint,
-          requestBody,
-          {
-            headers,
-            timeout: 30000, // 30 seconds timeout
-          },
-        ),
-      );
-
-      this.logger.debug('Received OpenAI API response');
-      const content = response.data.choices[0].message.content;
-      
-      // Clean and parse the response
-      const cleanedContent = this.cleanJsonResponse(content);
-      this.logger.debug('Cleaned content:', cleanedContent);
-      
-      let result;
-      try {
-        result = JSON.parse(cleanedContent);
-      } catch (parseError) {
-        this.logger.error('Failed to parse OpenAI response:', {
-          originalContent: content,
-          cleanedContent,
-          error: parseError.message
-        });
-        throw new Error('Failed to parse AI analysis result');
-      }
-
-      // Validate and transform the response
-      result = {
-        name: result.name || 'Unknown',
-        produce_category: result.produce_category || ProduceCategory.VEGETABLES,
-        product_variety: result.product_variety || 'Unknown',
-        description: result.description || '',
-        quality_grade: Math.min(Math.max(result.quality_grade || 5, 1), 10),
-        confidence_level: Math.min(Math.max(result.confidence_level || 50, 1), 100),
-        detected_defects: Array.isArray(result.detected_defects) ? result.detected_defects : [],
-        recommendations: Array.isArray(result.recommendations) ? result.recommendations : [],
-        category_specific_attributes: result.category_specific_attributes || {},
-      };
-
-      // Store the AI assessment results
-      await this.qualityAssessmentService.create({
-        produce_id: produceId,
-        quality_grade: result.quality_grade,
-        confidence_level: result.confidence_level,
-        defects: result.detected_defects,
-        recommendations: result.recommendations,
-        category_specific_assessment: result.category_specific_attributes,
-        metadata: {
-          source: 'AI_ASSESSMENT',
-          ai_model_version: this.model,
-          analysis_date: new Date().toISOString()
+      this.logger.debug('OpenAI request details:', {
+        url: this.apiEndpoint,
+        method: 'POST',
+        headerKeys: Object.keys(headers),
+        bodyStructure: {
+          model: requestBody.model,
+          messageCount: requestBody.messages.length,
+          contentCount: requestBody.messages[0].content.length,
+          maxTokens: requestBody.max_tokens,
+          temperature: requestBody.temperature
         }
       });
 
-      return result;
-    } catch (error) {
-      this.logger.error(`Error analyzing produce with multiple images: ${error.message}`, error.stack);
-      if (error.response) {
-        this.logger.error('OpenAI API error details:', {
-          status: error.response.status,
-          statusText: error.response.statusText,
-          data: error.response.data,
+      try {
+        const response = await firstValueFrom(
+          this.httpService.post(
+            this.apiEndpoint,
+            requestBody,
+            {
+              headers,
+              timeout: 30000, // 30 seconds timeout
+            },
+          ),
+        );
+
+        this.logger.debug('OpenAI API response:', {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+          hasChoices: !!response.data?.choices,
+          choicesLength: response.data?.choices?.length,
+          firstChoiceContent: response.data?.choices?.[0]?.message?.content?.substring(0, 100) + '...'
         });
+
+        const content = response.data.choices[0].message.content;
+        const cleanedContent = this.cleanJsonResponse(content);
+        
+        let result;
+        try {
+          result = JSON.parse(cleanedContent);
+          
+          // Validate produce category
+          if (!Object.values(ProduceCategory).includes(result.produce_category)) {
+            throw new Error(`Invalid produce_category: ${result.produce_category}`);
+          }
+
+          // Validate numeric ranges
+          result.quality_grade = Math.min(Math.max(result.quality_grade, 1), 10);
+          result.confidence_level = Math.min(Math.max(result.confidence_level, 0), 100);
+
+          // Ensure arrays are present
+          result.detected_defects = Array.isArray(result.detected_defects) ? result.detected_defects : [];
+          result.recommendations = Array.isArray(result.recommendations) ? result.recommendations : [];
+
+          this.logger.debug('Successfully parsed and validated response', {
+            resultKeys: Object.keys(result),
+            category: result.produce_category
+          });
+          
+          return result;
+        } catch (parseError) {
+          this.logger.error('Failed to parse or validate OpenAI response:', {
+            originalContent: content,
+            cleanedContent,
+            error: parseError.message
+          });
+          throw new Error('Failed to parse AI analysis result');
+        }
+      } catch (axiosError) {
+        this.logger.error('Axios request failed:', {
+          config: {
+            url: axiosError.config?.url,
+            method: axiosError.config?.method,
+            headers: axiosError.config?.headers,
+            timeout: axiosError.config?.timeout
+          },
+          response: axiosError.response ? {
+            status: axiosError.response.status,
+            statusText: axiosError.response.statusText,
+            data: axiosError.response.data
+          } : 'No response',
+          message: axiosError.message,
+          code: axiosError.code
+        });
+        throw axiosError;
       }
+    } catch (error) {
+      this.logger.error(`Error analyzing produce with multiple images:`, {
+        error: error.message,
+        stack: error.stack,
+        produceId
+      });
       throw error;
     }
   }
