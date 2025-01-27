@@ -15,6 +15,7 @@ import { ProduceCategory } from '../enums/produce-category.enum';
 import { User } from '../../users/entities/user.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
 import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
+import { QualityAssessmentService } from '../../quality/services/quality-assessment.service';
 
 interface TransformedFarmer {
   id: string;
@@ -38,6 +39,7 @@ export class ProduceService {
     private readonly farmersService: FarmersService,
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly inspectorsService: InspectorsService,
+    private readonly qualityAssessmentService: QualityAssessmentService,
   ) {}
 
   private parseLocation(location: string): { lat: number; lng: number } {
@@ -129,7 +131,25 @@ export class ProduceService {
     try {
       const produce = await this.findOne(event.produce_id);
       
-      // Update all relevant fields with AI assessment results
+      // Create quality assessment record
+      await this.qualityAssessmentService.create({
+        produce_id: event.produce_id,
+        quality_grade: event.quality_grade,
+        confidence_level: event.confidence_level,
+        defects: event.assessment_details?.defects || [],
+        recommendations: event.assessment_details?.recommendations || [],
+        category_specific_assessment: event.category_specific_attributes || {},
+        metadata: {
+          source: 'AI',
+          detected_name: event.detected_name,
+          description: event.description,
+          product_variety: event.product_variety,
+          produce_category: event.produce_category,
+          ...event.assessment_details?.metadata
+        }
+      });
+      
+      // Update produce fields
       produce.quality_grade = event.quality_grade;
       produce.description = event.description || produce.description;
       produce.product_variety = event.product_variety || produce.product_variety;
@@ -239,7 +259,7 @@ export class ProduceService {
         this.logger.log(`Produce ${produce.id} marked as available with quality grade ${event.quality_grade}`);
       }
 
-      // Save all updates
+      // Save produce updates
       await this.produceRepository.save(produce);
       this.logger.log(`Successfully updated produce ${produce.id} after quality assessment`);
     } catch (error) {
@@ -253,7 +273,6 @@ export class ProduceService {
       } catch (innerError) {
         this.logger.error(`Failed to update produce status after assessment failure: ${innerError.message}`);
       }
-      // Don't throw the error since we've handled it by setting status to PENDING_INSPECTION
     }
   }
 

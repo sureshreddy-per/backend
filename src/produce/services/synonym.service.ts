@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Synonym } from '../entities/synonym.entity';
 import { LanguageService } from '../../config/language.service';
+import { ProduceMaster } from '../entities/produce-master.entity';
 
 interface SynonymMatch {
   produce_name: string;
@@ -34,6 +35,8 @@ export class ProduceSynonymService {
     @InjectRepository(Synonym)
     private readonly synonymRepository: Repository<Synonym>,
     private readonly languageService: LanguageService,
+    @InjectRepository(ProduceMaster)
+    private readonly produceMasterRepository: Repository<ProduceMaster>,
   ) {
     this.initializeSynonymCache();
   }
@@ -307,6 +310,25 @@ export class ProduceSynonymService {
         throw new Error(`Language ${targetLanguage} is not supported`);
       }
 
+      // First, ensure the produce exists in the master table
+      const masterProduce = await this.produceMasterRepository.findOne({
+        where: { name: lowercaseProduce }
+      });
+
+      if (!masterProduce) {
+        // Create a new master produce entry
+        await this.produceMasterRepository.save({
+          name: lowercaseProduce,
+          category: 'FOOD_GRAINS', // Default category, can be updated later
+          is_active: true,
+          metadata: {
+            auto_generated: true,
+            source: 'AI_DETECTION'
+          }
+        });
+        this.logger.log(`Created new master produce entry for: ${lowercaseProduce}`);
+      }
+
       const entities = synonyms.map(synonym => ({
         produce_name: lowercaseProduce,
         synonym: synonym.toLowerCase(),
@@ -334,6 +356,8 @@ export class ProduceSynonymService {
         const languageKey = `${synonym.synonym.toLowerCase()}:${targetLanguage}`;
         this.produceNameCache.set(languageKey, lowercaseProduce);
       });
+
+      this.logger.debug(`Successfully added ${synonyms.length} synonyms for ${produce_name}`);
     } catch (error) {
       this.logger.error(`Error adding synonyms for ${produce_name}: ${error.message}`);
       throw error;

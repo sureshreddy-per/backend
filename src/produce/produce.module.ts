@@ -23,14 +23,18 @@ import { ProduceMasterController } from './controllers/produce-master.controller
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Produce, Synonym, ProduceMaster]),
+    TypeOrmModule.forFeature([
+      Produce,
+      Synonym,
+      ProduceMaster,
+    ]),
     NestConfigModule,
     ConfigModule,
     HttpModule,
     FarmersModule,
     InspectorsModule,
     CommonModule,
-    forwardRef(() => QualityModule),
+    QualityModule,
   ],
   controllers: [ProduceController, ProduceSynonymController, ProduceMasterController],
   providers: [

@@ -22,6 +22,7 @@ export class MediaService {
       file.buffer,
       file.originalname,
       {
+        path: 'avatars',
         contentType: file.mimetype,
         isPublic: true,
         metadata: {
