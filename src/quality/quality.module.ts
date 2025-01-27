@@ -29,7 +29,10 @@ import { Inspector } from "../inspectors/entities/inspector.entity";
     {
       provide: OpenAIService,
       useFactory: (configService: ConfigService, httpService: HttpService) => {
-        const useMockService = configService.get<boolean>('app.features.useMockAiService', false);
+        // Read directly from environment variable
+        const useMockService = process.env.USE_MOCK_AI_SERVICE === 'true';
+        console.log('USE_MOCK_AI_SERVICE:', process.env.USE_MOCK_AI_SERVICE);
+        console.log('Using mock service:', useMockService);
         return useMockService ? new MockOpenAIService(configService, httpService) : new OpenAIService(configService, httpService);
       },
       inject: [ConfigService, HttpService],
