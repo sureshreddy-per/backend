@@ -6,6 +6,8 @@ import { CreateInspectorDto } from "./dto/create-inspector.dto";
 import { UpdateInspectorDto } from "./dto/update-inspector.dto";
 import { UserRole } from "../enums/user-role.enum";
 import { UsersService } from "../users/services/users.service";
+import { SystemConfigService } from "../config/services/system-config.service";
+import { SystemConfigKey } from "../config/enums/system-config-key.enum";
 
 @Injectable()
 export class InspectorsService {
@@ -15,6 +17,7 @@ export class InspectorsService {
     @InjectRepository(Inspector)
     private readonly inspectorRepository: Repository<Inspector>,
     private readonly usersService: UsersService,
+    private readonly systemConfigService: SystemConfigService,
   ) {}
 
   private calculateDistance(
@@ -119,9 +122,13 @@ export class InspectorsService {
   async findNearby(
     lat: number,
     lng: number,
-    radiusKm: number = 100, // Default radius of 100km
+    radiusKm?: number, // Made optional since we'll use system config as default
   ): Promise<{ inspector: Inspector; distance: number }[]> {
-    this.logger.debug(`Finding inspectors near (${lat},${lng}) within ${radiusKm}km`);
+    // Get max radius from system config, fallback to 50km if not set
+    const configRadius = await this.systemConfigService.getValue(SystemConfigKey.MAX_GEOSPATIAL_RADIUS_KM);
+    const maxRadius = radiusKm ?? (configRadius ? Number(configRadius) : 50);
+    
+    this.logger.debug(`Finding inspectors near (${lat},${lng}) within ${maxRadius}km`);
     
     const inspectors = await this.inspectorRepository.find({
       relations: ["user"],
@@ -141,15 +148,15 @@ export class InspectorsService {
       })
       .filter(result => result !== null)
       .filter(({ distance }) => {
-        const withinRadius = distance <= radiusKm;
+        const withinRadius = distance <= maxRadius;
         if (!withinRadius) {
-          this.logger.debug(`Inspector at distance ${distance}km excluded (exceeds ${radiusKm}km radius)`);
+          this.logger.debug(`Inspector at distance ${distance}km excluded (exceeds ${maxRadius}km radius)`);
         }
         return withinRadius;
       })
       .sort((a, b) => a.distance - b.distance);
 
-    this.logger.debug(`Found ${inspectorsWithDistance.length} inspectors within ${radiusKm}km radius`);
+    this.logger.debug(`Found ${inspectorsWithDistance.length} inspectors within ${maxRadius}km radius`);
     if (inspectorsWithDistance.length > 0) {
       this.logger.debug(`Nearest inspector is at ${inspectorsWithDistance[0].distance}km`);
     }

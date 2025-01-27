@@ -101,8 +101,8 @@ export class GcpStorageService implements StorageService {
       // Get file metadata
       const [metadata] = await gcpFile.getMetadata();
 
-      // Generate a public URL
-      const publicUrl = `https://storage.googleapis.com/${this.bucket}/${filePath}`;
+      // Generate a public URL without any query parameters or trailing semicolons
+      const publicUrl = `https://storage.googleapis.com/${this.bucket}/${encodeURIComponent(filePath)}`;
 
       return {
         url: publicUrl,
@@ -155,14 +155,14 @@ export class GcpStorageService implements StorageService {
     if (!bucketName) {
       throw new Error('A bucket name is needed to use Cloud Storage');
     }
-    return `https://storage.googleapis.com/${bucketName}/${key}`;
+    return `https://storage.googleapis.com/${bucketName}/${encodeURIComponent(key)}`;
   }
 
   async downloadFile(url: string): Promise<{ buffer: Buffer; mimeType: string }> {
     try {
       // Extract filename from URL
       const urlObj = new URL(url);
-      const key = urlObj.pathname.split('/').pop();
+      const key = decodeURIComponent(urlObj.pathname.split('/').pop() || '');
       if (!key) {
         throw new Error('Invalid URL: Could not extract filename');
       }

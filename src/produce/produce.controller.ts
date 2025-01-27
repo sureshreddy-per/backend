@@ -41,6 +41,9 @@ import { ConfigService } from "@nestjs/config";
 import { RequestAiVerificationDto } from '../quality/dto/request-ai-verification.dto';
 import { ParseJsonPipe } from "../common/pipes/parse-json.pipe";
 import { Express } from 'express';
+import { StorageService } from '../common/interfaces/storage.interface';
+import { Inject } from '@nestjs/common';
+import { STORAGE_SERVICE } from '../common/providers/storage.provider';
 
 interface CreateProduceInput extends CreateProduceDto {
   farmer_id: string;
@@ -58,7 +61,8 @@ export class ProduceController {
     private readonly produceService: ProduceService,
     private readonly farmerService: FarmersService,
     private readonly eventEmitter: EventEmitter2,
-    private readonly gcpStorageService: GcpStorageService,
+    @Inject(STORAGE_SERVICE)
+    private readonly storageService: StorageService,
     private readonly openAIService: OpenAIService,
     private readonly configService: ConfigService,
   ) {
@@ -72,7 +76,7 @@ export class ProduceController {
       await Promise.all(
         fileKeys.map(key =>
           retry(
-            () => this.gcpStorageService.deleteFile(key),
+            () => this.storageService.deleteFile(key),
             this.retryOptions,
             this.logger,
             `Delete file ${key}`
@@ -92,7 +96,7 @@ export class ProduceController {
     metadata: Record<string, string>,
   ) {
     return retry(
-      () => this.gcpStorageService.uploadFile(
+      () => this.storageService.uploadFile(
         file.buffer,
         file.originalname,
         {

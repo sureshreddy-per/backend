@@ -9,8 +9,8 @@ export const STORAGE_SERVICE = 'STORAGE_SERVICE';
 export const StorageServiceProvider: Provider = {
   provide: STORAGE_SERVICE,
   useFactory: (configService: ConfigService, s3Service: S3Service, gcpService: GcpStorageService): StorageService => {
-    const storageProvider = configService.get<string>('storageProvider');
-    return storageProvider === 'gcp' ? gcpService : s3Service;
+    const useGcp = configService.get<boolean>('app.storage.useGcp', true);
+    return useGcp ? gcpService : s3Service;
   },
   inject: [ConfigService, S3Service, GcpStorageService],
 };
