@@ -253,8 +253,8 @@ export class AutoInspectorAssignmentService {
         )`,
         { lat, lng, radius: maxRadius / 111.32, maxRadius } // Convert km to degrees
       )
-      // Only consider active inspectors
-      .andWhere('inspector.is_active = :isActive', { isActive: true })
+      // Only consider active inspectors based on user status
+      .andWhere('user.status = :status', { status: 'ACTIVE' })
       .groupBy('inspector.id')
       .addGroupBy('user.id')
       // Order by weighted score
