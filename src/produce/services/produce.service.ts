@@ -131,25 +131,7 @@ export class ProduceService {
     try {
       const produce = await this.findOne(event.produce_id);
       
-      // Create quality assessment record
-      await this.qualityAssessmentService.create({
-        produce_id: event.produce_id,
-        quality_grade: event.quality_grade,
-        confidence_level: event.confidence_level,
-        defects: event.assessment_details?.defects || [],
-        recommendations: event.assessment_details?.recommendations || [],
-        category_specific_assessment: event.category_specific_attributes || {},
-        metadata: {
-          source: 'AI',
-          detected_name: event.detected_name,
-          description: event.description,
-          product_variety: event.product_variety,
-          produce_category: event.produce_category,
-          ...event.assessment_details?.metadata
-        }
-      });
-      
-      // Update produce fields
+      // Update produce fields first
       produce.quality_grade = event.quality_grade;
       produce.description = event.description || produce.description;
       produce.product_variety = event.product_variety || produce.product_variety;
@@ -262,6 +244,24 @@ export class ProduceService {
       // Save produce updates
       await this.produceRepository.save(produce);
       this.logger.log(`Successfully updated produce ${produce.id} after quality assessment`);
+
+      // Create quality assessment record after produce is updated
+      await this.qualityAssessmentService.create({
+        produce_id: event.produce_id,
+        quality_grade: event.quality_grade,
+        confidence_level: event.confidence_level,
+        defects: event.assessment_details?.defects || [],
+        recommendations: event.assessment_details?.recommendations || [],
+        category_specific_assessment: event.category_specific_attributes || {},
+        metadata: {
+          source: 'AI',
+          detected_name: event.detected_name,
+          description: event.description,
+          product_variety: event.product_variety,
+          produce_category: event.produce_category,
+          ...event.assessment_details?.metadata
+        }
+      });
     } catch (error) {
       this.logger.error(`Failed to handle quality assessment for produce ${event.produce_id}: ${error.message}`);
       // Set status to PENDING_INSPECTION instead of ASSESSMENT_FAILED when AI fails
