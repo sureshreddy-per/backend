@@ -48,13 +48,50 @@ export class AutoInspectorAssignmentService {
         throw new Error(`Invalid inspector location format: ${event.location}`);
       }
 
+      // Verify inspector exists
+      const inspector = await this.inspectorRepository.findOne({
+        where: { id: event.inspector_id }
+      });
+
+      if (!inspector) {
+        this.logger.debug(`Inspector ${event.inspector_id} not found`);
+        return;
+      }
+
+      // Count current active inspections for this inspector
+      const initialActiveCount = await this.inspectionRequestRepository.count({
+        where: {
+          inspector_id: event.user_id,
+          status: InspectionRequestStatus.IN_PROGRESS
+        }
+      });
+
       // Find all pending inspection requests within radius
       const nearbyRequests = await this.findNearbyPendingRequests(inspectorLat, inspectorLng, maxRadius);
       this.logger.debug(`Found ${nearbyRequests.length} pending requests within ${maxRadius}km radius`);
 
+      // Sort requests by distance
+      const sortedRequests = nearbyRequests.sort((a, b) => a.distance - b.distance);
+
+      // Track number of new assignments
+      let newAssignments = 0;
+
       // Assign requests to inspector
-      for (const request of nearbyRequests) {
+      for (const request of sortedRequests) {
         try {
+          // Check if request is still pending before assigning
+          const currentRequest = await this.inspectionRequestRepository.findOne({
+            where: { 
+              id: request.id,
+              status: InspectionRequestStatus.PENDING
+            }
+          });
+
+          if (!currentRequest) {
+            this.logger.debug(`Request ${request.id} is no longer pending, skipping`);
+            continue;
+          }
+
           await this.inspectionRequestService.assignInspector(request.id, event.user_id);
           
           await this.notificationService.create({
@@ -69,6 +106,15 @@ export class AutoInspectorAssignmentService {
           });
 
           this.logger.log(`Automatically assigned request ${request.id} to inspector ${event.inspector_id}`);
+          
+          // Track new assignment
+          newAssignments++;
+          
+          // Optional: Break if inspector has reached a maximum number of active inspections
+          if (initialActiveCount + newAssignments >= 5) { // You can make this configurable
+            this.logger.debug(`Inspector ${event.inspector_id} has reached maximum active inspections`);
+            break;
+          }
         } catch (error) {
           this.logger.error(
             `Failed to assign request ${request.id} to inspector ${event.inspector_id}: ${error.message}`
