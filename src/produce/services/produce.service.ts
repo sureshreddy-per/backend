@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, DataSource } from 'typeorm';
 import { Produce } from '../entities/produce.entity';
 import { CreateProduceDto } from '../dto/create-produce.dto';
 import { ProduceStatus } from '../enums/produce-status.enum';
@@ -40,6 +40,7 @@ export class ProduceService {
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly inspectorsService: InspectorsService,
     private readonly qualityAssessmentService: QualityAssessmentService,
+    private readonly dataSource: DataSource
   ) {}
 
   private parseLocation(location: string): { lat: number; lng: number } {
@@ -128,9 +129,19 @@ export class ProduceService {
 
   @OnEvent('quality.assessment.completed')
   async handleQualityAssessmentCompleted(event: QualityAssessmentCompletedEvent) {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    
     try {
-      const produce = await this.findOne(event.produce_id);
+      const produce = await queryRunner.manager.findOne(Produce, {
+        where: { id: event.produce_id }
+      });
       
+      if (!produce) {
+        throw new NotFoundException(`Produce with ID ${event.produce_id} not found`);
+      }
+
       // Update produce fields first
       produce.quality_grade = event.quality_grade;
       produce.description = event.description || produce.description;
@@ -145,7 +156,7 @@ export class ProduceService {
       if (event.detected_name) {
         try {
           // STEP 1: First check direct match with existing produce names
-          const existingProduce = await this.produceRepository.findOne({
+          const existingProduce = await queryRunner.manager.findOne(Produce, {
             where: { name: event.detected_name }
           });
 
@@ -215,12 +226,14 @@ export class ProduceService {
         }
       }
 
-      // Save the updated produce
-      await this.produceRepository.save(produce);
+      // Save the updated produce within transaction
+      await queryRunner.manager.save(produce);
 
-      // Create quality assessment record
-      await this.qualityAssessmentService.create({
+      // Create quality assessment record within transaction
+      const assessment = await this.qualityAssessmentService.createWithTransaction(queryRunner.manager, {
         produce_id: event.produce_id,
+        produce_name: produce.name,
+        category: produce.produce_category,
         quality_grade: event.quality_grade,
         confidence_level: event.confidence_level,
         defects: event.assessment_details?.defects || [],
@@ -244,11 +257,19 @@ export class ProduceService {
         produce.status = ProduceStatus.ASSESSMENT_FAILED;
       }
 
-      // Save the final status update
-      await this.produceRepository.save(produce);
+      // Save the final status update within transaction
+      await queryRunner.manager.save(produce);
+
+      // Commit the transaction
+      await queryRunner.commitTransaction();
     } catch (error) {
+      // Rollback the transaction on error
+      await queryRunner.rollbackTransaction();
       this.logger.error(`Failed to handle quality assessment for produce ${event.produce_id}: ${error.message}`);
       throw error;
+    } finally {
+      // Release the query runner
+      await queryRunner.release();
     }
   }
 

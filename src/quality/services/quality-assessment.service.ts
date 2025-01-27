@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, EntityManager } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { QualityAssessment } from '../entities/quality-assessment.entity';
@@ -139,5 +139,58 @@ export class QualityAssessmentService {
 
     await this.cacheManager.set(cacheKey, assessment, this.CACHE_TTL);
     return assessment;
+  }
+
+  async createWithTransaction(
+    transactionManager: EntityManager,
+    createQualityAssessmentDto: CreateQualityAssessmentDto
+  ): Promise<QualityAssessment> {
+    try {
+      const produce = await transactionManager.findOne(Produce, {
+        where: { id: createQualityAssessmentDto.produce_id }
+      });
+
+      if (!produce) {
+        throw new NotFoundException(`Produce with ID ${createQualityAssessmentDto.produce_id} not found`);
+      }
+
+      // Validate required fields based on produce category
+      const validationResult = validateRequiredFields(
+        produce.produce_category,
+        createQualityAssessmentDto.category_specific_assessment
+      );
+
+      if (!validationResult.isValid) {
+        throw new BadRequestException(
+          `Missing required fields for category ${produce.produce_category}: ${validationResult.missingFields.join(', ')}`
+        );
+      }
+
+      if (createQualityAssessmentDto.quality_grade < 0 || createQualityAssessmentDto.quality_grade > 10) {
+        throw new BadRequestException('Quality grade must be between 0 and 10');
+      }
+
+      const assessment = new QualityAssessment();
+      assessment.produce_id = produce.id;
+      assessment.produce_name = createQualityAssessmentDto.produce_name;
+      assessment.category = createQualityAssessmentDto.category;
+      assessment.quality_grade = createQualityAssessmentDto.quality_grade;
+      assessment.confidence_level = createQualityAssessmentDto.confidence_level;
+      assessment.defects = createQualityAssessmentDto.defects || [];
+      assessment.recommendations = createQualityAssessmentDto.recommendations || [];
+      assessment.category_specific_assessment = createQualityAssessmentDto.category_specific_assessment;
+      assessment.metadata = createQualityAssessmentDto.metadata || {};
+
+      const savedAssessment = await transactionManager.save(QualityAssessment, assessment);
+      
+      // Invalidate cache for this produce's assessments
+      await this.cacheManager.del(`${this.CACHE_PREFIX}produce:${produce.id}`);
+      await this.cacheManager.del(`${this.CACHE_PREFIX}latest:${produce.id}`);
+      
+      return savedAssessment;
+    } catch (error) {
+      this.logger.error(`Failed to create quality assessment: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 }

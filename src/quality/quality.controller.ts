@@ -162,6 +162,8 @@ export class QualityController {
     // Create quality assessment with required fields
     const assessment = await this.qualityAssessmentService.create({
       produce_id: request.produce_id,
+      produce_name: produce.name,
+      category: produce.produce_category,
       quality_grade: data.quality_grade,
       confidence_level: 100, // Manual inspection has 100% confidence
       defects: data.defects,

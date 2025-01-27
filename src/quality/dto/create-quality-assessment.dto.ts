@@ -1,10 +1,19 @@
-import { IsString, IsNumber, IsOptional, IsArray, IsUUID, Min, Max, IsObject } from 'class-validator';
+import { IsString, IsNumber, IsOptional, IsArray, IsUUID, Min, Max, IsObject, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ProduceCategory } from '../../produce/enums/produce-category.enum';
 
 export class CreateQualityAssessmentDto {
   @ApiProperty({ description: 'ID of the produce being assessed' })
   @IsUUID()
   produce_id: string;
+
+  @ApiProperty({ description: 'Name of the produce' })
+  @IsString()
+  produce_name: string;
+
+  @ApiProperty({ description: 'Category of the produce', enum: ProduceCategory })
+  @IsEnum(ProduceCategory)
+  category: ProduceCategory;
 
   @ApiProperty({ description: 'Quality grade (0-10)', minimum: 0, maximum: 10 })
   @IsNumber()

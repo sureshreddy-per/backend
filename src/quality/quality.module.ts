@@ -12,6 +12,8 @@ import { InspectionRequest } from './entities/inspection-request.entity';
 import { ProduceModule } from '../produce/produce.module';
 import { Produce } from "../produce/entities/produce.entity";
 import { Inspector } from "../inspectors/entities/inspector.entity";
+import { Repository } from 'typeorm';
+import { getRepositoryToken } from '@nestjs/typeorm';
 
 @Module({
   imports: [
@@ -28,16 +30,25 @@ import { Inspector } from "../inspectors/entities/inspector.entity";
   providers: [
     {
       provide: OpenAIService,
-      useFactory: (configService: ConfigService, httpService: HttpService, qualityAssessmentService: QualityAssessmentService) => {
-        // Read directly from environment variable
-        const useMockService = process.env.USE_MOCK_AI_SERVICE === 'true';
-        console.log('USE_MOCK_AI_SERVICE:', process.env.USE_MOCK_AI_SERVICE);
+      useFactory: (
+        configService: ConfigService,
+        httpService: HttpService,
+        qualityAssessmentService: QualityAssessmentService,
+        produceRepository: Repository<Produce>
+      ) => {
+        const useMockService = configService.get('USE_MOCK_AI_SERVICE') === 'true';
+        console.log('USE_MOCK_AI_SERVICE:', configService.get('USE_MOCK_AI_SERVICE'));
         console.log('Using mock service:', useMockService);
-        return useMockService 
-          ? new MockOpenAIService(configService, httpService, qualityAssessmentService) 
+        return useMockService
+          ? new MockOpenAIService(configService, httpService, qualityAssessmentService, produceRepository)
           : new OpenAIService(configService, httpService, qualityAssessmentService);
       },
-      inject: [ConfigService, HttpService, QualityAssessmentService],
+      inject: [
+        ConfigService,
+        HttpService,
+        QualityAssessmentService,
+        getRepositoryToken(Produce)
+      ],
     },
     QualityAssessmentService,
     InspectionRequestService,

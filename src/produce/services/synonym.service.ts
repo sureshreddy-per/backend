@@ -305,9 +305,17 @@ export class ProduceSynonymService {
       // If language is not provided, use default language
       const targetLanguage = language || this.languageService.getDefaultLanguage();
       
-      // Verify language is supported
+      // Skip if language is not supported instead of throwing an error
       if (!this.languageService.isLanguageSupported(targetLanguage)) {
-        throw new Error(`Language ${targetLanguage} is not supported`);
+        this.logger.warn(`Skipping synonyms for language ${targetLanguage} as it is not supported`);
+        return;
+      }
+
+      // Check if this produce name is a synonym of an existing produce
+      const existingProduceName = await this.findExistingProduceNameFromSynonyms(lowercaseProduce);
+      if (existingProduceName && existingProduceName !== lowercaseProduce) {
+        this.logger.debug(`Using existing produce name "${existingProduceName}" instead of "${lowercaseProduce}"`);
+        produce_name = existingProduceName;
       }
 
       // First, ensure the produce exists in the master table
@@ -329,7 +337,10 @@ export class ProduceSynonymService {
         this.logger.log(`Created new master produce entry for: ${lowercaseProduce}`);
       }
 
-      const entities = synonyms.map(synonym => ({
+      // Filter out duplicates and normalize synonyms
+      const uniqueSynonyms = [...new Set(synonyms.map(s => s.toLowerCase()))];
+      
+      const entities = uniqueSynonyms.map(synonym => ({
         produce_name: lowercaseProduce,
         synonym: synonym.toLowerCase(),
         language: targetLanguage,
@@ -357,7 +368,7 @@ export class ProduceSynonymService {
         this.produceNameCache.set(languageKey, lowercaseProduce);
       });
 
-      this.logger.debug(`Successfully added ${synonyms.length} synonyms for ${produce_name}`);
+      this.logger.debug(`Successfully added ${savedSynonyms.length} synonyms for ${produce_name}`);
     } catch (error) {
       this.logger.error(`Error adding synonyms for ${produce_name}: ${error.message}`);
       throw error;
@@ -543,5 +554,95 @@ export class ProduceSynonymService {
 
   createQueryBuilder(alias: string) {
     return this.synonymRepository.createQueryBuilder(alias);
+  }
+
+  private async findExistingProduceNameFromSynonyms(name: string): Promise<string | null> {
+    try {
+      // Clean and normalize the input name
+      const normalizedName = name.toLowerCase().trim();
+      
+      // First check if the name itself matches any existing produce name
+      const directMatch = await this.findProduceName(normalizedName);
+      if (directMatch !== normalizedName) {
+        return directMatch;
+      }
+
+      // Get all existing synonyms that partially match the name
+      const possibleMatches = await this.searchSynonyms(normalizedName);
+      
+      // If we found any possible matches, check each one
+      for (const matchedName of possibleMatches) {
+        // Get all synonyms for this matched name
+        const allSynonyms = await this.getSynonymsInAllLanguages(matchedName);
+        
+        // Check if the name closely matches any existing synonym
+        for (const [language, synonyms] of Object.entries(allSynonyms)) {
+          // Check both the base name and its variations
+          const namesToCheck = [
+            normalizedName,
+            ...this.generateBasicVariations(normalizedName)
+          ];
+
+          for (const nameVariation of namesToCheck) {
+            if (synonyms.some(synonym => 
+              this.isSimilarName(nameVariation.toLowerCase(), synonym.toLowerCase())
+            )) {
+              return matchedName;
+            }
+          }
+        }
+      }
+
+      return null;
+    } catch (error) {
+      this.logger.error(`Error checking existing synonyms: ${error.message}`);
+      return null;
+    }
+  }
+
+  private generateBasicVariations(name: string): string[] {
+    const variations = new Set<string>();
+    const words = name.split(' ');
+
+    // Add original name
+    variations.add(name);
+
+    // If it's a multi-word name
+    if (words.length > 1) {
+      // Add variation without spaces
+      variations.add(words.join(''));
+      
+      // Add variations with word order changes
+      if (words.includes('rice')) {
+        const nonRiceWords = words.filter(w => w !== 'rice');
+        variations.add(`rice ${nonRiceWords.join(' ')}`);
+        variations.add(`${nonRiceWords.join(' ')} rice`);
+      }
+    }
+
+    // Add common prefixes/suffixes for rice
+    if (name.includes('rice')) {
+      variations.add(name.replace('rice', '').trim());
+      if (!name.startsWith('rice')) variations.add(`rice ${name}`);
+      if (!name.endsWith('rice')) variations.add(`${name} rice`);
+    }
+
+    return Array.from(variations);
+  }
+
+  private isSimilarName(name1: string, name2: string): boolean {
+    // Remove special characters and extra spaces
+    const cleanName1 = name1.replace(/[^a-z0-9]/g, '');
+    const cleanName2 = name2.replace(/[^a-z0-9]/g, '');
+    
+    // Check for exact match after cleaning
+    if (cleanName1 === cleanName2) return true;
+    
+    // Check if one is contained within the other
+    if (cleanName1.includes(cleanName2) || cleanName2.includes(cleanName1)) return true;
+    
+    // Calculate similarity
+    const similarity = this.calculateSimilarity(cleanName1, cleanName2);
+    return similarity >= 0.85; // Increased threshold for more precise matching
   }
 }
