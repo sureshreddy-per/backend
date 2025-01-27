@@ -544,13 +544,19 @@ export class ProduceService {
         throw new NotFoundException(`Produce with ID ${id} not found`);
       }
 
-      // First delete all quality assessments
+      // First delete all inspection requests
+      await queryRunner.manager.delete('inspection_requests', { produce_id: id });
+      this.logger.debug(`Deleted inspection requests for produce ${id}`);
+
+      // Then delete quality assessments
       if (produce.quality_assessments?.length > 0) {
         await queryRunner.manager.delete('quality_assessments', { produce_id: id });
+        this.logger.debug(`Deleted quality assessments for produce ${id}`);
       }
 
-      // Then delete the produce
+      // Finally delete the produce
       await queryRunner.manager.delete(Produce, { id });
+      this.logger.debug(`Deleted produce ${id}`);
 
       await queryRunner.commitTransaction();
     } catch (error) {
