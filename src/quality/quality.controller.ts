@@ -81,11 +81,18 @@ export class QualityController {
     });
   }
 
-  @Get(":id")
-  @ApiOperation({ summary: 'Get a quality assessment by ID' })
-  @ApiResponse({ status: 200, description: 'Assessment found', type: QualityAssessment })
-  async findOne(@Param("id") id: string): Promise<QualityAssessment> {
-    return this.qualityAssessmentService.findOne(id);
+  @Get("inspections")
+  @ApiOperation({ summary: 'Get paginated list of inspections' })
+  @ApiResponse({ status: 200, description: 'Returns paginated list of inspections' })
+  async listInspections(
+    @GetUser() user: User,
+    @Query() queryParams: ListInspectionsDto
+  ) {
+    return this.inspectionRequestService.findAll(
+      user.id,
+      user.role,
+      queryParams
+    );
   }
 
   @Get("assessments/by-produce/:produceId")
@@ -195,17 +202,10 @@ export class QualityController {
     return assessment;
   }
 
-  @Get("inspections")
-  @ApiOperation({ summary: 'Get paginated list of inspections' })
-  @ApiResponse({ status: 200, description: 'Returns paginated list of inspections' })
-  async listInspections(
-    @GetUser() user: User,
-    @Query() queryParams: ListInspectionsDto
-  ) {
-    return this.inspectionRequestService.findAll(
-      user.id,
-      user.role,
-      queryParams
-    );
+  @Get("assessment/:id")
+  @ApiOperation({ summary: 'Get a quality assessment by ID' })
+  @ApiResponse({ status: 200, description: 'Assessment found', type: QualityAssessment })
+  async findOne(@Param("id") id: string): Promise<QualityAssessment> {
+    return this.qualityAssessmentService.findOne(id);
   }
 }
