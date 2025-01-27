@@ -1,5 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import { HttpModule, HttpService } from '@nestjs/axios';
 import { OpenAIService } from './services/openai.service';
 import { MockOpenAIService } from './services/mock-openai.service';
@@ -17,6 +17,7 @@ import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { InspectorsModule } from '../inspectors/inspectors.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ConfigModule } from '../config/config.module';
 
 @Module({
   imports: [
@@ -60,6 +61,6 @@ import { NotificationsModule } from '../notifications/notifications.module';
     AutoInspectorAssignmentService,
   ],
   controllers: [QualityController],
-  exports: [OpenAIService, QualityAssessmentService, InspectionRequestService],
+  exports: [OpenAIService, QualityAssessmentService, InspectionRequestService]
 })
 export class QualityModule {}
