@@ -262,10 +262,6 @@ export class ProduceService {
       throw new BadRequestException('farmer_id is required');
     }
 
-    if (!createProduceDto.images || createProduceDto.images.length === 0) {
-      throw new BadRequestException('At least one image is required');
-    }
-
     try {
       // Verify farmer exists
       const farmer = await this.farmersService.findOne(createProduceDto.farmer_id);
