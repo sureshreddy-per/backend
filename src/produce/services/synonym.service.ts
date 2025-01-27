@@ -316,14 +316,14 @@ export class ProduceSynonymService {
       });
 
       if (!masterProduce) {
-        // Create a new master produce entry
+        // Create a new master produce entry with is_active true
         await this.produceMasterRepository.save({
           name: lowercaseProduce,
-          category: 'FOOD_GRAINS', // Default category, can be updated later
           is_active: true,
           metadata: {
             auto_generated: true,
-            source: 'AI_DETECTION'
+            source: 'AI_DETECTION',
+            created_at: new Date()
           }
         });
         this.logger.log(`Created new master produce entry for: ${lowercaseProduce}`);

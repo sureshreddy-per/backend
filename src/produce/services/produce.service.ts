@@ -135,7 +135,11 @@ export class ProduceService {
       produce.quality_grade = event.quality_grade;
       produce.description = event.description || produce.description;
       produce.product_variety = event.product_variety || produce.product_variety;
-      produce.produce_category = event.produce_category ? ProduceCategory[event.produce_category as keyof typeof ProduceCategory] : produce.produce_category;
+      
+      // Set produce category from event if provided
+      if (event.produce_category) {
+        produce.produce_category = ProduceCategory[event.produce_category as keyof typeof ProduceCategory];
+      }
 
       // Update produce name if AI detected one
       if (event.detected_name) {
@@ -176,27 +180,26 @@ export class ProduceService {
                   break;
                 }
               }
-
-              // If no matches found, use the AI-detected name
+              
               if (!matchFound) {
-                this.logger.log(`No matches found. Using AI-detected name: "${event.detected_name}"`);
+                this.logger.log(`Using AI-detected name "${event.detected_name}" as no matches found`);
                 produce.name = event.detected_name;
-
-                // Add the new name and its synonyms to the database
+                
+                // Add the detected name and its synonyms to the system
                 await this.synonymService.addSynonyms(
                   event.detected_name,
                   aiResult.synonyms,
                   'en',
-                  true,
+                  true, // is_ai_generated
                   event.confidence_level
                 );
-
-                // Add translations for each supported language
+                
+                // Add translations
                 for (const [language, translations] of Object.entries(aiResult.translations)) {
                   if (translations && translations.length > 0) {
                     await this.synonymService.addSynonyms(
                       event.detected_name,
-                      translations as string[],
+                      translations,
                       language,
                       true,
                       event.confidence_level
@@ -207,45 +210,15 @@ export class ProduceService {
             }
           }
         } catch (error) {
-          this.logger.error(`Error processing AI-detected name: ${error.message}`);
-          // If name processing fails, still update with AI-detected name
-          produce.name = event.detected_name;
+          this.logger.error(`Error processing detected name: ${error.message}`);
+          // Continue with the rest of the updates even if name processing fails
         }
       }
 
-      // Update category-specific attributes if provided by AI
-      if (event.category_specific_attributes) {
-        try {
-          const currentAssessment = produce.quality_assessments?.[0]?.category_specific_assessment || {};
-          produce.quality_assessments = [{
-            ...produce.quality_assessments?.[0],
-            category_specific_assessment: {
-              ...currentAssessment,
-              ...event.category_specific_attributes
-            }
-          }];
-        } catch (error) {
-          this.logger.error(`Error updating category-specific attributes: ${error.message}`);
-          // Don't throw - continue with other updates
-        }
-      }
-
-      // Update produce status based on AI confidence and quality grade
-      if (event.confidence_level < 80 || event.quality_grade < 5) {
-        produce.status = ProduceStatus.PENDING_INSPECTION;
-        this.logger.log(`Produce ${produce.id} marked for manual inspection due to ${
-          event.confidence_level < 80 ? 'low AI confidence' : 'low quality grade'
-        }`);
-      } else {
-        produce.status = ProduceStatus.AVAILABLE;
-        this.logger.log(`Produce ${produce.id} marked as available with quality grade ${event.quality_grade}`);
-      }
-
-      // Save produce updates
+      // Save the updated produce
       await this.produceRepository.save(produce);
-      this.logger.log(`Successfully updated produce ${produce.id} after quality assessment`);
 
-      // Create quality assessment record after produce is updated
+      // Create quality assessment record
       await this.qualityAssessmentService.create({
         produce_id: event.produce_id,
         quality_grade: event.quality_grade,
@@ -258,21 +231,24 @@ export class ProduceService {
           detected_name: event.detected_name,
           description: event.description,
           product_variety: event.product_variety,
-          produce_category: event.produce_category,
-          ...event.assessment_details?.metadata
+          produce_category: produce.produce_category
         }
       });
+
+      // Update produce status based on confidence and quality grade
+      if (event.confidence_level >= 85 && event.quality_grade >= 7) {
+        produce.status = ProduceStatus.ASSESSED;
+      } else if (event.confidence_level >= 70) {
+        produce.status = ProduceStatus.PENDING_INSPECTION;
+      } else {
+        produce.status = ProduceStatus.ASSESSMENT_FAILED;
+      }
+
+      // Save the final status update
+      await this.produceRepository.save(produce);
     } catch (error) {
       this.logger.error(`Failed to handle quality assessment for produce ${event.produce_id}: ${error.message}`);
-      // Set status to PENDING_INSPECTION instead of ASSESSMENT_FAILED when AI fails
-      try {
-        const produce = await this.findOne(event.produce_id);
-        produce.status = ProduceStatus.PENDING_INSPECTION;
-        await this.produceRepository.save(produce);
-        this.logger.log(`Set produce ${produce.id} to PENDING_INSPECTION due to AI assessment failure`);
-      } catch (innerError) {
-        this.logger.error(`Failed to update produce status after assessment failure: ${innerError.message}`);
-      }
+      throw error;
     }
   }
 
