@@ -3,6 +3,7 @@ import { IsBoolean, IsEnum, IsOptional, IsString, IsUrl, Matches } from 'class-v
 export enum AppType {
   BUYER = 'BUYER',
   FARMER = 'FARMER',
+  INSPECTOR = 'INSPECTOR',
 }
 
 export class UpdateAppVersionDto {

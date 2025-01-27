@@ -1386,7 +1386,7 @@ CREATE TABLE app_version_control (
     updated_by UUID REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT check_app_type CHECK (app_type IN ('BUYER', 'FARMER')),
+    CONSTRAINT check_app_type CHECK (app_type IN ('BUYER', 'FARMER', 'INSPECTOR')),
     CONSTRAINT check_min_version_format CHECK (min_version ~ '^\d+\.\d+\.\d+$'),
     CONSTRAINT check_latest_version_format CHECK (latest_version ~ '^\d+\.\d+\.\d+$')
 );

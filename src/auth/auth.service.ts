@@ -262,7 +262,7 @@ export class AuthService {
     return !!blacklisted;
   }
 
-  async validateToken(token: string, currentVersion?: string): Promise<{ 
+  async validateToken(token: string, currentVersion?: string, appType?: 'FARMER' | 'BUYER' | 'INSPECTOR'): Promise<{ 
     valid: boolean; 
     user?: User;
     app_status?: {
@@ -274,6 +274,26 @@ export class AuthService {
     };
   }> {
     let app_status = undefined;
+    let valid = false;
+    let user = undefined;
+    
+    // First try to get app status if version is provided, regardless of token validity
+    if (currentVersion) {
+      try {
+        // Use provided app type or default to FARMER
+        const initialAppType = appType ? AppType[appType] : AppType.FARMER;
+        app_status = await this.appVersionService.checkAppStatus(initialAppType, currentVersion);
+      } catch (appError) {
+        // If app status check fails, log error but continue with token validation
+        this.logger.error('Failed to check app status:', appError);
+        // Provide default app status to ensure we always return this data
+        app_status = {
+          needsUpdate: false,
+          forceUpdate: false,
+          maintenanceMode: false
+        };
+      }
+    }
     
     try {
       // Check if token is blacklisted
@@ -286,39 +306,39 @@ export class AuthService {
       const decoded = this.jwtService.verify(token);
 
       // Get user information
-      const user = await this.usersService.findOne(decoded.sub);
+      user = await this.usersService.findOne(decoded.sub);
       if (!user) {
         throw new UnauthorizedException("User not found");
       }
 
-      // Check app version if version is provided
-      if (currentVersion) {
-        const appType = user.role === UserRole.BUYER ? AppType.BUYER : AppType.FARMER;
-        app_status = await this.appVersionService.checkAppStatus(appType, currentVersion);
-      }
-
-      return {
-        valid: true,
-        user,
-        app_status,
-      };
-    } catch (error) {
-      // If currentVersion is provided, get app status using FARMER as default type
-      // since we don't have user information when token is invalid
+      // If we have user info and version is provided, update app status with correct app type
       if (currentVersion) {
         try {
-          app_status = await this.appVersionService.checkAppStatus(AppType.FARMER, currentVersion);
+          // Use provided app type or determine from user role
+          const userAppType = appType ? AppType[appType] : 
+                            user.role === UserRole.BUYER ? AppType.BUYER : 
+                            user.role === UserRole.INSPECTOR ? AppType.INSPECTOR : 
+                            AppType.FARMER;
+          app_status = await this.appVersionService.checkAppStatus(userAppType, currentVersion);
         } catch (appError) {
-          // If app status check fails, log error but continue with token validation response
-          this.logger.error('Failed to check app status:', appError);
+          this.logger.error('Failed to check app status with user role:', appError);
+          // Keep existing app_status from earlier check
         }
       }
 
-      return {
-        valid: false,
-        app_status,
-      };
+      valid = true;
+    } catch (error) {
+      valid = false;
+      user = undefined;
+      // Log the error but don't throw since we want to return app status
+      this.logger.error('Token validation failed:', error);
     }
+
+    return {
+      valid,
+      user,
+      app_status,
+    };
   }
 
   async deleteAccount(mobile_number: string): Promise<void> {

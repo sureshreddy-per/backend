@@ -6,7 +6,7 @@ export class AppVersionControl {
   id: string;
 
   @Column({ type: 'varchar', length: 50 })
-  app_type: 'BUYER' | 'FARMER';
+  app_type: 'BUYER' | 'FARMER' | 'INSPECTOR';
 
   @Column({ type: 'varchar', length: 20 })
   min_version: string;

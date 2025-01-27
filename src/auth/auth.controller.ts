@@ -114,6 +114,13 @@ export class AuthController {
     type: String,
     description: 'Current app version in format x.x.x',
   })
+  @ApiQuery({
+    name: 'app_type',
+    required: false,
+    type: String,
+    enum: ['FARMER', 'BUYER', 'INSPECTOR'],
+    description: 'Type of app requesting validation',
+  })
   @ApiResponse({
     status: 200,
     description: "Token is valid",
@@ -142,7 +149,8 @@ export class AuthController {
   async validate(
     @Token() token: string,
     @Query('current_version') currentVersion?: string,
+    @Query('app_type') appType?: 'FARMER' | 'BUYER' | 'INSPECTOR',
   ) {
-    return this.authService.validateToken(token, currentVersion);
+    return this.authService.validateToken(token, currentVersion, appType);
   }
 }
