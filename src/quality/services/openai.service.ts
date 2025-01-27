@@ -41,20 +41,11 @@ export class OpenAIService {
   ) {
     // Load API key directly from environment and other configs from configuration service
     this.apiKey = process.env.OPENAI_API_KEY;
-    this.orgId = this.configService.get<string>('openai.orgId');
-    this.model = this.configService.get<string>('openai.model');
-    this.apiEndpoint = this.configService.get<string>('openai.apiEndpoint');
-    this.maxTokens = this.configService.get<number>('openai.maxTokens', 2000);
-    this.temperature = this.configService.get<number>('openai.temperature', 0.9);
-    
-    // Debug logging for API key
-    this.logger.debug('Raw API Key from env:', {
-      keyExists: !!process.env.OPENAI_API_KEY,
-      rawLength: process.env.OPENAI_API_KEY?.length,
-      rawStart: process.env.OPENAI_API_KEY?.substring(0, 8),
-      rawEnd: process.env.OPENAI_API_KEY?.slice(-4),
-      envKeys: Object.keys(process.env).filter(key => key.includes('OPENAI'))
-    });
+    this.orgId = this.configService.get<string>('app.openai.orgId');
+    this.model = this.configService.get<string>('app.openai.model', 'gpt-4-vision-preview');
+    this.apiEndpoint = 'https://api.openai.com/v1/chat/completions';
+    this.maxTokens = this.configService.get<number>('app.openai.maxTokens', 2000);
+    this.temperature = this.configService.get<number>('app.openai.temperature', 0.9);
     
     if (!this.apiKey) {
       this.logger.error('OpenAI API key not configured');
@@ -68,9 +59,7 @@ export class OpenAIService {
       maxTokens: this.maxTokens,
       temperature: this.temperature,
       orgId: this.orgId,
-      apiKeyLength: this.apiKey?.length,
-      apiKeyStart: this.apiKey?.substring(0, 8),
-      apiKeyEnd: this.apiKey?.slice(-4)
+      apiKeyExists: !!this.apiKey
     });
   }
 
@@ -124,25 +113,15 @@ export class OpenAIService {
 
   async analyzeProduceWithMultipleImages(images: ImageData[], produceId: string): Promise<AIAnalysisResult> {
     try {
-      this.logger.debug(`Making OpenAI API request with ${images.length} images...`);
-      const headers: Record<string, string> = {
+      // Process images first
+      const processedImages = await Promise.all(
+        images.map(img => this.processImageBuffer(img.buffer, img.mimeType))
+      );
+
+      const headers = {
         'Authorization': `Bearer ${this.apiKey}`,
         'Content-Type': 'application/json',
-        ...(this.orgId && { 'OpenAI-Organization': this.orgId }),
       };
-
-      // Process all images to ensure they're in a supported format
-      const processedImages = await Promise.all(
-        images.map(async img => {
-          const processed = await this.processImageBuffer(img.buffer, img.mimeType);
-          return {
-            type: 'image_url',
-            image_url: {
-              url: `data:${processed.mimeType};base64,${processed.buffer.toString('base64')}`,
-            }
-          };
-        })
-      );
 
       const requestBody = {
         model: this.model,
@@ -152,21 +131,25 @@ export class OpenAIService {
             content: [
               {
                 type: 'text',
-                text: 'Analyze these images of the same agricultural produce from different angles and provide comprehensive details about its quality, category, and characteristics. Consider all images to make a more accurate assessment. Return ONLY a JSON object with the following structure (no markdown, no explanations): name, produce_category (from enum: VEGETABLES, FRUITS, FOOD_GRAINS, OILSEEDS, SPICES, FIBERS, SUGARCANE, FLOWERS, MEDICINAL_PLANTS), product_variety, description, quality_grade (1-10), confidence_level (1-100), detected_defects (array), recommendations (array), and category_specific_attributes (object with relevant metrics).',
+                text: 'Please analyze this produce image and provide details about its quality, category, and any defects.'
               },
-              ...processedImages
-            ],
-          },
+              ...processedImages.map(img => ({
+                type: 'image_url',
+                image_url: {
+                  url: `data:${img.mimeType};base64,${img.buffer.toString('base64')}`
+                }
+              }))
+            ]
+          }
         ],
         max_tokens: this.maxTokens,
-        temperature: this.temperature,
+        temperature: this.temperature
       };
 
       this.logger.debug('OpenAI request configuration:', {
         endpoint: this.apiEndpoint,
         model: this.model,
-        headers: { ...headers, Authorization: 'Bearer [REDACTED]' },
-        imageCount: images.length,
+        imageCount: processedImages.length
       });
 
       const response = await firstValueFrom(
