@@ -155,7 +155,7 @@ export class TransactionsController {
     return this.transactionService.findOneAndTransform(transaction.id, req.user['role']);
   }
 
-  @Post(":id/reactivate")
+  @Post("reactivate/:id")
   async reactivateTransaction(
     @Param("id") id: string,
     @Req() req: Request,
