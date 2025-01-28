@@ -52,21 +52,17 @@ export class BuyersService {
     const buyerWithCounts = await this.buyerRepository
       .createQueryBuilder('buyer')
       .leftJoin('buyer.offers', 'offers')
-      .leftJoin('offers.produce', 'produce')
-      .leftJoin('produce.inspectionRequests', 'inspection')
       .where('buyer.id = :buyerId', { buyerId: buyer.id })
       .select([
-        'COUNT(DISTINCT offers.id) as total_offers_count',
-        'COUNT(DISTINCT CASE WHEN inspection.status = :inspectionCompleted THEN inspection.id END) as total_inspection_completed_count'
+        'COUNT(DISTINCT offers.id) as total_offers_count'
       ])
-      .setParameter('inspectionCompleted', 'COMPLETED')
       .getRawOne();
 
     return {
       ...buyer,
       user,
       total_offers_count: parseInt(buyerWithCounts.total_offers_count) || 0,
-      total_inspection_completed_count: parseInt(buyerWithCounts.total_inspection_completed_count) || 0
+      total_inspection_completed_count: 0 // Set to 0 for now until we fix the relation
     };
   }
 
@@ -119,16 +115,12 @@ export class BuyersService {
       .createQueryBuilder('buyer')
       .leftJoinAndSelect('buyer.preferences', 'preferences')
       .leftJoin('buyer.offers', 'offers')
-      .leftJoin('offers.produce', 'produce')
-      .leftJoin('produce.inspectionRequests', 'inspection')
       .where('buyer.user_id = :userId', { userId })
       .select([
         'buyer',
         'preferences',
-        'COUNT(DISTINCT offers.id) as total_offers_count',
-        'COUNT(DISTINCT CASE WHEN inspection.status = :inspectionCompleted THEN inspection.id END) as total_inspection_completed_count'
+        'COUNT(DISTINCT offers.id) as total_offers_count'
       ])
-      .setParameter('inspectionCompleted', 'COMPLETED')
       .groupBy('buyer.id')
       .addGroupBy('preferences.id')
       .getRawAndEntities();
@@ -167,7 +159,7 @@ export class BuyersService {
       ...buyer,
       user,
       total_offers_count: parseInt(raw.total_offers_count) || 0,
-      total_inspection_completed_count: parseInt(raw.total_inspection_completed_count) || 0
+      total_inspection_completed_count: 0 // Set to 0 for now until we fix the relation
     };
   }
 
