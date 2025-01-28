@@ -134,19 +134,28 @@ export class FarmerHomeService {
 
     const [lat, lng] = location.split(',').map(Number);
 
+    const activeStatuses = [
+      ProduceStatus.AVAILABLE,
+      ProduceStatus.ASSESSED,
+      ProduceStatus.PENDING_INSPECTION,
+      ProduceStatus.FINAL_PRICE,
+      ProduceStatus.IN_PROGRESS
+    ];
+
     // Get my active offers
     const myOffers = await this.produceRepository
       .createQueryBuilder('p')
       .innerJoinAndSelect('p.farmer', 'f')
       .innerJoinAndSelect('f.user', 'u')
       .where('p.farmer_id = :farmerId', { farmerId })
-      .andWhere('p.status IN (:...statuses)', { statuses: [ProduceStatus.AVAILABLE, ProduceStatus.ASSESSED] })
+      .andWhere('p.status IN (:...statuses)', { statuses: activeStatuses })
       .select([
         'p.id as produce_id',
         'p.name',
         'p.quantity',
         'p.unit',
         'p.quality_grade',
+        'p.status',
         'p.is_inspection_requested as is_manually_inspected',
         'p.images',
         'f.id as farmer_id',
@@ -164,7 +173,7 @@ export class FarmerHomeService {
       .innerJoinAndSelect('p.farmer', 'f')
       .innerJoinAndSelect('f.user', 'u')
       .where('p.farmer_id != :farmerId', { farmerId })
-      .andWhere('p.status IN (:...statuses)', { statuses: [ProduceStatus.AVAILABLE, ProduceStatus.ASSESSED] })
+      .andWhere('p.status IN (:...statuses)', { statuses: activeStatuses })
       .andWhere(
         `ST_DWithin(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
@@ -180,6 +189,7 @@ export class FarmerHomeService {
         'p.quantity',
         'p.unit',
         'p.quality_grade',
+        'p.status',
         `ST_Distance(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
@@ -212,11 +222,19 @@ export class FarmerHomeService {
 
     const [lat, lng] = location.split(',').map(Number);
 
+    const excludedStatuses = [
+      ProduceStatus.CANCELLED,
+      ProduceStatus.SOLD,
+      ProduceStatus.COMPLETED,
+      ProduceStatus.REJECTED,
+      ProduceStatus.PENDING_AI_ASSESSMENT,
+      ProduceStatus.ASSESSMENT_FAILED
+    ];
+
     const queryBuilder = this.produceRepository
       .createQueryBuilder('p')
       .where('p.farmer_id = :farmerId', { farmerId })
-      .andWhere('p.status != :cancelledStatus', { cancelledStatus: ProduceStatus.CANCELLED })
-      .andWhere('p.status IN (:...validStatuses)', { validStatuses: [ProduceStatus.AVAILABLE, ProduceStatus.ASSESSED] })
+      .andWhere('p.status NOT IN (:...excludedStatuses)', { excludedStatuses })
       .select([
         'p.id as produce_id',
         'p.name',
