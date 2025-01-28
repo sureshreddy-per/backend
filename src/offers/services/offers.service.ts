@@ -220,6 +220,30 @@ export class OffersService {
     return transformedOffer;
   }
 
+  private async clearAllRelatedCaches(offer: Offer): Promise<void> {
+    try {
+      // Clear offer cache
+      await this.clearOfferCache(offer.id);
+
+      // Clear produce cache
+      await this.produceService.clearProduceCache(offer.produce_id);
+
+      // Clear home page caches
+      const keys = [
+        'farmer_home:*',
+        'buyer_home:*',
+        'offers:stats',
+        'offers:*',
+      ];
+      await Promise.all(keys.map(key => this.cacheManager.del(key)));
+
+      this.logger.debug(`Cleared all related caches for offer ${offer.id}`);
+    } catch (error) {
+      this.logger.error(`Failed to clear related caches for offer ${offer.id}`, error);
+      // Don't throw error as this is a non-critical operation
+    }
+  }
+
   async accept(id: string): Promise<Offer> {
     return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
       // 1. Get and lock the offer with pessimistic lock
@@ -314,9 +338,9 @@ export class OffersService {
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
 
       try {
-        await this.clearOfferCacheWithRetry(id);
+        await this.clearAllRelatedCaches(offer);
       } catch (error) {
-        this.logger.error(`Failed to clear cache for accepted offer ${id}`, error);
+        this.logger.error(`Failed to clear caches for accepted offer ${id}`, error);
       }
 
       produce.status = ProduceStatus.IN_PROGRESS;
@@ -390,7 +414,7 @@ export class OffersService {
       offer.status = OfferStatus.REJECTED;
       offer.rejection_reason = reason;
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
-      await this.clearOfferCache(id);
+      await this.clearAllRelatedCaches(offer);
 
       // 5. Update produce status back to AVAILABLE
       produce.status = ProduceStatus.AVAILABLE;
@@ -469,7 +493,7 @@ export class OffersService {
       offer.status = OfferStatus.CANCELLED;
       offer.cancellation_reason = reason;
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
-      await this.clearOfferCache(id);
+      await this.clearAllRelatedCaches(offer);
 
       // 5. Update produce status back to AVAILABLE
       produce.status = ProduceStatus.AVAILABLE;

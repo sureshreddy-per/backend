@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { Produce } from '../entities/produce.entity';
@@ -16,6 +16,8 @@ import { User } from '../../users/entities/user.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
 import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
 import { QualityAssessmentService } from '../../quality/services/quality-assessment.service';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 
 interface TransformedFarmer {
   id: string;
@@ -40,7 +42,8 @@ export class ProduceService {
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly inspectorsService: InspectorsService,
     private readonly qualityAssessmentService: QualityAssessmentService,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
   private parseLocation(location: string): { lat: number; lng: number } {
@@ -580,5 +583,26 @@ export class ProduceService {
     }
 
     return farmer;
+  }
+
+  private getCacheKey(key: string): string {
+    return `produce:${key}`;
+  }
+
+  async clearProduceCache(id: string): Promise<void> {
+    const keys = [
+      this.getCacheKey(`id:${id}`),
+      this.getCacheKey('stats'),
+      'produce:*',
+      'farmer_home:*',
+      'buyer_home:*'
+    ];
+    try {
+      await Promise.all(keys.map(key => this.cacheManager.del(key)));
+      this.logger.debug(`Cleared cache for produce ${id}`);
+    } catch (error) {
+      this.logger.error(`Failed to clear cache for produce ${id}`, error);
+      // Don't throw error as this is a non-critical operation
+    }
   }
 }
