@@ -10,7 +10,7 @@ import { Offer } from '../entities/offer.entity';
 import { CreateOfferDto } from '../dto/create-offer.dto';
 import { CreateAdminOfferDto } from '../dto/create-admin-offer.dto';
 import { ProduceService } from '../../produce/services/produce.service';
-import { BuyersService } from '../../buyers/buyers.service';
+import { BuyersService } from '../../buyers/services/buyers.service';
 import { AutoOfferService } from './auto-offer.service';
 import { NotificationType } from '../../notifications/enums/notification-type.enum';
 import { OfferStatus } from '../enums/offer-status.enum';

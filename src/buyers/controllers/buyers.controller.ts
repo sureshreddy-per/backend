@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, UseGuards, Query, Patch } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -6,8 +6,9 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../enums/user-role.enum';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
-import { BuyersService } from '../buyers.service';
+import { BuyersService } from '../services/buyers.service';
 import { CreateBuyerDto } from '../dto/create-buyer.dto';
+import { UpdateUserDetailsDto } from '../dto/update-user-details.dto';
 
 @ApiTags('Buyers')
 @Controller('buyers')
@@ -35,17 +36,6 @@ export class BuyersController {
     return this.buyersService.getBuyerDetails(user.id);
   }
 
-  @Put('me')
-  @Roles(UserRole.BUYER)
-  @ApiOperation({ summary: 'Update buyer details' })
-  @ApiResponse({ status: 200, description: 'Updates the buyer details' })
-  async updateBuyerDetails(
-    @GetUser() user: User,
-    @Body() updateData: Partial<CreateBuyerDto>,
-  ) {
-    return this.buyersService.updateBuyerDetails(user.id, updateData);
-  }
-
   @Get('nearby')
   @ApiOperation({ summary: 'Find nearby buyers' })
   @ApiResponse({ status: 200, description: 'Returns list of nearby buyers' })
@@ -66,5 +56,16 @@ export class BuyersController {
     @Param('offerId') offerId: string,
   ) {
     return this.buyersService.getBuyerDetailsByOfferId(offerId, user.id);
+  }
+
+  @Patch('profile/user-details')
+  @Roles(UserRole.BUYER)
+  @ApiOperation({ summary: 'Update buyer user details' })
+  @ApiResponse({ status: 200, description: 'Updates the buyer user details' })
+  async updateUserDetails(
+    @GetUser() user: User,
+    @Body() updateUserDetailsDto: UpdateUserDetailsDto,
+  ) {
+    return this.buyersService.updateUserDetails(user.id, updateUserDetailsDto);
   }
 }

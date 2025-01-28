@@ -20,8 +20,8 @@ import { GetUser } from "../../auth/decorators/get-user.decorator";
 import { User } from "../../users/entities/user.entity";
 import { CreateTransactionDto } from "../dto/create-transaction.dto";
 import { OffersService } from "../../offers/services/offers.service";
-import { BuyersService } from "../../buyers/buyers.service";
-import { FarmersService } from "../../farmers/farmers.service";
+import { BuyersService } from "../../buyers/services/buyers.service";
+import { FarmersService } from "../../farmers/services/farmers.service";
 import { FindManyOptions } from "typeorm";
 import { Request } from 'express';
 

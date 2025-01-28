@@ -8,7 +8,7 @@ import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
 import { BuyerPreferencesService } from '../services/buyer-preferences.service';
 import { UpdateBuyerPreferencesDto } from '../dto/update-buyer-preferences.dto';
-import { BuyersService } from '../buyers.service';
+import { BuyersService } from '../services/buyers.service';
 
 @ApiTags('Buyer Preferences')
 @Controller('buyer-preferences')

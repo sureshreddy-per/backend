@@ -13,7 +13,7 @@ import { TransactionService } from "../../transactions/services/transaction.serv
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
 import { TransactionStatus } from "../../transactions/entities/transaction.entity";
 import { User } from "../../users/entities/user.entity";
-import { BuyersService } from "../../buyers/buyers.service";
+import { BuyersService } from "../../buyers/services/buyers.service";
 import { FarmersService } from "../../farmers/farmers.service";
 import { Logger } from "@nestjs/common";
 

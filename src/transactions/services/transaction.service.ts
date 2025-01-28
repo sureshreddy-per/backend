@@ -14,7 +14,7 @@ import { OfferAcceptedEvent } from '../../offers/events/offer-accepted.event';
 import { OnEvent } from '@nestjs/event-emitter';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TransactionExpiredEvent, GetLatestTransactionEvent } from '../../offers/services/offers.service';
-import { BuyersService } from '../../buyers/buyers.service';
+import { BuyersService } from '../../buyers/services/buyers.service';
 import { FarmersService } from '../../farmers/farmers.service';
 
 export interface TransformedBuyer {

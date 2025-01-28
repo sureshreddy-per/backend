@@ -39,7 +39,7 @@ import { CreateAdminOfferDto } from "../dto/create-admin-offer.dto";
 import { ListOffersDto } from "../dto/list-offers.dto";
 import { ProduceStatus } from "../../produce/enums/produce-status.enum";
 import { FarmersService } from "../../farmers/farmers.service";
-import { BuyersService } from "../../buyers/buyers.service";
+import { BuyersService } from "../../buyers/services/buyers.service";
 
 @ApiTags("Offers")
 @ApiBearerAuth()
