@@ -114,6 +114,20 @@ export class OffersService {
         throw new NotFoundException(`Farmer with ID ${produce.farmer_id} not found`);
       }
 
+      // Check for existing offer
+      const existingOffer = await this.offerRepository.findOne({
+        where: {
+          produce_id: createOfferDto.produce_id,
+          buyer_id: createOfferDto.buyer_id,
+          farmer_id: createOfferDto.farmer_id,
+          status: Not(In([OfferStatus.REJECTED, OfferStatus.CANCELLED]))
+        }
+      });
+
+      if (existingOffer) {
+        throw new ConflictException('An active offer already exists for this produce, buyer, and farmer combination');
+      }
+
       // Create and save the offer
       const offer = this.offerRepository.create({
         ...createOfferDto,
