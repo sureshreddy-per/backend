@@ -66,7 +66,7 @@ export class OffersController {
     return this.offersService.findByFarmer(farmer.id, query);
   }
 
-  @Get(":id")
+  @Get("details/:id")
   @Roles(UserRole.ADMIN, UserRole.BUYER, UserRole.FARMER)
   async findOne(@GetUser() user: User, @Param("id") id: string) {
     const offer = await this.offersService.findOne(id);
@@ -86,7 +86,7 @@ export class OffersController {
     return offer;
   }
 
-  @Post(":id/approve")
+  @Post("approve/:id")
   @Roles(UserRole.BUYER)
   @ApiOperation({ summary: "Approve an auto-generated offer with optional price modification" })
   @ApiResponse({ status: 200, description: "Offer approved successfully" })
@@ -99,7 +99,7 @@ export class OffersController {
     return this.autoOfferService.approveOffer(id, user.id, approveOfferDto);
   }
 
-  @Post(":id/reject")
+  @Post("reject/:id")
   @Roles(UserRole.BUYER)
   @ApiOperation({ summary: "Reject an auto-generated offer" })
   @ApiResponse({ status: 200, description: "Offer rejected successfully" })
@@ -114,7 +114,7 @@ export class OffersController {
     return this.autoOfferService.rejectOffer(id, user.id, reason);
   }
 
-  @Post(":id/cancel")
+  @Post("cancel/:id")
   @Roles(UserRole.BUYER)
   async cancel(
     @GetUser() user: User,
@@ -130,7 +130,7 @@ export class OffersController {
     return this.offersService.cancel(id, reason);
   }
 
-  @Delete(":id")
+  @Delete("delete/:id")
   @Roles(UserRole.ADMIN, UserRole.BUYER)
   async remove(@GetUser() user: User, @Param("id") id: string) {
     const offer = await this.offersService.findOne(id);
@@ -140,7 +140,7 @@ export class OffersController {
     return this.offersService.remove(id);
   }
 
-  @Put(":id/override-price")
+  @Put("override-price/:id")
   @Roles(UserRole.BUYER)
   @ApiOperation({ summary: "Override offer price" })
   @ApiResponse({ status: 200, description: "Price successfully overridden" })
@@ -167,7 +167,7 @@ export class OffersController {
     return this.offersService.create(createOfferDto);
   }
 
-  @Put(":id")
+  @Put("update/:id")
   @Roles(UserRole.BUYER)
   async update(
     @GetUser() user: User,
@@ -253,5 +253,62 @@ export class OffersController {
       status: ProduceStatus.ASSESSED,
       previous_transaction_id: existingTransaction?.id
     };
+  }
+
+  @Post("farmer/accept/:id")
+  @Roles(UserRole.FARMER)
+  @ApiOperation({ summary: "Farmer accepts an offer for their produce" })
+  @ApiResponse({ status: 200, description: "Offer accepted successfully" })
+  @ApiResponse({ status: 401, description: "Unauthorized - Not the produce owner" })
+  @ApiResponse({ status: 404, description: "Offer not found" })
+  async farmerAcceptOffer(
+    @GetUser() user: User,
+    @Param("id") id: string
+  ) {
+    // Get the offer
+    const offer = await this.offersService.findOne(id);
+    if (!offer) {
+      throw new NotFoundException("Offer not found");
+    }
+
+    // Get farmer details and verify ownership
+    const farmer = await this.produceService.getFarmerDetails(user.id);
+    if (!farmer || offer.farmer_id !== farmer.id) {
+      throw new UnauthorizedException("You can only accept offers for your own produce");
+    }
+
+    // Accept the offer
+    return this.offersService.accept(id);
+  }
+
+  @Post("farmer/reject/:id")
+  @Roles(UserRole.FARMER)
+  @ApiOperation({ summary: "Farmer rejects an offer for their produce" })
+  @ApiResponse({ status: 200, description: "Offer rejected successfully" })
+  @ApiResponse({ status: 400, description: "Bad Request - Reason required" })
+  @ApiResponse({ status: 401, description: "Unauthorized - Not the produce owner" })
+  @ApiResponse({ status: 404, description: "Offer not found" })
+  async farmerRejectOffer(
+    @GetUser() user: User,
+    @Param("id") id: string,
+    @Body("reason") reason: string
+  ) {
+    // Get the offer
+    const offer = await this.offersService.findOne(id);
+    if (!offer) {
+      throw new NotFoundException("Offer not found");
+    }
+
+    // Get farmer details and verify ownership
+    const farmer = await this.produceService.getFarmerDetails(user.id);
+    if (!farmer || offer.farmer_id !== farmer.id) {
+      throw new UnauthorizedException("You can only reject offers for your own produce");
+    }
+
+    if (!reason) {
+      throw new BadRequestException("Reason is required for rejecting an offer");
+    }
+
+    return this.offersService.reject(id, reason);
   }
 }

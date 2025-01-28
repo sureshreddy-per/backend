@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsInt, Min, ValidateNested } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { OfferStatus } from '../enums/offer-status.enum';
 
 export enum OfferSortBy {
@@ -43,6 +43,7 @@ export class ListOffersDto {
     description: 'Page number for pagination'
   })
   @IsOptional()
+  @Transform(({ value }) => parseInt(value))
   @IsInt()
   @Min(1)
   page?: number = 1;
@@ -53,6 +54,7 @@ export class ListOffersDto {
     description: 'Number of items per page'
   })
   @IsOptional()
+  @Transform(({ value }) => parseInt(value))
   @IsInt()
   @Min(1)
   limit?: number = 10;
