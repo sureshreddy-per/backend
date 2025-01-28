@@ -22,6 +22,8 @@ import { ProduceStatus } from '../../produce/enums/produce-status.enum';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 import { TransactionStatus } from '../../transactions/entities/transaction.entity';
 import { FarmersService } from '../../farmers/farmers.service';
+import { TransactionHistoryService } from '../../transactions/services/transaction-history.service';
+import { TransactionEvent } from '../../transactions/entities/transaction-history.entity';
 
 interface TransformedBuyer {
   id: string;
@@ -58,6 +60,7 @@ export class OffersService {
     private readonly cacheManager: Cache,
     @Inject(forwardRef(() => AutoOfferService))
     private readonly autoOfferService: AutoOfferService,
+    private readonly transactionHistoryService: TransactionHistoryService,
   ) {}
 
   private getCacheKey(key: string): string {
@@ -205,69 +208,215 @@ export class OffersService {
   }
 
   async accept(id: string): Promise<Offer> {
-    const offer = await this.findOne(id);
+    return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
+      // 1. Get and lock the offer with pessimistic lock
+      const offer = await transactionalEntityManager
+        .createQueryBuilder(Offer, "offer")
+        .setLock("pessimistic_write")
+        .where("offer.id = :id AND offer.status = :status", {
+          id,
+          status: OfferStatus.PENDING
+        })
+        .getOne();
 
-    // Get the buyer details to get the user_id
-    const buyer = await this.buyersService.findOne(offer.buyer_id);
-    if (!buyer) {
-      throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
-    }
-
-    // First, cancel all other offers for this produce
-    const otherOffers = await this.offerRepository.find({
-      where: {
-        produce_id: offer.produce_id,
-        id: Not(id),
-        status: In([OfferStatus.PENDING, OfferStatus.ACTIVE, OfferStatus.PRICE_MODIFIED])
+      if (!offer) {
+        throw new ConflictException("Offer is no longer available for acceptance");
       }
-    });
 
-    // Cancel other offers in parallel
-    await Promise.all(otherOffers.map(async (otherOffer) => {
-      otherOffer.status = OfferStatus.CANCELLED;
-      otherOffer.cancellation_reason = 'Another offer was accepted';
-      await this.offerRepository.save(otherOffer);
-      await this.clearOfferCache(otherOffer.id);
+      // 2. Validate offer data
+      if (isNaN(Number(offer.price_per_unit)) || Number(offer.price_per_unit) <= 0) {
+        throw new BadRequestException("Invalid price in offer");
+      }
+      if (isNaN(Number(offer.quantity)) || Number(offer.quantity) <= 0) {
+        throw new BadRequestException("Invalid quantity in offer");
+      }
 
-      // Get the buyer details for notification
-      const otherBuyer = await this.buyersService.findOne(otherOffer.buyer_id);
-      if (otherBuyer) {
-        // Notify the buyer about the cancelled offer
-        await this.notificationService.create({
-          user_id: otherBuyer.user_id,
-          type: NotificationType.OFFER_STATUS_UPDATE,
-          data: {
-            offer_id: otherOffer.id,
-            produce_id: otherOffer.produce_id,
-            status: OfferStatus.CANCELLED,
-            reason: 'Another offer was accepted',
-          },
+      // 3. Check for existing transaction
+      const existingTransaction = await transactionalEntityManager
+        .findOne(Transaction, {
+          where: { offer_id: offer.id }
+        });
+
+      if (existingTransaction) {
+        throw new ConflictException("Transaction already exists for this offer");
+      }
+
+      // 4. Get and validate buyer with status check
+      const buyer = await this.buyersService.findOne(offer.buyer_id);
+      if (!buyer) {
+        throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+      }
+      if (!buyer.is_active) {
+        throw new ConflictException("Buyer account is not active");
+      }
+
+      // 5. Verify produce availability
+      const produce = await transactionalEntityManager.findOne(Produce, {
+        where: {
+          id: offer.produce_id,
+          status: ProduceStatus.AVAILABLE
+        }
+      });
+
+      if (!produce) {
+        throw new ConflictException("Produce is no longer available");
+      }
+
+      // 6. Find and cancel other offers with proper error handling
+      try {
+        const otherOffers = await transactionalEntityManager.find(Offer, {
+          where: {
+            produce_id: offer.produce_id,
+            id: Not(id),
+            status: In([OfferStatus.PENDING, OfferStatus.ACTIVE, OfferStatus.PRICE_MODIFIED])
+          }
+        });
+
+        await Promise.all(otherOffers.map(async (otherOffer) => {
+          otherOffer.status = OfferStatus.CANCELLED;
+          otherOffer.cancellation_reason = 'Another offer was accepted';
+          await transactionalEntityManager.save(Offer, otherOffer);
+
+          try {
+            await this.clearOfferCacheWithRetry(otherOffer.id);
+          } catch (error) {
+            this.logger.error(`Failed to clear cache for offer ${otherOffer.id}`, error);
+            // Continue execution as cache will eventually expire
+          }
+
+          try {
+            const otherBuyer = await this.buyersService.findOne(otherOffer.buyer_id);
+            if (otherBuyer) {
+              await this.notificationService.create({
+                user_id: otherBuyer.user_id,
+                type: NotificationType.OFFER_STATUS_UPDATE,
+                data: {
+                  offer_id: otherOffer.id,
+                  produce_id: otherOffer.produce_id,
+                  status: OfferStatus.CANCELLED,
+                  reason: 'Another offer was accepted',
+                },
+              });
+            }
+          } catch (error) {
+            this.logger.error(`Failed to notify buyer for cancelled offer ${otherOffer.id}`, error);
+            // Continue execution as this is non-critical
+          }
+        }));
+      } catch (error) {
+        this.logger.error('Error while cancelling other offers', error);
+        throw new ConflictException("Failed to process offer acceptance");
+      }
+
+      // 7. Update offer status with cache handling
+      offer.status = OfferStatus.ACCEPTED;
+      const updatedOffer = await transactionalEntityManager.save(Offer, offer);
+
+      try {
+        await this.clearOfferCacheWithRetry(id);
+      } catch (error) {
+        this.logger.error(`Failed to clear cache for accepted offer ${id}`, error);
+        // Continue execution as cache will eventually expire
+      }
+
+      // 8. Update produce status
+      produce.status = ProduceStatus.IN_PROGRESS;
+      await transactionalEntityManager.save(Produce, produce);
+
+      // 9. Create transaction with validated metadata
+      const metadata = {
+        quality_grade: offer.quality_grade ? String(offer.quality_grade) : 'N/A',
+        inspection_notes: `Distance: ${offer.distance_km || 'unknown'}km, Inspection Fee: ${offer.inspection_fee || 0}`
+      };
+
+      const newTransaction = transactionalEntityManager.create(Transaction, {
+        offer_id: String(offer.id),
+        produce_id: String(offer.produce_id),
+        buyer_id: String(offer.buyer_id),
+        farmer_id: String(offer.farmer_id),
+        final_price: Number(offer.price_per_unit),
+        final_quantity: Number(offer.quantity),
+        status: TransactionStatus.PENDING,
+        requires_rating: true,
+        rating_completed: false,
+        inspection_fee_paid: false,
+        metadata
+      });
+
+      const savedTransaction = await transactionalEntityManager.save(Transaction, newTransaction);
+
+      // 10. Create transaction history with error handling
+      try {
+        await this.transactionHistoryService.createHistoryEntry(
+          String(savedTransaction.id),
+          TransactionEvent.CREATED,
+          String(offer.farmer_id),
+          null,
+          TransactionStatus.PENDING,
+          {
+            offer_id: String(offer.id),
+            accepted_at: new Date(),
+            accepted_by: String(offer.farmer_id)
+          }
+        );
+      } catch (error) {
+        this.logger.error(`Failed to create history entry for transaction ${savedTransaction.id}`, error);
+        // Add to retry queue through event emitter
+        this.eventEmitter.emit('transaction.history.retry', {
+          transactionId: savedTransaction.id,
+          event: TransactionEvent.CREATED,
+          actorId: offer.farmer_id,
+          status: TransactionStatus.PENDING,
+          metadata: {
+            offer_id: offer.id,
+            accepted_at: new Date(),
+            accepted_by: offer.farmer_id
+          }
         });
       }
-    }));
 
-    // Now accept the chosen offer
-    offer.status = OfferStatus.ACCEPTED;
-    const updatedOffer = await this.offerRepository.save(offer);
-    await this.clearOfferCache(id);
+      // 11. Send notification with retry mechanism
+      try {
+        await this.notificationService.create({
+          user_id: buyer.user_id,
+          type: NotificationType.OFFER_ACCEPTED,
+          data: {
+            offer_id: String(offer.id),
+            produce_id: String(offer.produce_id),
+            transaction_id: String(savedTransaction.id)
+          },
+        });
+      } catch (error) {
+        this.logger.error(`Failed to send acceptance notification to buyer ${buyer.user_id}`, error);
+        // Add to notification retry queue through event emitter
+        this.eventEmitter.emit('notification.retry', {
+          userId: buyer.user_id,
+          type: NotificationType.OFFER_ACCEPTED,
+          data: {
+            offer_id: offer.id,
+            produce_id: offer.produce_id,
+            transaction_id: savedTransaction.id
+          }
+        });
+      }
 
-    // Update produce status to IN_PROGRESS
-    await this.produceRepository.update(
-      { id: offer.produce_id },
-      { status: ProduceStatus.IN_PROGRESS }
-    );
-
-    // Notify the buyer about the accepted offer
-    await this.notificationService.create({
-      user_id: buyer.user_id,
-      type: NotificationType.OFFER_ACCEPTED,
-      data: {
-        offer_id: offer.id,
-        produce_id: offer.produce_id,
-      },
+      return this.transformOfferResponse(updatedOffer);
     });
+  }
 
-    return this.transformOfferResponse(updatedOffer);
+  // Add helper method for cache clearing with retry
+  private async clearOfferCacheWithRetry(id: string, retries = 3): Promise<void> {
+    for (let i = 0; i < retries; i++) {
+      try {
+        await this.clearOfferCache(id);
+        return;
+      } catch (error) {
+        this.logger.warn(`Failed to clear cache for offer ${id}, attempt ${i + 1}`, error);
+        if (i === retries - 1) throw error;
+        // Wait before retry with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+      }
+    }
   }
 
   async reject(id: string, reason: string): Promise<Offer> {
