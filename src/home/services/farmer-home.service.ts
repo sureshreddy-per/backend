@@ -292,9 +292,9 @@ export class FarmerHomeService {
       .select([
         'p.id as produce_id',
         'p.name',
-        'p.quantity',
+        'COALESCE(p.quantity, 0) as quantity',
         'p.unit',
-        'p.quality_grade',
+        'COALESCE(p.quality_grade, 0) as quality_grade',
         'p.status',
         'p.is_inspection_requested as is_manually_inspected',
         'p.images as produce_images',
@@ -331,10 +331,10 @@ export class FarmerHomeService {
     const transformedProduces = produces.map(p => ({
       produce_id: p.produce_id,
       name: p.name,
-      quantity: parseFloat(p.quantity),
+      quantity: p.quantity ? parseFloat(p.quantity) : 0,
       unit: p.unit,
-      quality_grade: parseFloat(p.quality_grade),
-      distance_km: parseFloat(p.distance_km),
+      quality_grade: p.quality_grade ? parseFloat(p.quality_grade) : 0,
+      distance_km: parseFloat(p.distance_km || 0),
       is_manually_inspected: p.is_manually_inspected,
       produce_images: Array.isArray(p.produce_images) ? p.produce_images : [],
       status: p.status
