@@ -140,16 +140,20 @@ export class AutoOfferService {
   }
 
   async generateAutoOffers(produce: any, latestAssessment: any, validBuyers: any[]) {
+    this.logger.debug(`[AutoOfferService] Starting generateAutoOffers for produce ${produce.id} with ${validBuyers.length} buyers`);
+    
     const produceLoc = this.parseLatLng(produce.location);
     if (!produceLoc) {
-      this.logger.debug(`Invalid produce location for produce ${produce.id}`);
+      this.logger.debug(`[AutoOfferService] Invalid produce location for produce ${produce.id}`);
       return;
     }
 
     for (const buyer of validBuyers) {
       try {
+        this.logger.debug(`[AutoOfferService] Processing buyer ${buyer.id}`);
+        
         if (!buyer.location) {
-          this.logger.debug(`No location found for buyer ${buyer.id}`);
+          this.logger.debug(`[AutoOfferService] No location found for buyer ${buyer.id}`);
           continue;
         }
 
@@ -167,13 +171,13 @@ export class AutoOfferService {
         );
 
         if (!buyerPricePreference) {
-          this.logger.debug(`No price preferences found for buyer ${buyer.id} and produce ${produce.name}`);
+          this.logger.debug(`[AutoOfferService] No price preferences found for buyer ${buyer.id} and produce ${produce.name}`);
           continue;
         }
 
         // Calculate inspection fee
         const inspectionFee = this.inspectionDistanceFeeService.getDistanceFee(distance);
-        this.logger.debug(`Calculated inspection fee for buyer ${buyer.id}: ${inspectionFee}`);
+        this.logger.debug(`[AutoOfferService] Calculated inspection fee for buyer ${buyer.id}: ${inspectionFee}`);
 
         // Calculate offer price using quality grade, attributes, and buyer preferences
         const offerPrice = this.calculateOfferPrice(
@@ -183,7 +187,18 @@ export class AutoOfferService {
           latestAssessment.category_specific_assessment,
           buyerPricePreference
         );
-        this.logger.debug(`Calculated offer price for buyer ${buyer.id}: ${offerPrice}`);
+        this.logger.debug(`[AutoOfferService] Calculated offer price for buyer ${buyer.id}: ${offerPrice}`);
+
+        this.logger.debug(`[AutoOfferService] Creating offer with data:
+          produce_id: ${produce.id}
+          buyer_id: ${buyer.id}
+          farmer_id: ${produce.farmer_id}
+          price_per_unit: ${offerPrice}
+          quantity: ${produce.quantity}
+          quality_grade: ${latestAssessment.quality_grade}
+          distance_km: ${distance}
+          inspection_fee: ${inspectionFee}
+        `);
 
         const offer = await this.offerRepository.save({
           produce_id: produce.id,
@@ -214,7 +229,7 @@ export class AutoOfferService {
           },
         });
 
-        this.logger.log(`Created offer ${offer.id} for buyer ${buyer.id}`);
+        this.logger.log(`[AutoOfferService] Created offer ${offer.id} for buyer ${buyer.id}`);
 
         // Emit event for other services
         this.eventEmitter.emit('offer.created', {
@@ -238,9 +253,10 @@ export class AutoOfferService {
             distance_km: distance,
           },
         });
+        this.logger.debug(`[AutoOfferService] Sent notification to buyer ${buyer.id}`);
       } catch (error) {
         this.logger.error(
-          `Failed to create offer for buyer ${buyer.id}: ${error.message}`,
+          `[AutoOfferService] Failed to create offer for buyer ${buyer.id}: ${error.message}`,
           error.stack
         );
         continue;
@@ -535,8 +551,8 @@ export class AutoOfferService {
   }
 
   async generateOffersForProduce(produce: Produce): Promise<void> {
-    this.logger.debug(`Starting offer generation for produce ${produce.id}`);
-    this.logger.debug(`Produce details: name=${produce.name}, location=${produce.location}`);
+    this.logger.debug(`[AutoOfferService] Starting offer generation for produce ${produce.id}`);
+    this.logger.debug(`[AutoOfferService] Produce details: name=${produce.name}, location=${produce.location}, status=${produce.status}`);
 
     const latestAssessment = await this.qualityAssessmentRepository.findOne({
       where: { produce_id: produce.id },
@@ -544,13 +560,13 @@ export class AutoOfferService {
     });
 
     if (!latestAssessment) {
-      this.logger.warn(`No quality assessment found for produce ${produce.id}`);
+      this.logger.warn(`[AutoOfferService] No quality assessment found for produce ${produce.id}`);
       return;
     }
-    this.logger.debug(`Found quality assessment: grade=${latestAssessment.quality_grade}, confidence=${latestAssessment.confidence_level}`);
+    this.logger.debug(`[AutoOfferService] Found quality assessment: grade=${latestAssessment.quality_grade}, confidence=${latestAssessment.confidence_level}`);
 
     const produceLoc = this.parseLatLng(produce.location);
-    this.logger.debug(`Parsed produce location: lat=${produceLoc.lat}, lng=${produceLoc.lng}`);
+    this.logger.debug(`[AutoOfferService] Parsed produce location: lat=${produceLoc.lat}, lng=${produceLoc.lng}`);
 
     // Find active buyers with matching produce name in their preferences
     const buyers = await this.buyerRepository.find({
@@ -559,25 +575,27 @@ export class AutoOfferService {
       },
       relations: ['user', 'preferences'],
     });
+    this.logger.debug(`[AutoOfferService] Found ${buyers.length} active buyers`);
 
     // Filter buyers based on preferences and price update time
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const buyersWithMatchingPreferences = buyers.filter(buyer => {
       // Check if buyer has matching produce name
       if (!buyer.preferences?.produce_names?.includes(produce.name)) {
+        this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: No matching produce name in preferences`);
         return false;
       }
 
       // Check if buyer has price preferences
       if (!buyer.preferences.produce_price_preferences?.length) {
-        this.logger.debug(`Buyer ${buyer.id} skipped: No price preferences set`);
+        this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: No price preferences set`);
         return false;
       }
 
       // Check if prices were updated within last 24 hours
       if (!buyer.preferences.last_price_updated ||
           buyer.preferences.last_price_updated < twentyFourHoursAgo) {
-        this.logger.debug(`Buyer ${buyer.id} skipped: Prices not updated in last 24 hours`);
+        this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: Prices not updated in last 24 hours. Last update: ${buyer.preferences.last_price_updated}`);
         return false;
       }
 
@@ -585,21 +603,21 @@ export class AutoOfferService {
     });
 
     if (buyersWithMatchingPreferences.length === 0) {
-      this.logger.warn(`No active buyers found for produce ${produce.name}`);
+      this.logger.warn(`[AutoOfferService] No active buyers found for produce ${produce.name}`);
       return;
     }
 
-    this.logger.log(`Found ${buyersWithMatchingPreferences.length} potential buyers for produce ${produce.id}`);
+    this.logger.log(`[AutoOfferService] Found ${buyersWithMatchingPreferences.length} potential buyers for produce ${produce.id}`);
 
     // Filter buyers by distance and validate location
     const validBuyers = buyersWithMatchingPreferences.filter((buyer) => {
       if (!buyer.location) {
-        this.logger.warn(`Buyer ${buyer.id} skipped: No location information`);
+        this.logger.warn(`[AutoOfferService] Buyer ${buyer.id} skipped: No location information`);
         return false;
       }
 
       if (!buyer.is_active) {
-        this.logger.warn(`Buyer ${buyer.id} skipped: Account inactive`);
+        this.logger.warn(`[AutoOfferService] Buyer ${buyer.id} skipped: Account inactive`);
         return false;
       }
 
@@ -611,10 +629,10 @@ export class AutoOfferService {
         buyerLoc.lng,
       );
 
-      this.logger.debug(`Calculated distance for buyer ${buyer.id}: ${distance}km`);
+      this.logger.debug(`[AutoOfferService] Calculated distance for buyer ${buyer.id}: ${distance}km`);
 
       if (distance > 100) {
-        this.logger.debug(`Buyer ${buyer.id} skipped: Distance ${distance}km exceeds 100km limit`);
+        this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: Distance ${distance}km exceeds 100km limit`);
         return false;
       }
 
@@ -622,11 +640,11 @@ export class AutoOfferService {
     });
 
     if (validBuyers.length === 0) {
-      this.logger.warn(`No valid buyers found within 100km radius for produce ${produce.id}`);
+      this.logger.warn(`[AutoOfferService] No valid buyers found within 100km radius for produce ${produce.id}`);
       return;
     }
 
-    this.logger.log(`Generating offers for ${validBuyers.length} valid buyers`);
+    this.logger.log(`[AutoOfferService] Generating offers for ${validBuyers.length} valid buyers`);
     await this.generateAutoOffers(produce, latestAssessment, validBuyers);
   }
 

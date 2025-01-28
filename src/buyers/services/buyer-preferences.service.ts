@@ -84,7 +84,7 @@ export class BuyerPreferencesService {
 
     // Filter by status and produce names
     const filteredProduce = nearbyProduce.filter(produce =>
-      produce.status === ProduceStatus.ASSESSED &&
+      (produce.status === ProduceStatus.ASSESSED || produce.status === ProduceStatus.AVAILABLE) &&
       produceNames.includes(produce.name)
     );
 
