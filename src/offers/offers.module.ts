@@ -30,7 +30,7 @@ import { TransactionsModule } from '../transactions/transactions.module';
       Buyer,
       Transaction
     ]),
-    forwardRef(() => EventEmitterModule),
+    EventEmitterModule.forRoot(),
     forwardRef(() => NotificationsModule),
     forwardRef(() => ProduceModule),
     forwardRef(() => BuyersModule),
