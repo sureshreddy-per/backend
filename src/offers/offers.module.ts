@@ -20,6 +20,7 @@ import { FarmersModule } from '../farmers/farmers.module';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OfferTransformationService } from './services/offer-transformation.service';
 import { AutoOfferGeneratorTask } from './tasks/auto-offer-generator.task';
+import { ProduceMaster } from '../produce/entities/produce-master.entity';
 
 @Module({
   imports: [
@@ -29,7 +30,8 @@ import { AutoOfferGeneratorTask } from './tasks/auto-offer-generator.task';
       QualityAssessment,
       Produce,
       Buyer,
-      Transaction
+      Transaction,
+      ProduceMaster
     ]),
     EventEmitterModule,
     forwardRef(() => NotificationsModule),
