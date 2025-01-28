@@ -2,8 +2,8 @@ import { IsNotEmpty, IsNumber, IsOptional, IsUUID, Min, Max } from "class-valida
 
 export class CreateOfferDto {
   @IsUUID()
-  @IsNotEmpty()
-  buyer_id: string;
+  @IsOptional()
+  buyer_id?: string;
 
   @IsUUID()
   @IsNotEmpty()
