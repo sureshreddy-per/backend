@@ -182,7 +182,11 @@ export class OffersController {
   @Roles(UserRole.BUYER)
   async create(@GetUser() user: User, @Body() createOfferDto: CreateOfferDto) {
     const buyer = await this.buyersService.findByUserId(user.id);
+    if (!buyer) {
+      throw new NotFoundException(`Buyer not found for user ${user.id}`);
+    }
     createOfferDto.buyer_id = buyer.id;
+    createOfferDto.farmer_id = createOfferDto.farmer_id;
     return this.offersService.create(createOfferDto);
   }
 

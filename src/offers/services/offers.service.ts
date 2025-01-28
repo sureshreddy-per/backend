@@ -127,17 +127,12 @@ export class OffersService {
         throw new NotFoundException(`Farmer with ID ${produce.farmer_id} not found`);
       }
 
-      // Validate buyer exists and get buyer ID
-      const buyer = await this.buyersService.findByUserId(createOfferDto.buyer_id);
-      createOfferDto.buyer_id = buyer.id; // Set the actual buyer ID
-      createOfferDto.farmer_id = produce.farmer_id; // Set the farmer ID from the produce
-
       // Create and save the offer
       const offer = this.offerRepository.create({
         ...createOfferDto,
         status: OfferStatus.PENDING,
       });
-      
+
       const savedOffer = await this.offerRepository.save(offer);
 
       // Fetch the complete offer with all relations before transforming
@@ -152,6 +147,9 @@ export class OffersService {
           "buyer.user"
         ],
       });
+
+      // Get buyer details for notification
+      const buyer = await this.buyersService.findOne(createOfferDto.buyer_id);
 
       // Notify the farmer about the new offer
       await this.notificationService.create({
@@ -205,7 +203,7 @@ export class OffersService {
 
   async accept(id: string): Promise<Offer> {
     const offer = await this.findOne(id);
-    
+
     // First, cancel all other offers for this produce
     const otherOffers = await this.offerRepository.find({
       where: {
@@ -338,7 +336,7 @@ export class OffersService {
     if (sort.length > 0) {
       sort.forEach((sortOption, index) => {
         const { field, order } = sortOption;
-        
+
         // For the first sort option, use orderBy
         // For subsequent options, use addOrderBy
         const orderMethod = index === 0 ? 'orderBy' : 'addOrderBy';
@@ -648,7 +646,7 @@ export class OffersService {
 
   async findLatestTransactionForProduce(produceId: string): Promise<Transaction> {
     return this.transactionRepository.findOne({
-      where: { 
+      where: {
         produce_id: produceId,
         status: In([TransactionStatus.IN_PROGRESS, TransactionStatus.PENDING])
       },
@@ -657,8 +655,8 @@ export class OffersService {
   }
 
   async markTransactionAsExpired(
-    transactionId: string, 
-    metadata: { 
+    transactionId: string,
+    metadata: {
       reason: string;
       reactivated_at: Date;
       reactivated_by: string;
