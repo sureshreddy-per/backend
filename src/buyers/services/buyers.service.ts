@@ -52,7 +52,8 @@ export class BuyersService {
     const buyerWithCounts = await this.buyerRepository
       .createQueryBuilder('buyer')
       .leftJoin('buyer.offers', 'offers')
-      .leftJoin('offers.inspectionRequest', 'inspection')
+      .leftJoin('offers.produce', 'produce')
+      .leftJoin('produce.inspectionRequests', 'inspection')
       .where('buyer.id = :buyerId', { buyerId: buyer.id })
       .select([
         'COUNT(DISTINCT offers.id) as total_offers_count',
@@ -118,7 +119,8 @@ export class BuyersService {
       .createQueryBuilder('buyer')
       .leftJoinAndSelect('buyer.preferences', 'preferences')
       .leftJoin('buyer.offers', 'offers')
-      .leftJoin('offers.inspectionRequest', 'inspection')
+      .leftJoin('offers.produce', 'produce')
+      .leftJoin('produce.inspectionRequests', 'inspection')
       .where('buyer.user_id = :userId', { userId })
       .select([
         'buyer',
