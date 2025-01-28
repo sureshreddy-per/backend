@@ -33,10 +33,10 @@ export class FarmerHomeService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  async getFarmerHomeData(farmerId: string, location: string): Promise<FarmerHomeResponse> {
+  async getFarmerHomeData(userId: string, location: string): Promise<FarmerHomeResponse> {
     try {
-      const cacheKey = `${this.CACHE_PREFIX}${farmerId}:${location}`;
-      this.logger.debug(`Getting farmer home data for farmer ${farmerId} at location ${location}`);
+      const cacheKey = `${this.CACHE_PREFIX}${userId}:${location}`;
+      this.logger.debug(`Getting farmer home data for user ${userId} at location ${location}`);
       
       const cachedData = await this.cacheManager.get<FarmerHomeResponse>(cacheKey);
       
@@ -45,9 +45,27 @@ export class FarmerHomeService {
         return cachedData;
       }
 
+      // First get the farmer ID from user ID
+      const farmer = await this.farmerRepository.findOne({
+        where: { user_id: userId }
+      });
+
+      if (!farmer) {
+        this.logger.error(`No farmer found for user ${userId}`);
+        return {
+          market_trends: [],
+          active_offers: { my_offers: [], nearby_offers: [] },
+          recent_produces: [],
+          top_buyers: [],
+          inspections: { recent: [], nearby: [] }
+        };
+      }
+
+      this.logger.debug(`Found farmer ${farmer.id} for user ${userId}`);
+
       const [lat, lng] = location.split(',').map(Number);
 
-      this.logger.debug(`Fetching all data components in parallel`);
+      this.logger.debug(`Fetching all data components in parallel for farmer ${farmer.id}`);
       const [
         marketTrends,
         activeOffers,
@@ -55,14 +73,14 @@ export class FarmerHomeService {
         topBuyers,
         inspections
       ] = await Promise.all([
-        this.getMarketTrends(farmerId),
-        this.getActiveOffers(farmerId, location),
-        this.getRecentProduces(farmerId, location),
-        this.getTopBuyers(farmerId),
-        this.getInspections(farmerId, location)
+        this.getMarketTrends(farmer.id),
+        this.getActiveOffers(farmer.id, location),
+        this.getRecentProduces(farmer.id, location),
+        this.getTopBuyers(farmer.id),
+        this.getInspections(farmer.id, location)
       ]);
 
-      this.logger.debug(`Data fetched:
+      this.logger.debug(`Data fetched for farmer ${farmer.id}:
         Market Trends: ${marketTrends?.length ?? 0} items
         Active Offers: ${activeOffers?.my_offers?.length ?? 0} my offers, ${activeOffers?.nearby_offers?.length ?? 0} nearby
         Recent Produces: ${recentProduces?.length ?? 0} items
@@ -122,7 +140,7 @@ export class FarmerHomeService {
       .innerJoinAndSelect('p.farmer', 'f')
       .innerJoinAndSelect('f.user', 'u')
       .where('p.farmer_id = :farmerId', { farmerId })
-      .andWhere('p.status = :status', { status: ProduceStatus.AVAILABLE })
+      .andWhere('p.status IN (:...statuses)', { statuses: [ProduceStatus.AVAILABLE, ProduceStatus.ASSESSED] })
       .select([
         'p.id as produce_id',
         'p.name',
@@ -146,7 +164,7 @@ export class FarmerHomeService {
       .innerJoinAndSelect('p.farmer', 'f')
       .innerJoinAndSelect('f.user', 'u')
       .where('p.farmer_id != :farmerId', { farmerId })
-      .andWhere('p.status = :status', { status: ProduceStatus.AVAILABLE })
+      .andWhere('p.status IN (:...statuses)', { statuses: [ProduceStatus.AVAILABLE, ProduceStatus.ASSESSED] })
       .andWhere(
         `ST_DWithin(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
@@ -190,9 +208,6 @@ export class FarmerHomeService {
   private async getRecentProduces(farmerId: string, location: string): Promise<RecentProduce[]> {
     const cacheKey = `${this.CACHE_PREFIX}recent_produces:${farmerId}:${location}`;
     
-    // Remove cache clearing to improve performance
-    // await this.cacheManager.del(cacheKey);
-    
     this.logger.debug(`Getting recent produces for farmer ${farmerId} at location ${location}`);
 
     const [lat, lng] = location.split(',').map(Number);
@@ -200,7 +215,8 @@ export class FarmerHomeService {
     const queryBuilder = this.produceRepository
       .createQueryBuilder('p')
       .where('p.farmer_id = :farmerId', { farmerId })
-      .andWhere('p.status != :status', { status: ProduceStatus.CANCELLED })
+      .andWhere('p.status != :cancelledStatus', { cancelledStatus: ProduceStatus.CANCELLED })
+      .andWhere('p.status IN (:...validStatuses)', { validStatuses: [ProduceStatus.AVAILABLE, ProduceStatus.ASSESSED] })
       .select([
         'p.id as produce_id',
         'p.name',
