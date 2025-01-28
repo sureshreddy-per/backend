@@ -1450,8 +1450,8 @@ INSERT INTO system_configs (key, value, description) VALUES
 ('max_produce_images', '{"value": 5}', 'Maximum number of images allowed for produce listing'),
 ('inspection_radius_km', '{"value": 100}', 'Maximum radius in kilometers for inspection requests'),
 ('min_transaction_amount', '{"value": 100}', 'Minimum amount allowed for transactions'),
-('platform_fee_percentage', '{"value": 2.5}', 'Platform fee as percentage of transaction amount')
-('use_auto_inspector_assignment', 'true'),
-('auto_inspector_assignment_radius_km', '200'),
-('transaction_recovery_cron_enabled', 'true');
+('platform_fee_percentage', '{"value": 2.5}', 'Platform fee as percentage of transaction amount'),
+('use_auto_inspector_assignment', '{"value": true}', 'Enable automatic assignment of inspectors to inspection requests'),
+('auto_inspector_assignment_radius_km', '{"value": 200}', 'Maximum radius in kilometers for automatic inspector assignment'),
+('transaction_recovery_cron_enabled', '{"value": true}', 'Enable automatic recovery of stuck transactions')
 ON CONFLICT (key) DO NOTHING; 
