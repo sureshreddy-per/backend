@@ -58,14 +58,14 @@ export class ProduceService {
 
       // Get all existing synonyms that partially match the name
       const possibleMatches = await this.synonymService.searchSynonyms(name);
-      
+
       // If we found any possible matches, check each one
       for (const matchedName of possibleMatches) {
         const allSynonyms = await this.synonymService.getSynonymsInAllLanguages(matchedName);
-        
+
         // Check if the name closely matches any existing synonym
         for (const [language, synonyms] of Object.entries(allSynonyms)) {
-          if (synonyms.some(synonym => 
+          if (synonyms.some(synonym =>
             this.isSimilarName(name.toLowerCase(), synonym.toLowerCase())
           )) {
             return matchedName;
@@ -84,13 +84,13 @@ export class ProduceService {
     // Remove special characters and extra spaces
     const cleanName1 = name1.replace(/[^a-z0-9]/g, '');
     const cleanName2 = name2.replace(/[^a-z0-9]/g, '');
-    
+
     // Check for exact match after cleaning
     if (cleanName1 === cleanName2) return true;
-    
+
     // Check if one is contained within the other
     if (cleanName1.includes(cleanName2) || cleanName2.includes(cleanName1)) return true;
-    
+
     // Calculate similarity (you can adjust the threshold as needed)
     const similarity = this.calculateSimilarity(cleanName1, cleanName2);
     return similarity >= 0.8; // 80% similarity threshold
@@ -99,15 +99,15 @@ export class ProduceService {
   private calculateSimilarity(str1: string, str2: string): number {
     const longer = str1.length > str2.length ? str1 : str2;
     const shorter = str1.length > str2.length ? str2 : str1;
-    
+
     if (longer.length === 0) return 1.0;
-    
+
     const editDistance = this.levenshteinDistance(longer, shorter);
     return (longer.length - editDistance) / longer.length;
   }
 
   private levenshteinDistance(str1: string, str2: string): number {
-    const matrix = Array(str2.length + 1).fill(null).map(() => 
+    const matrix = Array(str2.length + 1).fill(null).map(() =>
       Array(str1.length + 1).fill(null)
     );
 
@@ -132,12 +132,12 @@ export class ProduceService {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
-    
+
     try {
       const produce = await queryRunner.manager.findOne(Produce, {
         where: { id: event.produce_id }
       });
-      
+
       if (!produce) {
         throw new NotFoundException(`Produce with ID ${event.produce_id} not found`);
       }
@@ -146,7 +146,7 @@ export class ProduceService {
       produce.quality_grade = event.quality_grade;
       produce.description = event.description || produce.description;
       produce.product_variety = event.product_variety || produce.product_variety;
-      
+
       // Set produce category from event if provided
       if (event.produce_category) {
         produce.produce_category = ProduceCategory[event.produce_category as keyof typeof ProduceCategory];
@@ -166,7 +166,7 @@ export class ProduceService {
           } else {
             // STEP 2: Check existing names and synonyms
             const existingName = await this.findExistingProduceNameFromSynonyms(event.detected_name);
-            
+
             if (existingName) {
               this.logger.log(`Found existing produce name "${existingName}" for detected name "${event.detected_name}"`);
               produce.name = existingName;
@@ -174,13 +174,13 @@ export class ProduceService {
               // STEP 3: Generate AI synonyms and translations
               this.logger.log(`No existing match found for "${event.detected_name}". Generating AI synonyms...`);
               const aiResult = await this.aiSynonymService.generateSynonyms(event.detected_name);
-              
+
               // STEP 4: Check if any of the AI-generated synonyms match existing entries
               const allGeneratedTerms = [
                 ...aiResult.synonyms,
                 ...Object.values(aiResult.translations).flat()
               ];
-              
+
               let matchFound = false;
               for (const term of allGeneratedTerms) {
                 const matchingName = await this.findExistingProduceNameFromSynonyms(term);
@@ -191,11 +191,11 @@ export class ProduceService {
                   break;
                 }
               }
-              
+
               if (!matchFound) {
                 this.logger.log(`Using AI-detected name "${event.detected_name}" as no matches found`);
                 produce.name = event.detected_name;
-                
+
                 // Add the detected name and its synonyms to the system
                 await this.synonymService.addSynonyms(
                   event.detected_name,
@@ -204,7 +204,7 @@ export class ProduceService {
                   true, // is_ai_generated
                   event.confidence_level
                 );
-                
+
                 // Add translations
                 for (const [language, translations] of Object.entries(aiResult.translations)) {
                   if (translations && translations.length > 0) {
@@ -250,7 +250,7 @@ export class ProduceService {
 
       // Update produce status based on confidence and quality grade
       if (event.confidence_level >= 70) {
-        produce.status = ProduceStatus.ASSESSED;
+        produce.status = ProduceStatus.AVAILABLE;
       } else if (event.confidence_level >= 50) {
         produce.status = ProduceStatus.PENDING_INSPECTION;
       } else {
@@ -297,7 +297,7 @@ export class ProduceService {
       // Find nearest inspector within 100km radius
       const nearbyInspectors = await this.inspectorsService.findNearby(lat, lng);
       this.logger.debug(`Found ${nearbyInspectors.length} inspectors nearby`);
-      
+
       let inspectionFee: number;
       if (nearbyInspectors.length > 0) {
         this.logger.debug(`Nearest inspector at ${nearbyInspectors[0].distance}km with ID ${nearbyInspectors[0].inspector.id}`);
@@ -349,7 +349,7 @@ export class ProduceService {
       );
 
       // If manual assessment exists, use it; otherwise use the latest AI assessment
-      produce.quality_assessments = manualAssessment 
+      produce.quality_assessments = manualAssessment
         ? [manualAssessment]
         : [produce.quality_assessments[0]]; // First one is the latest due to DESC ordering
     }
@@ -424,9 +424,9 @@ export class ProduceService {
         const R = 6371; // Earth's radius in kilometers
         const dLat = this.toRad(produceLat - latitude);
         const dLon = this.toRad(produceLong - longitude);
-        const a = 
+        const a =
           Math.sin(dLat/2) * Math.sin(dLat/2) +
-          Math.cos(this.toRad(latitude)) * Math.cos(this.toRad(produceLat)) * 
+          Math.cos(this.toRad(latitude)) * Math.cos(this.toRad(produceLat)) *
           Math.sin(dLon/2) * Math.sin(dLon/2);
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         const distance = R * c;
@@ -461,7 +461,7 @@ export class ProduceService {
     queryBuilder.skip(skip).take(take);
 
     const [items, total] = await queryBuilder.getManyAndCount();
-    
+
     return {
       items: items.map(produce => this.transformProduceData(produce)),
       total,
@@ -524,7 +524,7 @@ export class ProduceService {
 
   async update(id: string, updateData: any): Promise<Produce> {
     const produce = await this.findOne(id);
-    
+
     Object.assign(produce, updateData);
     return this.produceRepository.save(produce);
   }

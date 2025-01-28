@@ -268,9 +268,9 @@ export class OffersController {
     // Cancel any existing active offers for this produce
     await this.offersService.cancelAllOffersForProduce(produceId, "Produce reactivated by farmer");
 
-    // Update produce status back to ASSESSED
+    // Update produce status back to AVAILABLE
     await this.produceService.update(produceId, {
-      status: ProduceStatus.ASSESSED
+      status: ProduceStatus.AVAILABLE
     });
 
     // Generate new auto offers
@@ -279,7 +279,7 @@ export class OffersController {
     return {
       message: "Produce reactivated and new offers generated successfully",
       produce_id: produceId,
-      status: ProduceStatus.ASSESSED,
+      status: ProduceStatus.AVAILABLE,
       previous_transaction_id: existingTransaction?.id
     };
   }
