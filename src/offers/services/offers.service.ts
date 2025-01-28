@@ -350,6 +350,9 @@ export class OffersService {
     return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
       // 1. Get and validate offer
       const offer = await this.findOne(id);
+      if (!offer) {
+        throw new NotFoundException(`Offer with ID ${id} not found`);
+      }
 
       // 2. Get and validate buyer with user relation
       const buyer = await this.buyersService.findOne(offer.buyer_id);
