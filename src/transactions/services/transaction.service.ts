@@ -596,10 +596,12 @@ export class TransactionService extends BaseService<Transaction> {
   @OnEvent('offer.accepted')
   async handleOfferAccepted(event: OfferAcceptedEvent) {
     try {
+      this.logger.log(`[handleOfferAccepted] Starting to handle offer.accepted event for offer ${event.offer.id}`);
       const { offer, buyer, farmer } = event;
       
-      // Create transaction
-      const transaction = await this.transactionRepository.save({
+      this.logger.log(`[handleOfferAccepted] Creating transaction for offer ${offer.id}, buyer ${buyer.id}, farmer ${farmer.id}`);
+      // Create transaction with produce relation
+      const transaction = await this.transactionRepository.create({
         offer_id: offer.id,
         produce_id: offer.produce_id,
         buyer_id: buyer.id,
@@ -609,9 +611,27 @@ export class TransactionService extends BaseService<Transaction> {
         status: TransactionStatus.PENDING,
       });
 
+      this.logger.log(`[handleOfferAccepted] Saving transaction to database`);
+      const savedTransaction = await this.transactionRepository.save(transaction);
+      this.logger.log(`[handleOfferAccepted] Transaction saved with ID: ${savedTransaction.id}`);
+
+      // Load the transaction with produce relation
+      this.logger.log(`[handleOfferAccepted] Loading transaction with produce relation`);
+      const loadedTransaction = await this.transactionRepository.findOne({
+        where: { id: savedTransaction.id },
+        relations: ['produce']
+      });
+
+      if (!loadedTransaction) {
+        this.logger.error(`[handleOfferAccepted] Failed to load transaction ${savedTransaction.id} with produce relation`);
+        throw new Error(`Failed to load transaction ${savedTransaction.id} with produce relation`);
+      }
+      this.logger.log(`[handleOfferAccepted] Successfully loaded transaction with produce relation`);
+
       // Record creation in history
+      this.logger.log(`[handleOfferAccepted] Recording transaction creation in history`);
       await this.transactionHistoryService.createHistoryEntry(
-        transaction.id,
+        loadedTransaction.id,
         TransactionEvent.CREATED,
         buyer.user_id,
         null,
@@ -623,9 +643,10 @@ export class TransactionService extends BaseService<Transaction> {
           final_quantity: offer.quantity
         }
       );
+      this.logger.log(`[handleOfferAccepted] Transaction history recorded`);
 
       const notificationData = {
-        transaction_id: transaction.id,
+        transaction_id: loadedTransaction.id,
         offer_id: offer.id,
         produce_id: offer.produce_id,
         price_per_unit: offer.price_per_unit,
@@ -636,14 +657,17 @@ export class TransactionService extends BaseService<Transaction> {
       };
 
       // Notify both parties
+      this.logger.log(`[handleOfferAccepted] Sending notifications to buyer ${buyer.user_id} and farmer ${farmer.user_id}`);
       await Promise.all([
         this.notifyUser(buyer.user_id, NotificationType.TRANSACTION_CREATED, notificationData),
         this.notifyUser(farmer.user_id, NotificationType.TRANSACTION_CREATED, notificationData)
       ]);
+      this.logger.log(`[handleOfferAccepted] Notifications sent successfully`);
 
-      return transaction;
+      this.logger.log(`[handleOfferAccepted] Successfully completed handling offer.accepted event`);
+      return loadedTransaction;
     } catch (error) {
-      this.logger.error(`Failed to handle offer accepted event: ${error.message}`, error.stack);
+      this.logger.error(`[handleOfferAccepted] Failed to handle offer accepted event: ${error.message}`, error.stack);
       throw error;
     }
   }
