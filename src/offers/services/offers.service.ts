@@ -21,6 +21,7 @@ import { Produce } from '../../produce/entities/produce.entity';
 import { ProduceStatus } from '../../produce/enums/produce-status.enum';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 import { TransactionStatus } from '../../transactions/entities/transaction.entity';
+import { FarmersService } from '../../farmers/farmers.service';
 
 interface TransformedBuyer {
   id: string;
@@ -47,14 +48,15 @@ export class OffersService {
     private readonly produceRepository: Repository<Produce>,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
-    private readonly produceService: ProduceService,
-    private readonly buyersService: BuyersService,
     private readonly notificationService: NotificationService,
+    private readonly buyersService: BuyersService,
+    private readonly farmersService: FarmersService,
+    private readonly usersService: UsersService,
+    private readonly produceService: ProduceService,
+    private readonly eventEmitter: EventEmitter2,
+    private readonly cacheManager: Cache,
     @Inject(forwardRef(() => AutoOfferService))
     private readonly autoOfferService: AutoOfferService,
-    private readonly eventEmitter: EventEmitter2,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    private readonly usersService: UsersService,
   ) {}
 
   private getCacheKey(key: string): string {
@@ -204,6 +206,12 @@ export class OffersService {
   async accept(id: string): Promise<Offer> {
     const offer = await this.findOne(id);
 
+    // Get the buyer details to get the user_id
+    const buyer = await this.buyersService.findOne(offer.buyer_id);
+    if (!buyer) {
+      throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+    }
+
     // First, cancel all other offers for this produce
     const otherOffers = await this.offerRepository.find({
       where: {
@@ -220,17 +228,21 @@ export class OffersService {
       await this.offerRepository.save(otherOffer);
       await this.clearOfferCache(otherOffer.id);
 
-      // Notify the buyer about the cancelled offer
-      await this.notificationService.create({
-        user_id: otherOffer.buyer_id,
-        type: NotificationType.OFFER_STATUS_UPDATE,
-        data: {
-          offer_id: otherOffer.id,
-          produce_id: otherOffer.produce_id,
-          status: OfferStatus.CANCELLED,
-          reason: 'Another offer was accepted',
-        },
-      });
+      // Get the buyer details for notification
+      const otherBuyer = await this.buyersService.findOne(otherOffer.buyer_id);
+      if (otherBuyer) {
+        // Notify the buyer about the cancelled offer
+        await this.notificationService.create({
+          user_id: otherBuyer.user_id,
+          type: NotificationType.OFFER_STATUS_UPDATE,
+          data: {
+            offer_id: otherOffer.id,
+            produce_id: otherOffer.produce_id,
+            status: OfferStatus.CANCELLED,
+            reason: 'Another offer was accepted',
+          },
+        });
+      }
     }));
 
     // Now accept the chosen offer
@@ -246,7 +258,7 @@ export class OffersService {
 
     // Notify the buyer about the accepted offer
     await this.notificationService.create({
-      user_id: offer.buyer_id,
+      user_id: buyer.user_id,
       type: NotificationType.OFFER_ACCEPTED,
       data: {
         offer_id: offer.id,
@@ -259,6 +271,13 @@ export class OffersService {
 
   async reject(id: string, reason: string): Promise<Offer> {
     const offer = await this.findOne(id);
+
+    // Get the buyer details to get the user_id
+    const buyer = await this.buyersService.findOne(offer.buyer_id);
+    if (!buyer) {
+      throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+    }
+
     offer.status = OfferStatus.REJECTED;
     offer.rejection_reason = reason;
     const updatedOffer = await this.offerRepository.save(offer);
@@ -266,7 +285,7 @@ export class OffersService {
 
     // Notify the buyer about the rejected offer
     await this.notificationService.create({
-      user_id: offer.buyer_id,
+      user_id: buyer.user_id,
       type: NotificationType.OFFER_REJECTED,
       data: {
         offer_id: offer.id,
@@ -280,6 +299,21 @@ export class OffersService {
 
   async cancel(id: string, reason: string): Promise<Offer> {
     const offer = await this.findOne(id);
+
+    // Get the buyer and farmer details to get their user_ids
+    const [buyer, farmer] = await Promise.all([
+      this.buyersService.findOne(offer.buyer_id),
+      this.farmersService.findOne(offer.farmer_id)
+    ]);
+
+    if (!buyer) {
+      throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+    }
+
+    if (!farmer) {
+      throw new NotFoundException(`Farmer with ID ${offer.farmer_id} not found`);
+    }
+
     offer.status = OfferStatus.CANCELLED;
     offer.cancellation_reason = reason;
     const updatedOffer = await this.offerRepository.save(offer);
@@ -288,7 +322,7 @@ export class OffersService {
     // Notify both parties about the cancelled offer
     await Promise.all([
       this.notificationService.create({
-        user_id: offer.buyer_id,
+        user_id: buyer.user_id,
         type: NotificationType.OFFER_STATUS_UPDATE,
         data: {
           offer_id: offer.id,
@@ -298,7 +332,7 @@ export class OffersService {
         },
       }),
       this.notificationService.create({
-        user_id: offer.farmer_id,
+        user_id: farmer.user_id,
         type: NotificationType.OFFER_STATUS_UPDATE,
         data: {
           offer_id: offer.id,
@@ -495,6 +529,21 @@ export class OffersService {
 
   async overridePrice(id: string, newPrice: number): Promise<Offer> {
     const offer = await this.findOne(id);
+
+    // Get the buyer and farmer details to get their user_ids
+    const [buyer, farmer] = await Promise.all([
+      this.buyersService.findOne(offer.buyer_id),
+      this.farmersService.findOne(offer.farmer_id)
+    ]);
+
+    if (!buyer) {
+      throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+    }
+
+    if (!farmer) {
+      throw new NotFoundException(`Farmer with ID ${offer.farmer_id} not found`);
+    }
+
     offer.price_per_unit = newPrice;
     const updatedOffer = await this.offerRepository.save(offer);
     await this.clearOfferCache(id);
@@ -502,7 +551,7 @@ export class OffersService {
     // Notify both parties about the price update
     await Promise.all([
       this.notificationService.create({
-        user_id: offer.buyer_id,
+        user_id: buyer.user_id,
         type: NotificationType.OFFER_PRICE_UPDATE,
         data: {
           offer_id: offer.id,
@@ -511,7 +560,7 @@ export class OffersService {
         },
       }),
       this.notificationService.create({
-        user_id: offer.farmer_id,
+        user_id: farmer.user_id,
         type: NotificationType.OFFER_PRICE_UPDATE,
         data: {
           offer_id: offer.id,
@@ -678,6 +727,20 @@ export class OffersService {
       throw new NotFoundException(`Transaction ${transactionId} not found`);
     }
 
+    // Get the buyer and farmer details to get their user_ids
+    const [buyer, farmer] = await Promise.all([
+      this.buyersService.findOne(transaction.buyer_id),
+      this.farmersService.findOne(transaction.farmer_id)
+    ]);
+
+    if (!buyer) {
+      throw new NotFoundException(`Buyer with ID ${transaction.buyer_id} not found`);
+    }
+
+    if (!farmer) {
+      throw new NotFoundException(`Farmer with ID ${transaction.farmer_id} not found`);
+    }
+
     transaction.status = TransactionStatus.CANCELLED;
     transaction.metadata = {
       ...transaction.metadata,
@@ -690,7 +753,7 @@ export class OffersService {
     // Notify relevant parties
     await Promise.all([
       this.notificationService.create({
-        user_id: transaction.buyer_id,
+        user_id: buyer.user_id,
         type: NotificationType.TRANSACTION_CANCELLED,
         data: {
           transaction_id: transaction.id,
@@ -700,7 +763,7 @@ export class OffersService {
         }
       }),
       this.notificationService.create({
-        user_id: transaction.farmer_id,
+        user_id: farmer.user_id,
         type: NotificationType.TRANSACTION_CANCELLED,
         data: {
           transaction_id: transaction.id,
@@ -726,17 +789,21 @@ export class OffersService {
       await this.offerRepository.save(offer);
       await this.clearOfferCache(offer.id);
 
-      // Notify the buyer about the cancelled offer
-      await this.notificationService.create({
-        user_id: offer.buyer_id,
-        type: NotificationType.OFFER_STATUS_UPDATE,
-        data: {
-          offer_id: offer.id,
-          produce_id: offer.produce_id,
-          status: OfferStatus.CANCELLED,
-          reason
-        }
-      });
+      // Get the buyer details for notification
+      const buyer = await this.buyersService.findOne(offer.buyer_id);
+      if (buyer) {
+        // Notify the buyer about the cancelled offer
+        await this.notificationService.create({
+          user_id: buyer.user_id,
+          type: NotificationType.OFFER_STATUS_UPDATE,
+          data: {
+            offer_id: offer.id,
+            produce_id: offer.produce_id,
+            status: OfferStatus.CANCELLED,
+            reason
+          }
+        });
+      }
     }));
   }
 }
