@@ -16,12 +16,13 @@ import { QualityAssessment } from '../quality/entities/quality-assessment.entity
 import { Produce } from '../produce/entities/produce.entity';
 import { Buyer } from '../buyers/entities/buyer.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
+import { FarmersModule } from '../farmers/farmers.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      Offer, 
-      DailyPrice, 
+      Offer,
+      DailyPrice,
       QualityAssessment,
       Produce,
       Buyer,
@@ -33,6 +34,7 @@ import { Transaction } from '../transactions/entities/transaction.entity';
     forwardRef(() => BuyersModule),
     UsersModule,
     ConfigModule,
+    FarmersModule,
   ],
   controllers: [OffersController],
   providers: [

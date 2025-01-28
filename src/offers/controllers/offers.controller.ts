@@ -38,6 +38,8 @@ import { OfferStatus } from "../enums/offer-status.enum";
 import { CreateAdminOfferDto } from "../dto/create-admin-offer.dto";
 import { ListOffersDto } from "../dto/list-offers.dto";
 import { ProduceStatus } from "../../produce/enums/produce-status.enum";
+import { FarmersService } from "../../farmers/farmers.service";
+import { BuyersService } from "../../buyers/buyers.service";
 
 @ApiTags("Offers")
 @ApiBearerAuth()
@@ -48,6 +50,8 @@ export class OffersController {
     private readonly offersService: OffersService,
     private readonly autoOfferService: AutoOfferService,
     private readonly produceService: ProduceService,
+    private readonly farmersService: FarmersService,
+    private readonly buyersService: BuyersService,
   ) {}
 
   @Get()
@@ -59,10 +63,11 @@ export class OffersController {
       return this.offersService.findAll(query);
     }
     if (user.role === UserRole.BUYER) {
-      return this.offersService.findByBuyer(user.id, query);
+      const buyer = await this.buyersService.findByUserId(user.id);
+      return this.offersService.findByBuyer(buyer.id, query);
     }
     // For farmers
-    const farmer = await this.produceService.getFarmerDetails(user.id);
+    const farmer = await this.farmersService.findByUserId(user.id);
     return this.offersService.findByFarmer(farmer.id, query);
   }
 
@@ -75,12 +80,18 @@ export class OffersController {
       return offer;
     }
 
-    if (user.role === UserRole.BUYER && offer.buyer_id !== user.id) {
-      throw new UnauthorizedException("You can only view your own offers");
+    if (user.role === UserRole.BUYER) {
+      const buyer = await this.buyersService.findByUserId(user.id);
+      if (offer.buyer_id !== buyer.id) {
+        throw new UnauthorizedException("You can only view your own offers");
+      }
     }
 
-    if (user.role === UserRole.FARMER && offer.farmer_id !== user.id) {
-      throw new UnauthorizedException("You can only view offers for your produce");
+    if (user.role === UserRole.FARMER) {
+      const farmer = await this.farmersService.findByUserId(user.id);
+      if (offer.farmer_id !== farmer.id) {
+        throw new UnauthorizedException("You can only view offers for your produce");
+      }
     }
 
     return offer;
@@ -96,7 +107,8 @@ export class OffersController {
     @Param("id") id: string,
     @Body() approveOfferDto: ApproveOfferDto,
   ) {
-    return this.autoOfferService.approveOffer(id, user.id, approveOfferDto);
+    const buyer = await this.buyersService.findByUserId(user.id);
+    return this.autoOfferService.approveOffer(id, buyer.id, approveOfferDto);
   }
 
   @Post("reject/:id")
@@ -111,7 +123,8 @@ export class OffersController {
     if (!reason) {
       throw new BadRequestException("Reason is required for rejecting an offer");
     }
-    return this.autoOfferService.rejectOffer(id, user.id, reason);
+    const buyer = await this.buyersService.findByUserId(user.id);
+    return this.autoOfferService.rejectOffer(id, buyer.id, reason);
   }
 
   @Post("cancel/:id")
@@ -121,9 +134,10 @@ export class OffersController {
     @Param("id") id: string,
     @Body("reason") reason: string,
   ) {
+    const buyer = await this.buyersService.findByUserId(user.id);
     const offer = await this.offersService.findOne(id);
 
-    if (offer.buyer_id !== user.id) {
+    if (offer.buyer_id !== buyer.id) {
       throw new UnauthorizedException("You can only cancel your own offers");
     }
 
@@ -134,8 +148,11 @@ export class OffersController {
   @Roles(UserRole.ADMIN, UserRole.BUYER)
   async remove(@GetUser() user: User, @Param("id") id: string) {
     const offer = await this.offersService.findOne(id);
-    if (user.role !== UserRole.ADMIN && offer.buyer_id !== user.id) {
-      throw new UnauthorizedException("You can only delete your own offers");
+    if (user.role !== UserRole.ADMIN) {
+      const buyer = await this.buyersService.findByUserId(user.id);
+      if (offer.buyer_id !== buyer.id) {
+        throw new UnauthorizedException("You can only delete your own offers");
+      }
     }
     return this.offersService.remove(id);
   }
@@ -151,9 +168,10 @@ export class OffersController {
     @Param("id") id: string,
     @Body() overrideOfferPriceDto: OverrideAutoOfferDto,
   ) {
+    const buyer = await this.buyersService.findByUserId(user.id);
     const offer = await this.offersService.findOne(id);
 
-    if (offer.buyer_id !== user.id) {
+    if (offer.buyer_id !== buyer.id) {
       throw new UnauthorizedException("You can only override prices of your own offers");
     }
 
@@ -163,7 +181,8 @@ export class OffersController {
   @Post()
   @Roles(UserRole.BUYER)
   async create(@GetUser() user: User, @Body() createOfferDto: CreateOfferDto) {
-    createOfferDto.buyer_id = user.id;
+    const buyer = await this.buyersService.findByUserId(user.id);
+    createOfferDto.buyer_id = buyer.id;
     return this.offersService.create(createOfferDto);
   }
 
@@ -174,8 +193,9 @@ export class OffersController {
     @Param("id") id: string,
     @Body() updateOfferDto: UpdateOfferDto,
   ) {
+    const buyer = await this.buyersService.findByUserId(user.id);
     const offer = await this.offersService.findOne(id);
-    if (offer.buyer_id !== user.id) {
+    if (offer.buyer_id !== buyer.id) {
       throw new UnauthorizedException("You can only update your own offers");
     }
     return this.offersService.updateStatus(id, OfferStatus.PENDING);
