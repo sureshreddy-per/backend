@@ -31,6 +31,8 @@ export class AutoInspectorAssignmentService {
     location: string;
   }) {
     try {
+      this.logger.log(`Processing location update for inspector ${event.inspector_id}`);
+
       // Check if auto-assignment is enabled
       const useAutoAssignment = await this.systemConfigService.getValue(SystemConfigKey.USE_AUTO_INSPECTOR_ASSIGNMENT);
       if (useAutoAssignment !== 'true') {
@@ -41,16 +43,19 @@ export class AutoInspectorAssignmentService {
       // Get the maximum radius for auto-assignment
       const configRadius = await this.systemConfigService.getValue(SystemConfigKey.AUTO_INSPECTOR_ASSIGNMENT_RADIUS_KM);
       const maxRadius = configRadius ? Number(configRadius) : 50;
+      this.logger.debug(`Using max radius of ${maxRadius}km for auto-assignment`);
 
       // Parse inspector location
       const [inspectorLat, inspectorLng] = event.location.split(',').map(Number);
       if (isNaN(inspectorLat) || isNaN(inspectorLng)) {
         throw new Error(`Invalid inspector location format: ${event.location}`);
       }
+      this.logger.debug(`Inspector location parsed: ${inspectorLat}, ${inspectorLng}`);
 
-      // Verify inspector exists
+      // Verify inspector exists and is active
       const inspector = await this.inspectorRepository.findOne({
-        where: { id: event.inspector_id }
+        where: { id: event.inspector_id },
+        relations: ['user']
       });
 
       if (!inspector) {
@@ -58,13 +63,19 @@ export class AutoInspectorAssignmentService {
         return;
       }
 
+      if (inspector.user.status !== 'ACTIVE') {
+        this.logger.debug(`Inspector ${event.inspector_id} is not active`);
+        return;
+      }
+
       // Count current active inspections for this inspector
       const initialActiveCount = await this.inspectionRequestRepository.count({
         where: {
-          inspector_id: event.user_id,
+          inspector_id: event.inspector_id,
           status: InspectionRequestStatus.IN_PROGRESS
         }
       });
+      this.logger.debug(`Inspector has ${initialActiveCount} active inspections`);
 
       // Find all pending inspection requests within radius
       const nearbyRequests = await this.findNearbyPendingRequests(inspectorLat, inspectorLng, maxRadius);
@@ -75,6 +86,7 @@ export class AutoInspectorAssignmentService {
 
       // Track number of new assignments
       let newAssignments = 0;
+      const maxActiveInspections = 5; // You can make this configurable
 
       // Assign requests to inspector
       for (const request of sortedRequests) {
@@ -92,7 +104,13 @@ export class AutoInspectorAssignmentService {
             continue;
           }
 
-          await this.inspectionRequestService.assignInspector(request.id, event.user_id);
+          // Check if we've reached the maximum active inspections
+          if (initialActiveCount + newAssignments >= maxActiveInspections) {
+            this.logger.debug(`Inspector ${event.inspector_id} has reached maximum active inspections (${maxActiveInspections})`);
+            break;
+          }
+
+          await this.inspectionRequestService.assignInspector(request.id, event.inspector_id);
           
           await this.notificationService.create({
             user_id: event.user_id,
@@ -105,16 +123,10 @@ export class AutoInspectorAssignmentService {
             }
           });
 
-          this.logger.log(`Automatically assigned request ${request.id} to inspector ${event.inspector_id}`);
+          this.logger.log(`Successfully assigned request ${request.id} to inspector ${event.inspector_id} (distance: ${request.distance.toFixed(2)}km)`);
           
           // Track new assignment
           newAssignments++;
-          
-          // Optional: Break if inspector has reached a maximum number of active inspections
-          if (initialActiveCount + newAssignments >= 5) { // You can make this configurable
-            this.logger.debug(`Inspector ${event.inspector_id} has reached maximum active inspections`);
-            break;
-          }
         } catch (error) {
           this.logger.error(
             `Failed to assign request ${request.id} to inspector ${event.inspector_id}: ${error.message}`
@@ -122,6 +134,8 @@ export class AutoInspectorAssignmentService {
           continue;
         }
       }
+
+      this.logger.log(`Completed location update processing for inspector ${event.inspector_id}. Made ${newAssignments} new assignments.`);
     } catch (error) {
       this.logger.error(`Failed to process inspector location update: ${error.message}`, error.stack);
     }
