@@ -19,11 +19,11 @@ import { User } from "../users/entities/user.entity";
 @Module({
   imports: [
     TypeOrmModule.forFeature([Transaction, TransactionHistory, User]),
-    forwardRef(() => OffersModule),
-    forwardRef(() => NotificationsModule),
-    forwardRef(() => ProduceModule),
-    forwardRef(() => BuyersModule),
-    forwardRef(() => FarmersModule),
+    OffersModule,
+    NotificationsModule,
+    ProduceModule,
+    BuyersModule,
+    FarmersModule,
     forwardRef(() => RatingsModule),
     ScheduleModule.forRoot(),
   ],

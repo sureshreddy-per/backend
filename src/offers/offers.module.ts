@@ -18,7 +18,6 @@ import { Buyer } from '../buyers/entities/buyer.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { FarmersModule } from '../farmers/farmers.module';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { TransactionsModule } from '../transactions/transactions.module';
 
 @Module({
   imports: [
@@ -30,14 +29,13 @@ import { TransactionsModule } from '../transactions/transactions.module';
       Buyer,
       Transaction
     ]),
-    EventEmitterModule.forRoot(),
+    forwardRef(() => EventEmitterModule),
     forwardRef(() => NotificationsModule),
     forwardRef(() => ProduceModule),
     forwardRef(() => BuyersModule),
     forwardRef(() => UsersModule),
     forwardRef(() => ConfigModule),
     forwardRef(() => FarmersModule),
-    forwardRef(() => TransactionsModule),
   ],
   controllers: [OffersController],
   providers: [
