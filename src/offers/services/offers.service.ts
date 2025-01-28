@@ -704,49 +704,94 @@ export class OffersService {
   }
 
   async overridePrice(id: string, newPrice: number): Promise<Offer> {
-    const offer = await this.findOne(id);
+    return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
+      const offer = await this.findOne(id);
 
-    // Get the buyer and farmer details to get their user_ids
-    const [buyer, farmer] = await Promise.all([
-      this.buyersService.findOne(offer.buyer_id),
-      this.farmersService.findOne(offer.farmer_id)
-    ]);
+      // Get the buyer and farmer details to get their user_ids
+      const [buyer, farmer] = await Promise.all([
+        this.buyersService.findOne(offer.buyer_id),
+        this.farmersService.findOne(offer.farmer_id)
+      ]);
 
-    if (!buyer) {
-      throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
-    }
+      if (!buyer) {
+        throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+      }
 
-    if (!farmer) {
-      throw new NotFoundException(`Farmer with ID ${offer.farmer_id} not found`);
-    }
+      if (!farmer) {
+        throw new NotFoundException(`Farmer with ID ${offer.farmer_id} not found`);
+      }
 
-    offer.price_per_unit = newPrice;
-    const updatedOffer = await this.offerRepository.save(offer);
-    await this.clearOfferCache(id);
+      // If offer was accepted, get and update produce status
+      if (offer.status === OfferStatus.ACCEPTED) {
+        const produce = await this.produceRepository.findOne({
+          where: { id: offer.produce_id }
+        });
 
-    // Notify both parties about the price update
-    await Promise.all([
-      this.notificationService.create({
-        user_id: buyer.user_id,
-        type: NotificationType.OFFER_PRICE_UPDATE,
-        data: {
-          offer_id: offer.id,
-          produce_id: offer.produce_id,
-          new_price: newPrice,
-        },
-      }),
-      this.notificationService.create({
-        user_id: farmer.user_id,
-        type: NotificationType.OFFER_PRICE_UPDATE,
-        data: {
-          offer_id: offer.id,
-          produce_id: offer.produce_id,
-          new_price: newPrice,
-        },
-      }),
-    ]);
+        if (!produce) {
+          throw new NotFoundException(`Produce with ID ${offer.produce_id} not found`);
+        }
 
-    return this.transformOfferResponse(updatedOffer);
+        // Update produce status back to AVAILABLE
+        produce.status = ProduceStatus.AVAILABLE;
+        await transactionalEntityManager.save(Produce, produce);
+
+        // Update offer status to PRICE_MODIFIED
+        offer.status = OfferStatus.PRICE_MODIFIED;
+      }
+
+      offer.price_per_unit = newPrice;
+      offer.is_price_overridden = true;
+      offer.price_override_at = new Date();
+
+      // Add to price history
+      if (!offer.metadata) {
+        offer.metadata = { price_history: [] };
+      } else if (!offer.metadata.price_history) {
+        offer.metadata.price_history = [];
+      }
+
+      offer.metadata.price_history.push({
+        price: newPrice,
+        timestamp: new Date(),
+        reason: 'Price modified by buyer'
+      });
+
+      const updatedOffer = await transactionalEntityManager.save(Offer, offer);
+      await this.clearOfferCache(id);
+
+      // Notify both parties about the price update
+      try {
+        await Promise.all([
+          this.notificationService.create({
+            user_id: buyer.user_id,
+            type: NotificationType.OFFER_PRICE_UPDATE,
+            data: {
+              offer_id: offer.id,
+              produce_id: offer.produce_id,
+              new_price: newPrice,
+              previous_status: OfferStatus.ACCEPTED,
+              new_status: OfferStatus.PRICE_MODIFIED
+            },
+          }),
+          this.notificationService.create({
+            user_id: farmer.user_id,
+            type: NotificationType.OFFER_PRICE_UPDATE,
+            data: {
+              offer_id: offer.id,
+              produce_id: offer.produce_id,
+              new_price: newPrice,
+              previous_status: OfferStatus.ACCEPTED,
+              new_status: OfferStatus.PRICE_MODIFIED
+            },
+          }),
+        ]);
+      } catch (error) {
+        this.logger.error(`Failed to send price update notifications for offer ${offer.id}`, error);
+        // Don't throw error as this is a non-critical operation
+      }
+
+      return this.transformOfferResponse(updatedOffer);
+    });
   }
 
   async handlePriceChange(
