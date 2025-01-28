@@ -1452,5 +1452,6 @@ INSERT INTO system_configs (key, value, description) VALUES
 ('min_transaction_amount', '{"value": 100}', 'Minimum amount allowed for transactions'),
 ('platform_fee_percentage', '{"value": 2.5}', 'Platform fee as percentage of transaction amount')
 ('use_auto_inspector_assignment', 'true'),
-('auto_inspector_assignment_radius_km', '200');
+('auto_inspector_assignment_radius_km', '200'),
+('transaction_recovery_cron_enabled', 'true');
 ON CONFLICT (key) DO NOTHING; 

@@ -15,6 +15,8 @@ import { ScheduleModule } from "@nestjs/schedule";
 import { BuyersModule } from "../buyers/buyers.module";
 import { FarmersModule } from "../farmers/farmers.module";
 import { User } from "../users/entities/user.entity";
+import { TransactionRecoveryService } from './services/transaction-recovery.service';
+import { SystemConfigModule } from '../system-config/system-config.module';
 
 @Module({
   imports: [
@@ -26,9 +28,10 @@ import { User } from "../users/entities/user.entity";
     FarmersModule,
     forwardRef(() => RatingsModule),
     ScheduleModule.forRoot(),
+    SystemConfigModule,
   ],
   controllers: [TransactionsController],
-  providers: [TransactionService, TransactionHistoryService, TransactionTasksService, TransactionsGateway],
+  providers: [TransactionService, TransactionHistoryService, TransactionTasksService, TransactionsGateway, TransactionRecoveryService],
   exports: [TransactionService, TransactionHistoryService],
 })
 export class TransactionsModule {}
