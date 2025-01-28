@@ -601,14 +601,12 @@ export class AutoOfferService {
   }
 
   async generateOffersForProduce(produce: Produce): Promise<void> {
-    if (produce.status !== ProduceStatus.AVAILABLE) {
-      this.logger.debug(`[AutoOfferService] Skipping auto offer generation for produce ${produce.id} as status is ${produce.status}`);
-      return;
-    }
+    this.logger.debug(`[AutoOfferService] Starting offer generation for produce ${produce.id}`);
+    this.logger.debug(`[AutoOfferService] Produce details: name=${produce.name}, location=${produce.location}, status=${produce.status}`);
 
     const latestAssessment = await this.qualityAssessmentRepository.findOne({
       where: { produce_id: produce.id },
-      order: { created_at: 'DESC' }
+      order: { created_at: "DESC" },
     });
 
     if (!latestAssessment) {

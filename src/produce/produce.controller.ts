@@ -148,63 +148,177 @@ export class ProduceController {
     @GetUser() user: User,
   ) {
     try {
-      // Validate farmer
+      this.logger.debug('Create produce request received', {
+        hasFiles: !!files,
+        imageFiles: files?.images?.map(file => ({
+          filename: file.originalname,
+          size: `${(file.size / 1024).toFixed(2)}KB`,
+          mimetype: file.mimetype
+        })),
+        produceData: createProduceDto,
+        userId: user.id
+      });
+
+      // Validate farmer exists
       const farmer = await this.farmerService.findByUserId(user.id);
       if (!farmer) {
-        throw new UnauthorizedException('User is not a farmer');
+        this.logger.error(`Farmer not found for user ID: ${user.id}`);
+        throw new BadRequestException('Farmer not found');
+      }
+      this.logger.debug('Farmer found', { farmerId: farmer.id });
+
+      // Validate at least one image is uploaded
+      if (!files?.images || files.images.length === 0) {
+        this.logger.error('Image validation failed - no images provided', {
+          hasFiles: !!files,
+          hasImages: !!files?.images,
+          imageCount: files?.images?.length
+        });
+        throw new BadRequestException('At least one image is required');
       }
 
-      const uploadedImageKeys: string[] = [];
-      const uploadedVideoKeys: string[] = [];
-
+      // Validate images
       try {
-        // Handle image uploads
-        if (files.images && files.images.length > 0) {
-          for (const file of files.images) {
-            const result = await this.uploadFileWithRetry(
-              file,
-              `produce/${farmer.id}/images`,
-              { userId: user.id }
-            );
-            uploadedImageKeys.push(result.url);
-          }
-        }
-
-        // Handle video upload
-        if (files.video && files.video.length > 0) {
-          const videoFile = files.video[0];
-          const result = await this.uploadFileWithRetry(
-            videoFile,
-            `produce/${farmer.id}/videos`,
-            { userId: user.id }
-          );
-          uploadedVideoKeys.push(result.url);
-        }
-
-        const produceInput: CreateProduceInput = {
-          ...createProduceDto,
-          farmer_id: farmer.id,
-          images: uploadedImageKeys,
-          status: ProduceStatus.PENDING_AI_ASSESSMENT
-        };
-
-        // Create produce
-        const produce = await this.produceService.create(produceInput);
-
-        // Trigger AI assessment for the first image
-        if (files.images && files.images.length > 0) {
-          await this.analyzeImageWithRetry(files.images[0], produce.id);
-        }
-
-        return produce;
+        const fileValidationPipe = FileValidationPipe.forType(StorageUploadType.IMAGES);
+        files.images.forEach((file, index) => {
+          this.logger.debug(`Validating image ${index + 1}`, {
+            filename: file.originalname,
+            size: `${(file.size / 1024).toFixed(2)}KB`,
+            mimetype: file.mimetype
+          });
+          fileValidationPipe.transform(file, { type: 'body', data: 'images' });
+        });
       } catch (error) {
-        // Cleanup uploaded files in case of error
-        await this.cleanupUploadedFiles([...uploadedImageKeys, ...uploadedVideoKeys]);
+        this.logger.error('Image validation error', { 
+          error: error.message,
+          stack: error.stack 
+        });
         throw error;
       }
+
+      // Create produce first (without images)
+      const produceInput: CreateProduceInput = {
+        ...createProduceDto,
+        farmer_id: farmer.id,
+        images: [], // Initially empty, will update after upload
+        status: ProduceStatus.PENDING_AI_ASSESSMENT
+      };
+
+      this.logger.debug('Creating produce record', { produceInput });
+      const produce = await this.produceService.create(produceInput);
+      this.logger.debug('Produce record created', { produceId: produce.id });
+
+      try {
+        this.logger.debug('Starting parallel image upload and AI analysis');
+        // Run image uploads and AI analysis in parallel
+        const [uploadedImages, aiAnalysis] = await Promise.all([
+          // Upload all images
+          Promise.all(files.images.map(async (file, index) => {
+            try {
+              this.logger.debug(`Uploading image ${index + 1}`, {
+                filename: file.originalname,
+                produceId: produce.id
+              });
+              const result = await this.uploadFileWithRetry(
+                file,
+                'produce-images',
+                {
+                  userId: user.id,
+                  farmerId: farmer.id,
+                  produceId: produce.id,
+                  contentType: file.mimetype,
+                }
+              );
+              this.logger.debug(`Image ${index + 1} uploaded successfully`, {
+                url: result.url
+              });
+              return result.url;
+            } catch (error) {
+              this.logger.error(`Failed to upload image ${index + 1}`, {
+                error: error.message,
+                stack: error.stack,
+                filename: file.originalname
+              });
+              throw new InternalServerErrorException(`Failed to upload image: ${error.message}`);
+            }
+          })),
+          // Analyze first image with correct produce ID
+          (async () => {
+            try {
+              this.logger.debug('Starting AI analysis', {
+                produceId: produce.id,
+                imageFilename: files.images[0].originalname
+              });
+              const analysis = await this.analyzeImageWithRetry(files.images[0], produce.id);
+              this.logger.debug('AI analysis completed', {
+                produceId: produce.id,
+                qualityGrade: analysis.quality_grade,
+                confidenceLevel: analysis.confidence_level
+              });
+              return analysis;
+            } catch (error) {
+              this.logger.error('AI analysis failed', {
+                error: error.message,
+                stack: error.stack,
+                produceId: produce.id
+              });
+              throw error;
+            }
+          })()
+        ]);
+
+        // Update produce with uploaded image URLs
+        this.logger.debug('Updating produce with image URLs', {
+          produceId: produce.id,
+          imageCount: uploadedImages.length
+        });
+        await this.produceService.update(produce.id, { images: uploadedImages });
+
+        // Emit event for AI verification
+        this.logger.debug('Emitting quality assessment completed event', {
+          produceId: produce.id,
+          qualityGrade: aiAnalysis.quality_grade
+        });
+        await this.eventEmitter.emit('quality.assessment.completed', {
+          produce_id: produce.id,
+          quality_grade: aiAnalysis.quality_grade,
+          confidence_level: aiAnalysis.confidence_level,
+          farmer_id: farmer.id,
+          image_analysis: aiAnalysis,
+          detected_name: aiAnalysis.name,
+          description: aiAnalysis.description,
+          product_variety: aiAnalysis.product_variety,
+          produce_category: aiAnalysis.produce_category,
+          category_specific_attributes: aiAnalysis.category_specific_attributes,
+          assessment_details: {
+            defects: aiAnalysis.detected_defects,
+            recommendations: aiAnalysis.recommendations
+          }
+        });
+
+        // Return the updated produce
+        this.logger.debug('Produce creation completed successfully', { produceId: produce.id });
+        return this.produceService.findById(produce.id);
+      } catch (error) {
+        // If any error occurs during upload or analysis, delete the produce and cleanup
+        this.logger.error('Error during upload/analysis phase', {
+          error: error.message,
+          stack: error.stack,
+          produceId: produce.id
+        });
+        await this.produceService.deleteById(produce.id);
+        throw new InternalServerErrorException(`Failed to process produce: ${error.message}`);
+      }
     } catch (error) {
-      this.logger.error(`Error in create: ${error.message}`, error.stack);
-      throw error;
+      this.logger.error('Error in create produce endpoint', {
+        error: error.message,
+        stack: error.stack,
+        type: error.constructor.name
+      });
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(`Failed to create produce: ${error.message}`);
     }
   }
 
