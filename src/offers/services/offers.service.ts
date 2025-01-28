@@ -348,8 +348,11 @@ export class OffersService {
 
   async reject(id: string, reason: string): Promise<Offer> {
     return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
-      // 1. Get and validate offer
-      const offer = await this.findOne(id);
+      // 1. Get and validate offer using transaction manager
+      const offer = await transactionalEntityManager.findOne(Offer, {
+        where: { id }
+      });
+
       if (!offer) {
         throw new NotFoundException(`Offer with ID ${id} not found`);
       }
@@ -365,7 +368,7 @@ export class OffersService {
       }
 
       // 3. Get and update produce status
-      const produce = await this.produceRepository.findOne({
+      const produce = await transactionalEntityManager.findOne(Produce, {
         where: { id: offer.produce_id }
       });
 
@@ -426,8 +429,14 @@ export class OffersService {
 
   async cancel(id: string, reason: string): Promise<Offer> {
     return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
-      // 1. Get and validate offer
-      const offer = await this.findOne(id);
+      // 1. Get and validate offer using transaction manager
+      const offer = await transactionalEntityManager.findOne(Offer, {
+        where: { id }
+      });
+
+      if (!offer) {
+        throw new NotFoundException(`Offer with ID ${id} not found`);
+      }
 
       // 2. Get and validate buyer and farmer
       const [buyer, farmer] = await Promise.all([
@@ -444,7 +453,7 @@ export class OffersService {
       }
 
       // 3. Get and update produce status
-      const produce = await this.produceRepository.findOne({
+      const produce = await transactionalEntityManager.findOne(Produce, {
         where: { id: offer.produce_id }
       });
 
