@@ -147,8 +147,12 @@ export class FarmerHomeService {
       .createQueryBuilder('p')
       .innerJoinAndSelect('p.farmer', 'f')
       .innerJoinAndSelect('f.user', 'u')
+      .innerJoin('offers', 'o', 'o.produce_id = p.id')
+      .innerJoin('buyers', 'b', 'b.id = o.buyer_id')
+      .innerJoin('users', 'bu', 'bu.id = b.user_id')
       .where('p.farmer_id = :farmerId', { farmerId })
       .andWhere('p.status IN (:...statuses)', { statuses: activeStatuses })
+      .andWhere('o.status = :offerStatus', { offerStatus: 'ACCEPTED' })
       .select([
         'p.id as produce_id',
         'p.name',
@@ -158,9 +162,12 @@ export class FarmerHomeService {
         'p.status',
         'p.is_inspection_requested as is_manually_inspected',
         'p.images',
-        'f.id as farmer_id',
-        'u.name as farmer_name',
-        'u.avatar_url as farmer_avatar_url'
+        'o.price_per_unit as offer_price',
+        'o.status as offer_status',
+        'b.id as buyer_id',
+        'b.business_name as buyer_business_name',
+        'bu.name as buyer_name',
+        'bu.avatar_url as buyer_avatar_url'
       ])
       .orderBy('p.created_at', 'DESC')
       .limit(7)
@@ -177,9 +184,14 @@ export class FarmerHomeService {
       distance_km: 0, // 0 for my own offers
       is_manually_inspected: offer.is_manually_inspected,
       produce_images: offer.images,
-      buyer: null, // No buyer for my offers yet
-      offer_price: 0, // No offer price yet
-      offer_status: 'PENDING' // Default status for my offers
+      buyer: {
+        id: offer.buyer_id,
+        name: offer.buyer_name,
+        business_name: offer.buyer_business_name,
+        avatar_url: offer.buyer_avatar_url
+      },
+      offer_price: parseFloat(offer.offer_price),
+      offer_status: offer.offer_status
     }));
 
     // Get nearby offers
@@ -187,8 +199,12 @@ export class FarmerHomeService {
       .createQueryBuilder('p')
       .innerJoinAndSelect('p.farmer', 'f')
       .innerJoinAndSelect('f.user', 'u')
+      .innerJoin('offers', 'o', 'o.produce_id = p.id')
+      .innerJoin('buyers', 'b', 'b.id = o.buyer_id')
+      .innerJoin('users', 'bu', 'bu.id = b.user_id')
       .where('p.farmer_id != :farmerId', { farmerId })
       .andWhere('p.status IN (:...statuses)', { statuses: activeStatuses })
+      .andWhere('o.status = :offerStatus', { offerStatus: 'ACCEPTED' })
       .andWhere(
         `ST_DWithin(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
@@ -212,9 +228,12 @@ export class FarmerHomeService {
         ) / 1000 as distance_km`,
         'p.is_inspection_requested as is_manually_inspected',
         'p.images',
-        'f.id as farmer_id',
-        'u.name as farmer_name',
-        'u.avatar_url as farmer_avatar_url'
+        'o.price_per_unit as offer_price',
+        'o.status as offer_status',
+        'b.id as buyer_id',
+        'b.business_name as buyer_business_name',
+        'bu.name as buyer_name',
+        'bu.avatar_url as buyer_avatar_url'
       ])
       .orderBy('p.created_at', 'DESC')
       .limit(7)
@@ -231,9 +250,14 @@ export class FarmerHomeService {
       distance_km: parseFloat(offer.distance_km),
       is_manually_inspected: offer.is_manually_inspected,
       produce_images: offer.images,
-      buyer: null, // No buyer info for nearby offers
-      offer_price: 0, // No offer price yet
-      offer_status: 'PENDING' // Default status for nearby offers
+      buyer: {
+        id: offer.buyer_id,
+        name: offer.buyer_name,
+        business_name: offer.buyer_business_name,
+        avatar_url: offer.buyer_avatar_url
+      },
+      offer_price: parseFloat(offer.offer_price),
+      offer_status: offer.offer_status
     }));
 
     const result = {
