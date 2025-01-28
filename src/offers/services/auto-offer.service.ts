@@ -372,7 +372,7 @@ export class AutoOfferService {
     const now = new Date();
     const offers = await this.offerRepository.find({
       where: {
-        status: OfferStatus.PENDING,
+        status: In([OfferStatus.ACTIVE, OfferStatus.PRICE_MODIFIED]),
         valid_until: LessThan(now)
       }
     });
