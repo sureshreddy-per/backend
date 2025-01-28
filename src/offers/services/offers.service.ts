@@ -206,9 +206,9 @@ export class OffersService {
       const offer = await transactionalEntityManager
         .createQueryBuilder(Offer, "offer")
         .setLock("pessimistic_write")
-        .where("offer.id = :id AND offer.status = :status", {
+        .where("offer.id = :id AND offer.status IN (:...statuses)", {
           id,
-          status: OfferStatus.PENDING
+          statuses: [OfferStatus.PENDING, OfferStatus.ACTIVE]
         })
         .getOne();
 
