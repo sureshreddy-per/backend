@@ -10,7 +10,7 @@ import { CreateQualityAssessmentDto } from "./dto/create-quality-assessment.dto"
 import { validateLocation } from "../common/utils/location.utils";
 import { ApiTags, ApiOperation, ApiResponse } from "@nestjs/swagger";
 import { RequestQualityInspectionDto } from "./dto/request-quality-inspection.dto";
-import { InspectionRequest } from "./entities/inspection-request.entity";
+import { InspectionRequest, InspectionRequestStatus } from "./entities/inspection-request.entity";
 import { GetUser } from "../auth/decorators/get-user.decorator";
 import { User } from "../users/entities/user.entity";
 import { InspectionRequestService } from "./services/inspection-request.service";
@@ -18,11 +18,14 @@ import { ProduceService } from "../produce/services/produce.service";
 import { validateRequiredFields } from "./utils/validation.util";
 import { EventEmitter2 } from "@nestjs/event-emitter";
 import { ListInspectionsDto } from './dto/list-inspections.dto';
+import { Logger } from "@nestjs/common";
 
 @ApiTags('Quality Assessment')
 @Controller("quality")
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class QualityController {
+  private readonly logger = new Logger(QualityController.name);
+
   constructor(
     private readonly qualityAssessmentService: QualityAssessmentService,
     private readonly inspectionRequestService: InspectionRequestService,
@@ -129,83 +132,99 @@ export class QualityController {
     });
   }
 
-  @Put("inspection/:id/assign")
+  @Put("inspections/:id/accept")
   @Roles(UserRole.INSPECTOR)
-  @ApiOperation({ summary: 'Assign inspector to inspection request' })
+  @ApiOperation({ summary: 'Inspector accepts an inspection request' })
   @ApiResponse({ status: 200, description: 'Inspector assigned successfully', type: InspectionRequest })
-  async assignInspector(
+  async acceptInspection(
     @GetUser() user: User,
     @Param("id") id: string,
   ): Promise<InspectionRequest> {
     return this.inspectionRequestService.assignInspector(id, user.id);
   }
 
-  @Put("inspection/:id/submit-result")
+  @Post("inspections/:id/complete")
   @Roles(UserRole.INSPECTOR)
-  @ApiOperation({ summary: 'Submit inspection result' })
-  @ApiResponse({ status: 200, description: 'Inspection result submitted successfully', type: QualityAssessment })
-  async submitInspectionResult(
+  @ApiOperation({ summary: 'Complete inspection with quality assessment' })
+  @ApiResponse({ status: 200, description: 'Inspection completed successfully', type: QualityAssessment })
+  async completeInspection(
     @GetUser() user: User,
     @Param("id") id: string,
     @Body() data: CreateQualityAssessmentDto,
   ): Promise<QualityAssessment> {
-    const request = await this.inspectionRequestService.findOne(id);
-    if (request.inspector_id !== user.id) {
-      throw new BadRequestException("Only assigned inspector can submit results");
-    }
+    this.logger.debug(`Attempting to complete inspection ${id} by inspector ${user.id}`);
+    
+    try {
+      const request = await this.inspectionRequestService.findOne(id);
+      this.logger.debug(`Found inspection request: ${JSON.stringify(request)}`);
 
-    if (!isValidQualityGrade(data.quality_grade)) {
-      throw new BadRequestException(`Invalid quality grade: ${data.quality_grade}. Must be between 0 and 10.`);
-    }
-
-    // Get produce details to validate category-specific fields
-    const produce = await this.produceService.findOne(request.produce_id);
-    const validationResult = validateRequiredFields(produce.produce_category, data.category_specific_assessment);
-    if (!validationResult.isValid) {
-      throw new BadRequestException(`Missing required fields for category ${produce.produce_category}: ${validationResult.missingFields.join(', ')}`);
-    }
-
-    // Create quality assessment with required fields
-    const assessment = await this.qualityAssessmentService.create({
-      produce_id: request.produce_id,
-      produce_name: produce.name,
-      category: produce.produce_category,
-      quality_grade: data.quality_grade,
-      confidence_level: 100, // Manual inspection has 100% confidence
-      defects: data.defects,
-      recommendations: data.recommendations,
-      category_specific_assessment: data.category_specific_assessment,
-      metadata: {
-        source: 'MANUAL_INSPECTION',
-        inspector_id: user.id,
-        inspection_date: new Date().toISOString(),
-        inspection_request_id: id,
-        notes: data.metadata?.notes,
-        images: data.metadata?.images,
+      if (request.inspector_id !== user.id) {
+        this.logger.warn(`Inspector mismatch: request.inspector_id=${request.inspector_id}, user.id=${user.id}`);
+        throw new BadRequestException("Only assigned inspector can complete this inspection");
       }
-    });
 
-    // Mark inspection request as completed
-    await this.inspectionRequestService.complete(id);
-
-    // Emit quality assessment completed event
-    await this.eventEmitter.emit('quality.assessment.completed', {
-      produce_id: request.produce_id,
-      quality_grade: assessment.quality_grade,
-      confidence_level: assessment.confidence_level,
-      detected_name: produce.name,
-      description: produce.description,
-      product_variety: produce.product_variety,
-      produce_category: produce.produce_category,
-      category_specific_attributes: assessment.category_specific_assessment,
-      assessment_details: {
-        defects: assessment.defects,
-        recommendations: assessment.recommendations,
-        metadata: assessment.metadata
+      if (request.status !== InspectionRequestStatus.IN_PROGRESS) {
+        this.logger.warn(`Invalid request status: ${request.status}`);
+        throw new BadRequestException("Can only complete in-progress inspections");
       }
-    });
 
-    return assessment;
+      // Get produce details to validate category-specific fields
+      const produce = await this.produceService.findOne(request.produce_id);
+      this.logger.debug(`Found produce: ${JSON.stringify(produce)}`);
+
+      const validationResult = validateRequiredFields(produce.produce_category, data.category_specific_assessment);
+      if (!validationResult.isValid) {
+        this.logger.warn(`Validation failed: missing fields - ${validationResult.missingFields.join(', ')}`);
+        throw new BadRequestException(`Missing required fields for category ${produce.produce_category}: ${validationResult.missingFields.join(', ')}`);
+      }
+
+      // Create quality assessment with required fields
+      const assessment = await this.qualityAssessmentService.create({
+        produce_id: request.produce_id,
+        produce_name: produce.name,
+        category: produce.produce_category,
+        quality_grade: data.quality_grade,
+        confidence_level: 100, // Manual inspection has 100% confidence
+        defects: data.defects,
+        recommendations: data.recommendations,
+        category_specific_assessment: data.category_specific_assessment,
+        metadata: {
+          source: 'MANUAL_INSPECTION',
+          inspector_id: user.id,
+          inspection_date: new Date().toISOString(),
+          inspection_request_id: id,
+          notes: data.metadata?.notes,
+          images: data.metadata?.images,
+        }
+      });
+
+      this.logger.debug(`Created quality assessment: ${JSON.stringify(assessment)}`);
+
+      // Mark inspection request as completed
+      await this.inspectionRequestService.complete(id);
+
+      // Emit quality assessment completed event
+      await this.eventEmitter.emit('quality.assessment.completed', {
+        produce_id: request.produce_id,
+        quality_grade: assessment.quality_grade,
+        confidence_level: assessment.confidence_level,
+        detected_name: produce.name,
+        description: produce.description,
+        product_variety: produce.product_variety,
+        produce_category: produce.produce_category,
+        category_specific_attributes: assessment.category_specific_assessment,
+        assessment_details: {
+          defects: assessment.defects,
+          recommendations: assessment.recommendations,
+          metadata: assessment.metadata
+        }
+      });
+
+      return assessment;
+    } catch (error) {
+      this.logger.error(`Error completing inspection: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   @Get("assessment/:id")
