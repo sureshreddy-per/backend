@@ -83,8 +83,8 @@ export class BuyerPreferencesService {
     );
 
     // Filter by status and produce names
-    const filteredProduce = nearbyProduce.filter(produce => 
-      produce.status === ProduceStatus.ASSESSED && 
+    const filteredProduce = nearbyProduce.filter(produce =>
+      produce.status === ProduceStatus.ASSESSED &&
       produceNames.includes(produce.name)
     );
 
@@ -112,7 +112,7 @@ export class BuyerPreferencesService {
   }
 
   async setPreferences(buyerId: string, data: UpdateBuyerPreferencesDto): Promise<BuyerPreferences> {
-    let preferences = await this.buyerPreferencesRepository.findOne({ 
+    let preferences = await this.buyerPreferencesRepository.findOne({
       where: { buyer_id: buyerId },
       relations: ['buyer']
     });
@@ -163,4 +163,17 @@ export class BuyerPreferencesService {
 
     return preferences;
   }
-} 
+
+  async createDefaultPreferences(buyerId: string): Promise<BuyerPreferences> {
+    const defaultPreferences = this.buyerPreferencesRepository.create({
+      buyer_id: buyerId,
+      produce_names: [],
+      produce_price_preferences: [],
+      notification_enabled: true,
+      notification_methods: ['PUSH'],
+      last_price_updated: new Date()
+    });
+
+    return this.buyerPreferencesRepository.save(defaultPreferences);
+  }
+}

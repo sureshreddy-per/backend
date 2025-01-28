@@ -8,20 +8,33 @@ import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
 import { BuyerPreferencesService } from '../services/buyer-preferences.service';
 import { UpdateBuyerPreferencesDto } from '../dto/update-buyer-preferences.dto';
+import { BuyersService } from '../buyers.service';
 
 @ApiTags('Buyer Preferences')
 @Controller('buyer-preferences')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class BuyerPreferencesController {
-  constructor(private readonly buyerPreferencesService: BuyerPreferencesService) {}
+  constructor(
+    private readonly buyerPreferencesService: BuyerPreferencesService,
+    private readonly buyersService: BuyersService
+  ) {}
 
   @Get()
   @Roles(UserRole.BUYER)
   @ApiOperation({ summary: 'Get buyer preferences' })
   @ApiResponse({ status: 200, description: 'Returns the buyer preferences' })
   async getPreferences(@GetUser() user: User) {
-    return this.buyerPreferencesService.findByBuyerId(user.id);
+    try {
+      return await this.buyerPreferencesService.findByBuyerId(user.id);
+    } catch (error) {
+      if (error.status === 404) {
+        // If preferences don't exist, create default ones
+        const buyer = await this.buyersService.getBuyerDetails(user.id);
+        return this.buyerPreferencesService.createDefaultPreferences(buyer.id);
+      }
+      throw error;
+    }
   }
 
   @Put()
@@ -32,7 +45,22 @@ export class BuyerPreferencesController {
     @GetUser() user: User,
     @Body() data: UpdateBuyerPreferencesDto,
   ) {
-    const buyer = await this.buyerPreferencesService.findByBuyerId(user.id);
-    return this.buyerPreferencesService.setPreferences(buyer.id, data);
+    try {
+      const buyer = await this.buyersService.getBuyerDetails(user.id);
+      let preferences;
+      try {
+        preferences = await this.buyerPreferencesService.findByBuyerId(buyer.id);
+      } catch (error) {
+        if (error.status === 404) {
+          // If preferences don't exist, create them with the provided data
+          preferences = await this.buyerPreferencesService.createDefaultPreferences(buyer.id);
+        } else {
+          throw error;
+        }
+      }
+      return this.buyerPreferencesService.setPreferences(buyer.id, data);
+    } catch (error) {
+      throw error;
+    }
   }
 }
