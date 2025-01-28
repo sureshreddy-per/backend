@@ -597,6 +597,7 @@ export class TransactionService extends BaseService<Transaction> {
 
   @OnEvent('offer.accepted')
   async handleOfferAccepted(event: OfferAcceptedEvent) {
+    this.logger.log(`Received offer.accepted event for offer ${event.offer_id}`);
     try {
       // 1. Create transaction with validated metadata
       const metadata = {
@@ -605,6 +606,7 @@ export class TransactionService extends BaseService<Transaction> {
         ...event.metadata
       };
 
+      this.logger.log(`Creating transaction for offer ${event.offer_id}`);
       const newTransaction = this.transactionRepository.create({
         offer_id: event.offer_id,
         produce_id: event.produce_id,
@@ -620,6 +622,7 @@ export class TransactionService extends BaseService<Transaction> {
       });
 
       const savedTransaction = await this.transactionRepository.save(newTransaction);
+      this.logger.log(`Created transaction ${savedTransaction.id} for offer ${event.offer_id}`);
 
       // 2. Create transaction history
       try {

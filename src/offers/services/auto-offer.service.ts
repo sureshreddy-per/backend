@@ -268,7 +268,7 @@ export class AutoOfferService {
       offer.price_override_at = new Date();
       offer.status = OfferStatus.PRICE_MODIFIED;
       offer.price_override_reason = data.price_modification_reason || 'Price modified during approval';
-      
+
       // Add to price history
       if (!offer.metadata.price_history) {
         offer.metadata.price_history = [];
@@ -332,11 +332,11 @@ export class AutoOfferService {
   @Cron(CronExpression.EVERY_HOUR)
   async processAutoOffers() {
     this.logger.log('Processing auto offers for active buyers');
-    const buyers = await this.buyerRepository.find({ 
+    const buyers = await this.buyerRepository.find({
       where: { is_active: true },
-      relations: ['user', 'preferences'] 
+      relations: ['user', 'preferences']
     });
-    
+
     for (const buyer of buyers) {
       try {
         await this.recalculateOffersForBuyer(buyer);
@@ -368,20 +368,31 @@ export class AutoOfferService {
   async handleExpiredOffers() {
     this.logger.log('Checking for expired offers');
     const expiredOffers = await this.findExpiredOffers();
-    
+
     for (const offer of expiredOffers) {
       try {
+        // Get the buyer to access their user_id
+        const buyer = await this.buyerRepository.findOne({
+          where: { id: offer.buyer_id },
+          relations: ['user']
+        });
+
+        if (!buyer || !buyer.user) {
+          this.logger.warn(`Buyer ${offer.buyer_id} or their user not found for expired offer ${offer.id}`);
+          continue;
+        }
+
         offer.status = OfferStatus.EXPIRED;
         offer.metadata = {
           ...offer.metadata,
           expired_at: new Date()
         };
-        
+
         await this.offerRepository.save(offer);
-        
-        // Notify relevant parties
+
+        // Notify using buyer's user_id
         await this.notificationService.create({
-          user_id: offer.buyer_id,
+          user_id: buyer.user.id,
           type: NotificationType.OFFER_EXPIRED,
           data: {
             offer_id: offer.id,
@@ -389,6 +400,8 @@ export class AutoOfferService {
             expired_at: offer.metadata.expired_at
           }
         });
+
+        this.logger.debug(`Successfully processed expired offer ${offer.id} for buyer ${buyer.id}`);
       } catch (error) {
         this.logger.error(
           `Failed to handle expired offer ${offer.id}: ${error.message}`,
@@ -455,14 +468,14 @@ export class AutoOfferService {
             offer.price_per_unit = newPrice;
             offer.buyer_min_price = buyerPricePreference.min_price;
             offer.buyer_max_price = buyerPricePreference.max_price;
-            
+
             // Add to price history
             if (!offer.metadata) {
               offer.metadata = { price_history: [] };
             } else if (!offer.metadata.price_history) {
               offer.metadata.price_history = [];
             }
-            
+
             offer.metadata.price_history.push({
               price: newPrice,
               timestamp: new Date(),
@@ -470,7 +483,7 @@ export class AutoOfferService {
             });
 
             await this.offerRepository.save(offer);
-            
+
             // Notify buyer of price update
             await this.notificationService.create({
               user_id: buyerWithPrefs.user_id,
@@ -537,7 +550,7 @@ export class AutoOfferService {
       }
 
       // Check if prices were updated within last 24 hours
-      if (!buyer.preferences.last_price_updated || 
+      if (!buyer.preferences.last_price_updated ||
           buyer.preferences.last_price_updated < twentyFourHoursAgo) {
         this.logger.debug(`Buyer ${buyer.id} skipped: Prices not updated in last 24 hours`);
         return false;

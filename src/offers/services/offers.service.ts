@@ -339,7 +339,9 @@ export class OffersService {
         accepted_by: offer.farmer_id
       };
 
+      this.logger.log(`Emitting offer.accepted event for offer ${offer.id}`);
       this.eventEmitter.emit('offer.accepted', offerAcceptedEvent);
+      this.logger.log(`Emitted offer.accepted event for offer ${offer.id}`);
 
       return this.transformOfferResponse(updatedOffer);
     });
@@ -493,13 +495,11 @@ export class OffersService {
     queryBuilder: SelectQueryBuilder<Offer>,
     { status, sort = [] }: ListOffersDto
   ): SelectQueryBuilder<Offer> {
-    // Apply status filter if provided
     if (status) {
       queryBuilder.andWhere('offer.status = :status', { status });
     }
 
-    // Apply multiple sorting options
-    if (sort.length > 0) {
+    if (sort && sort.length > 0) {
       sort.forEach((sortOption, index) => {
         const { field, order } = sortOption;
 
@@ -526,16 +526,12 @@ export class OffersService {
             queryBuilder[orderMethod]('offer.distance_km', order);
             break;
           case OfferSortBy.BUYER_RATING:
-            // Ensure buyer and user relations are joined
-            queryBuilder.leftJoinAndSelect('offer.buyer', 'buyer')
-                       .leftJoinAndSelect('buyer.user', 'buyer_user');
-            queryBuilder[orderMethod]('buyer_user.rating', order);
+            // Use the already joined buyer and user relations
+            queryBuilder[orderMethod]('buyerUser.rating', order);
             break;
           case OfferSortBy.FARMER_RATING:
-            // Ensure farmer and user relations are joined
-            queryBuilder.leftJoinAndSelect('produce.farmer', 'farmer')
-                       .leftJoinAndSelect('farmer.user', 'farmer_user');
-            queryBuilder[orderMethod]('farmer_user.rating', order);
+            // Use the already joined farmer and user relations
+            queryBuilder[orderMethod]('farmerUser.rating', order);
             break;
           default:
             queryBuilder[orderMethod]('offer.created_at', order);

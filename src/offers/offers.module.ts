@@ -29,7 +29,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
       Buyer,
       Transaction
     ]),
-    forwardRef(() => EventEmitterModule),
+    EventEmitterModule,
     forwardRef(() => NotificationsModule),
     forwardRef(() => ProduceModule),
     forwardRef(() => BuyersModule),
