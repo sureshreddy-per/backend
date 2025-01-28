@@ -108,11 +108,20 @@ export class TransactionsController {
 
     const transaction = await this.transactionService.findOneAndTransform(id, userRole);
     if (!transaction) {
-      throw new UnauthorizedException("Transaction not found");
+      throw new NotFoundException("Transaction not found");
     }
 
-    if ((userRole === 'BUYER' && transaction.buyer_id !== userId) ||
-        (userRole === 'FARMER' && transaction.farmer_id !== userId)) {
+    // Get the correct user IDs based on role
+    let isAuthorized = false;
+    if (userRole === 'BUYER') {
+      const buyer = await this.buyersService.findOne(transaction.buyer_id);
+      isAuthorized = buyer?.user_id === userId;
+    } else if (userRole === 'FARMER') {
+      const farmer = await this.farmersService.findOne(transaction.farmer_id);
+      isAuthorized = farmer?.user_id === userId;
+    }
+
+    if (!isAuthorized) {
       throw new UnauthorizedException(
         "You can only view your own transactions",
       );
