@@ -154,6 +154,9 @@ export class TransactionService extends BaseService<Transaction> {
     options: FindManyOptions<Transaction>,
     userRole: string,
   ): Promise<PaginatedResponse<TransformedTransaction>> {
+    this.logger.log(`[findAllAndTransform] Finding transactions with options: ${JSON.stringify(options)}`);
+    this.logger.log(`[findAllAndTransform] User role: ${userRole}`);
+
     const [items, total] = await this.transactionRepository.findAndCount({
       ...options,
       relations: [
@@ -167,12 +170,23 @@ export class TransactionService extends BaseService<Transaction> {
       ]
     });
 
+    this.logger.log(`[findAllAndTransform] Found ${items.length} transactions out of ${total} total`);
+    if (items.length > 0) {
+      this.logger.log(`[findAllAndTransform] Sample transaction: ${JSON.stringify(items[0])}`);
+    }
+
     const { take = 10, skip = 0 } = options;
     const page = Math.floor(skip / take) + 1;
     const totalPages = Math.ceil(total / take);
 
+    const transformedItems = items.map(item => this.transformTransactionResponse(item, userRole));
+    this.logger.log(`[findAllAndTransform] Transformed ${transformedItems.length} items`);
+    if (transformedItems.length > 0) {
+      this.logger.log(`[findAllAndTransform] Sample transformed item: ${JSON.stringify(transformedItems[0])}`);
+    }
+
     return {
-      items: items.map(item => this.transformTransactionResponse(item, userRole)),
+      items: transformedItems,
       total,
       page,
       limit: take,

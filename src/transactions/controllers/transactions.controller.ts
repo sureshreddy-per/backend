@@ -73,11 +73,19 @@ export class TransactionsController {
     const userId = req.user['id'];
     const userRole = req.user['role'];
 
-    const where = [];
+    let where = {};
     if (userRole === 'BUYER') {
-      where.push({ buyer_id: userId });
+      const buyer = await this.buyersService.findByUserId(userId);
+      if (!buyer) {
+        throw new UnauthorizedException("Buyer not found");
+      }
+      where = { buyer_id: buyer.id };
     } else if (userRole === 'FARMER') {
-      where.push({ farmer_id: userId });
+      const farmer = await this.farmersService.findByUserId(userId);
+      if (!farmer) {
+        throw new UnauthorizedException("Farmer not found");
+      }
+      where = { farmer_id: farmer.id };
     } else {
       throw new UnauthorizedException("User is neither a buyer nor a farmer");
     }
