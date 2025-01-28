@@ -291,18 +291,18 @@ export class FarmerHomeService {
       .andWhere('p.status NOT IN (:...excludedStatuses)', { excludedStatuses })
       .select([
         'p.id as produce_id',
-        'p.name',
-        'COALESCE(p.quantity, 0) as quantity',
-        'p.unit',
-        'COALESCE(p.quality_grade, 0) as quality_grade',
-        'p.status',
+        'p.name as name',
+        'CAST(p.quantity as FLOAT) as quantity',
+        'p.unit as unit',
+        'CAST(p.quality_grade as FLOAT) as quality_grade',
+        'p.status as status',
         'p.is_inspection_requested as is_manually_inspected',
         'p.images as produce_images',
-        `ST_Distance(
+        `CAST(ST_Distance(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
-        ) / 1000 as distance_km`
+        ) / 1000 as FLOAT) as distance_km`
       ])
       .setParameters({ farmerId, lng, lat })
       .orderBy('p.created_at', 'DESC')
@@ -322,23 +322,36 @@ export class FarmerHomeService {
       const checkData = await this.produceRepository
         .createQueryBuilder('p')
         .where('p.farmer_id = :farmerId', { farmerId })
-        .select(['p.id', 'p.name', 'p.status'])
+        .select(['p.id', 'p.name', 'p.status', 'p.quantity', 'p.quality_grade'])
         .getRawMany();
       this.logger.debug('Direct query check results:', checkData);
     }
 
+    // Add debug logging for raw data
+    this.logger.debug('Raw produces data:', produces);
+
     // Transform the results to ensure correct format
-    const transformedProduces = produces.map(p => ({
-      produce_id: p.produce_id,
-      name: p.name,
-      quantity: p.quantity ? parseFloat(p.quantity) : 0,
-      unit: p.unit,
-      quality_grade: p.quality_grade ? parseFloat(p.quality_grade) : 0,
-      distance_km: parseFloat(p.distance_km || 0),
-      is_manually_inspected: p.is_manually_inspected,
-      produce_images: Array.isArray(p.produce_images) ? p.produce_images : [],
-      status: p.status
-    }));
+    const transformedProduces = produces.map(p => {
+      const transformed = {
+        produce_id: p.produce_id,
+        name: p.name,
+        quantity: p.quantity ? parseFloat(p.quantity) : null,
+        unit: p.unit,
+        quality_grade: p.quality_grade ? parseFloat(p.quality_grade) : null,
+        distance_km: p.distance_km ? parseFloat(p.distance_km) : 0,
+        is_manually_inspected: p.is_manually_inspected,
+        produce_images: Array.isArray(p.produce_images) ? p.produce_images : [],
+        status: p.status
+      };
+      
+      // Add debug logging for transformation
+      this.logger.debug(`Transforming produce ${p.produce_id}:`, {
+        raw: p,
+        transformed: transformed
+      });
+      
+      return transformed;
+    });
 
     this.logger.debug('Transformed produces:', transformedProduces);
 
