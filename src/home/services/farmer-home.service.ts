@@ -195,6 +195,7 @@ export class FarmerHomeService {
         'p.quantity',
         'p.unit',
         'p.quality_grade',
+        'p.status',
         'p.is_inspection_requested as is_manually_inspected',
         'p.images as produce_images',
         `ST_Distance(
@@ -215,6 +216,15 @@ export class FarmerHomeService {
 
     const produces = await queryBuilder.getRawMany();
     this.logger.debug(`Found ${produces.length} recent produces`);
+    if (produces.length === 0) {
+      // Log a sample direct query to check if data exists
+      const checkData = await this.produceRepository
+        .createQueryBuilder('p')
+        .where('p.farmer_id = :farmerId', { farmerId })
+        .select(['p.id', 'p.name', 'p.status'])
+        .getRawMany();
+      this.logger.debug('Direct query check results:', checkData);
+    }
 
     // Transform the results to ensure correct format
     const transformedProduces = produces.map(p => ({
@@ -225,8 +235,11 @@ export class FarmerHomeService {
       quality_grade: parseFloat(p.quality_grade),
       distance_km: parseFloat(p.distance_km),
       is_manually_inspected: p.is_manually_inspected,
-      produce_images: Array.isArray(p.produce_images) ? p.produce_images : []
+      produce_images: Array.isArray(p.produce_images) ? p.produce_images : [],
+      status: p.status
     }));
+
+    this.logger.debug('Transformed produces:', transformedProduces);
 
     await this.cacheManager.set(cacheKey, transformedProduces, this.CACHE_TTL);
     return transformedProduces;
