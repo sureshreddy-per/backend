@@ -25,6 +25,7 @@ export class TransactionHistory extends BaseEntity {
   event: TransactionEvent;
 
   @Column({
+    name: "old_status",
     type: "enum",
     enum: TransactionStatus,
     nullable: true,
@@ -32,6 +33,7 @@ export class TransactionHistory extends BaseEntity {
   oldStatus?: TransactionStatus;
 
   @Column({
+    name: "new_status",
     type: "enum",
     enum: TransactionStatus,
     nullable: true,
