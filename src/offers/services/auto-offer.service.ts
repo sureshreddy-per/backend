@@ -826,7 +826,7 @@ export class AutoOfferService {
     }
   }
 
-  private async handleExistingOffers(
+  async handleExistingOffers(
     buyerId: string,
     oldPreferences: string[],
     newPreferences: string[],

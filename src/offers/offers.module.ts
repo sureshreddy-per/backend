@@ -22,6 +22,8 @@ import { OfferTransformationService } from './services/offer-transformation.serv
 import { AutoOfferGeneratorTask } from './tasks/auto-offer-generator.task';
 import { ProduceMaster } from '../produce/entities/produce-master.entity';
 import { AIAssessmentCompletedListener } from './listeners/ai-assessment-completed.listener';
+import { BuyerPreferencesUpdatedListener } from './listeners/buyer-preferences-updated.listener';
+import { BuyerPreferencesChangedListener } from './listeners/buyer-preferences-changed.listener';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { AIAssessmentCompletedListener } from './listeners/ai-assessment-complet
       useFactory: () => new EventEmitter2(),
     },
     AIAssessmentCompletedListener,
+    BuyerPreferencesUpdatedListener,
+    BuyerPreferencesChangedListener,
   ],
   exports: [OffersService, AutoOfferService],
 })
