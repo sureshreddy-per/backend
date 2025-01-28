@@ -6,7 +6,7 @@ import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../enums/user-role.enum';
 import { GetUser } from '../../auth/decorators/get-user.decorator';
 import { User } from '../../users/entities/user.entity';
-import { BuyersService } from '../buyers.service';
+import { BuyerPreferencesService } from '../services/buyer-preferences.service';
 import { UpdateBuyerPreferencesDto } from '../dto/update-buyer-preferences.dto';
 
 @ApiTags('Buyer Preferences')
@@ -14,14 +14,14 @@ import { UpdateBuyerPreferencesDto } from '../dto/update-buyer-preferences.dto';
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class BuyerPreferencesController {
-  constructor(private readonly buyersService: BuyersService) {}
+  constructor(private readonly buyerPreferencesService: BuyerPreferencesService) {}
 
   @Get()
   @Roles(UserRole.BUYER)
   @ApiOperation({ summary: 'Get buyer preferences' })
   @ApiResponse({ status: 200, description: 'Returns the buyer preferences' })
   async getPreferences(@GetUser() user: User) {
-    return this.buyersService.getPreferences(user.id);
+    return this.buyerPreferencesService.findByBuyerId(user.id);
   }
 
   @Put()
@@ -32,6 +32,7 @@ export class BuyerPreferencesController {
     @GetUser() user: User,
     @Body() data: UpdateBuyerPreferencesDto,
   ) {
-    return this.buyersService.updatePreferences(user.id, data);
+    const buyer = await this.buyerPreferencesService.findByBuyerId(user.id);
+    return this.buyerPreferencesService.setPreferences(buyer.id, data);
   }
-} 
+}
