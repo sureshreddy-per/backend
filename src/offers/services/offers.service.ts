@@ -361,31 +361,72 @@ export class OffersService {
   }
 
   async reject(id: string, reason: string): Promise<Offer> {
-    const offer = await this.findOne(id);
+    return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
+      // 1. Get and validate offer
+      const offer = await this.findOne(id);
 
-    // Get the buyer details to get the user_id
-    const buyer = await this.buyersService.findOne(offer.buyer_id);
-    if (!buyer) {
-      throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
-    }
+      // 2. Get and validate buyer
+      const buyer = await this.buyersService.findOne(offer.buyer_id);
+      if (!buyer) {
+        throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+      }
 
-    offer.status = OfferStatus.REJECTED;
-    offer.rejection_reason = reason;
-    const updatedOffer = await this.offerRepository.save(offer);
-    await this.clearOfferCache(id);
+      // 3. Get and update produce status
+      const produce = await this.produceRepository.findOne({
+        where: { id: offer.produce_id }
+      });
 
-    // Notify the buyer about the rejected offer
-    await this.notificationService.create({
-      user_id: buyer.user_id,
-      type: NotificationType.OFFER_REJECTED,
-      data: {
-        offer_id: offer.id,
-        produce_id: offer.produce_id,
-        reason,
-      },
+      if (!produce) {
+        throw new NotFoundException(`Produce with ID ${offer.produce_id} not found`);
+      }
+
+      // 4. Update offer status
+      offer.status = OfferStatus.REJECTED;
+      offer.rejection_reason = reason;
+      const updatedOffer = await transactionalEntityManager.save(Offer, offer);
+      await this.clearOfferCache(id);
+
+      // 5. Update produce status back to AVAILABLE
+      produce.status = ProduceStatus.AVAILABLE;
+      await transactionalEntityManager.save(Produce, produce);
+
+      // 6. Notify the buyer about the rejected offer
+      try {
+        await this.notificationService.create({
+          user_id: buyer.user_id,
+          type: NotificationType.OFFER_REJECTED,
+          data: {
+            offer_id: offer.id,
+            produce_id: offer.produce_id,
+            reason,
+          },
+        });
+      } catch (error) {
+        this.logger.error(`Failed to send rejection notification to buyer ${buyer.user_id}`, error);
+      }
+
+      // 7. Trigger auto-offer recalculation
+      try {
+        this.eventEmitter.emit('offer.rejected', {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          rejected_at: new Date(),
+          reason: reason
+        });
+
+        // Emit event for auto-offer recalculation
+        this.eventEmitter.emit('produce.available', {
+          produce_id: produce.id,
+          event_type: 'offer_rejected',
+          timestamp: new Date()
+        });
+      } catch (error) {
+        this.logger.error(`Failed to trigger auto-offers recalculation for produce ${offer.produce_id}`, error);
+        // Don't throw error as this is a non-critical operation
+      }
+
+      return this.transformOfferResponse(updatedOffer);
     });
-
-    return this.transformOfferResponse(updatedOffer);
   }
 
   async cancel(id: string, reason: string): Promise<Offer> {
