@@ -117,6 +117,12 @@ export class QualityController {
     @GetUser() user: User,
     @Body() data: RequestQualityInspectionDto,
   ): Promise<InspectionRequest> {
+    // Check for existing inspection requests in PENDING or IN_PROGRESS state
+    const existingRequest = await this.inspectionRequestService.findExistingRequest(data.produce_id);
+    if (existingRequest) {
+      throw new BadRequestException(`An inspection request for this produce is already ${existingRequest.status.toLowerCase()}`);
+    }
+
     return this.inspectionRequestService.create({
       produce_id: data.produce_id,
       requester_id: user.id,

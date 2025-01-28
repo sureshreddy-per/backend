@@ -9,7 +9,8 @@ import { Inspector } from "../../inspectors/entities/inspector.entity";
 import { PaginatedResponse } from "../../common/interfaces/paginated-response.interface";
 import { TransformedInspection } from '../interfaces/transformed-inspection.interface';
 import { Logger } from "@nestjs/common";
-import { Brackets } from "typeorm";
+import { Brackets, Not } from "typeorm";
+import { In } from "typeorm";
 
 @Injectable()
 export class InspectionRequestService {
@@ -38,16 +39,10 @@ export class InspectionRequestService {
       throw new NotFoundException(`Produce with ID ${data.produce_id} not found`);
     }
 
-    // Check for existing pending inspection requests for this produce
-    const existingRequest = await this.inspectionRequestRepository.findOne({
-      where: {
-        produce_id: data.produce_id,
-        status: InspectionRequestStatus.PENDING
-      }
-    });
-
+    // Check for any existing non-cancelled inspection request for this produce
+    const existingRequest = await this.findExistingRequest(data.produce_id);
     if (existingRequest) {
-      throw new BadRequestException(`A pending inspection request already exists for produce ${data.produce_id}`);
+      throw new BadRequestException(`An inspection request already exists for this produce with status: ${existingRequest.status.toLowerCase()}`);
     }
 
     const request = this.inspectionRequestRepository.create({
@@ -79,6 +74,15 @@ export class InspectionRequestService {
     }
 
     return request;
+  }
+
+  async findExistingRequest(produceId: string): Promise<InspectionRequest | null> {
+    return this.inspectionRequestRepository.findOne({
+      where: {
+        produce_id: produceId,
+        status: Not(InspectionRequestStatus.CANCELLED) // Allow new requests only if previous one was cancelled
+      }
+    });
   }
 
   async assignInspector(id: string, inspectorId: string): Promise<InspectionRequest> {
