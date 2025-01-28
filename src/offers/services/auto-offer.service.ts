@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, Inject } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, Inject, BadRequestException } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, In, LessThan, ArrayContains } from "typeorm";
 import { EventEmitter2 } from "@nestjs/event-emitter";
@@ -14,6 +14,8 @@ import { NotificationType } from "../../notifications/enums/notification-type.en
 import { OfferStatus } from "../enums/offer-status.enum";
 import { InspectionDistanceFeeService } from "../../config/services/fee-config.service";
 import { CategorySpecificAssessment } from "../../quality/interfaces/category-assessments.interface";
+import { Farmer } from "../../farmers/entities/farmer.entity";
+import { FarmersService } from "../../farmers/farmers.service";
 
 interface QualityAssessmentMetadata {
   grade: number;
@@ -42,6 +44,7 @@ export class AutoOfferService {
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    private readonly farmerService: FarmersService,
   ) {}
 
   private getCacheKey(key: string): string {
@@ -310,21 +313,36 @@ export class AutoOfferService {
       throw new NotFoundException(`Offer ${offerId} not found for buyer ${buyerId}`);
     }
 
+    // Get the farmer to get their user_id
+    const farmer = await this.farmerService.findOne(offer.farmer_id);
+    if (!farmer) {
+      throw new NotFoundException(`Farmer with ID ${offer.farmer_id} not found`);
+    }
+
+    if (!farmer.user_id) {
+      throw new BadRequestException(`Farmer ${farmer.id} has no associated user ID`);
+    }
+
     offer.status = OfferStatus.REJECTED;
     offer.rejection_reason = reason;
 
     const updatedOffer = await this.offerRepository.save(offer);
 
-    // Notify farmer of rejection
-    await this.notificationService.create({
-      user_id: offer.farmer_id,
-      type: NotificationType.OFFER_REJECTED,
-      data: {
-        offer_id: offer.id,
-        produce_id: offer.produce_id,
-        reason
-      },
-    });
+    // Notify farmer of rejection using their user_id
+    try {
+      await this.notificationService.create({
+        user_id: farmer.user_id,
+        type: NotificationType.OFFER_REJECTED,
+        data: {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          reason
+        },
+      });
+    } catch (error) {
+      this.logger.error(`Failed to send rejection notification to farmer ${farmer.user_id}`, error);
+      // Don't throw error as this is a non-critical operation
+    }
 
     return updatedOffer;
   }
