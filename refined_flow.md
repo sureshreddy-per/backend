@@ -767,7 +767,7 @@ This enhanced flow ensures:
   1. Get buyer's location (lat/lng)
   2. Find all produce within 100km radius
   3. Filter produce by:
-     * Status = ASSESSED
+     * Status = AVAILABLE
      * Name matches buyer's preferences
      * Active and available
 

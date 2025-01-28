@@ -21,6 +21,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OfferTransformationService } from './services/offer-transformation.service';
 import { AutoOfferGeneratorTask } from './tasks/auto-offer-generator.task';
 import { ProduceMaster } from '../produce/entities/produce-master.entity';
+import { AIAssessmentCompletedListener } from './listeners/ai-assessment-completed.listener';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { ProduceMaster } from '../produce/entities/produce-master.entity';
       provide: EventEmitter2,
       useFactory: () => new EventEmitter2(),
     },
+    AIAssessmentCompletedListener,
   ],
   exports: [OffersService, AutoOfferService],
 })

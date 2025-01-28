@@ -768,7 +768,7 @@ export class AutoOfferService {
     const [lat, lng] = buyer.location.split(',').map(Number);
     const produces = await this.produceRepository.find({
       where: {
-        status: ProduceStatus.ASSESSED,
+        status: ProduceStatus.AVAILABLE,
       },
       relations: ['quality_assessments'],
       order: {
