@@ -1,6 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { CacheModule } from '@nestjs/cache-manager';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { OffersService } from './services/offers.service';
 import { OffersController } from './controllers/offers.controller';
 import { Offer } from './entities/offer.entity';
@@ -17,6 +17,7 @@ import { Produce } from '../produce/entities/produce.entity';
 import { Buyer } from '../buyers/entities/buyer.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { FarmersModule } from '../farmers/farmers.module';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
@@ -28,19 +29,23 @@ import { FarmersModule } from '../farmers/farmers.module';
       Buyer,
       Transaction
     ]),
-    CacheModule.register(),
-    NotificationsModule,
-    ProduceModule,
+    forwardRef(() => EventEmitterModule),
+    forwardRef(() => NotificationsModule),
+    forwardRef(() => ProduceModule),
     forwardRef(() => BuyersModule),
-    UsersModule,
-    ConfigModule,
-    FarmersModule,
+    forwardRef(() => UsersModule),
+    forwardRef(() => ConfigModule),
+    forwardRef(() => FarmersModule),
   ],
   controllers: [OffersController],
   providers: [
     OffersService,
     AutoOfferService,
     DailyPriceCalculationService,
+    {
+      provide: EventEmitter2,
+      useFactory: () => new EventEmitter2(),
+    },
   ],
   exports: [OffersService, AutoOfferService],
 })

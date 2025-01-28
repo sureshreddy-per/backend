@@ -54,6 +54,7 @@ export class OffersService {
     private readonly usersService: UsersService,
     private readonly produceService: ProduceService,
     private readonly eventEmitter: EventEmitter2,
+    @Inject(CACHE_MANAGER)
     private readonly cacheManager: Cache,
     @Inject(forwardRef(() => AutoOfferService))
     private readonly autoOfferService: AutoOfferService,

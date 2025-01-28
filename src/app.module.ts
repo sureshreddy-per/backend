@@ -39,8 +39,6 @@ import configuration from "./config/configuration";
       load: [configuration],
       envFilePath: ['.env.development', '.env'],
     }),
-    TypeOrmModule.forRoot(typeOrmConfig),
-    EventEmitterModule.forRoot(),
     CacheModule.registerAsync<RedisClientOptions>({
       isGlobal: true,
       imports: [ConfigModule],
@@ -58,6 +56,22 @@ import configuration from "./config/configuration";
         },
       }),
     }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        host: configService.get('database.host'),
+        port: configService.get('database.port'),
+        username: configService.get('database.username'),
+        password: configService.get('database.password'),
+        database: configService.get('database.name'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        synchronize: configService.get('database.synchronize'),
+        logging: configService.get('database.logging'),
+      }),
+    }),
+    EventEmitterModule.forRoot(),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
