@@ -36,7 +36,6 @@ import { BuyerPreferencesChangedListener } from './listeners/buyer-preferences-c
       Transaction,
       ProduceMaster
     ]),
-    EventEmitterModule,
     forwardRef(() => NotificationsModule),
     forwardRef(() => ProduceModule),
     forwardRef(() => BuyersModule),
@@ -51,10 +50,6 @@ import { BuyerPreferencesChangedListener } from './listeners/buyer-preferences-c
     DailyPriceCalculationService,
     OfferTransformationService,
     AutoOfferGeneratorTask,
-    {
-      provide: EventEmitter2,
-      useFactory: () => new EventEmitter2(),
-    },
     AIAssessmentCompletedListener,
     BuyerPreferencesUpdatedListener,
     BuyerPreferencesChangedListener,

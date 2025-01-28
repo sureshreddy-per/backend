@@ -1,6 +1,5 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { EventEmitterModule } from "@nestjs/event-emitter";
 import { NotificationController } from "./controllers/notification.controller";
 import { NotificationService } from "./services/notification.service";
 import { Notification } from "./entities/notification.entity";
@@ -12,7 +11,6 @@ import { RetentionService } from './services/retention.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Notification, NotificationPreferences]),
-    EventEmitterModule.forRoot(),
     UsersModule,
   ],
   controllers: [NotificationController],

@@ -25,13 +25,13 @@ export class AIAssessmentCompletedListener {
       // Get produce details
       const produce = await this.produceService.findOne(payload.produce_id);
       
-      // Update produce status to ASSESSED
+      // Update produce status to AVAILABLE
       await this.produceService.updateStatus(
         payload.produce_id,
         ProduceStatus.AVAILABLE
       );
       
-      this.logger.debug(`[AIAssessmentCompletedListener] Updated produce status to ASSESSED. Starting auto offer generation.`);
+      this.logger.debug(`[AIAssessmentCompletedListener] Updated produce status to AVAILABLE. Starting auto offer generation.`);
       
       // Generate auto offers
       await this.autoOfferService.generateOffersForProduce(produce);

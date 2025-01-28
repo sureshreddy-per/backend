@@ -322,9 +322,15 @@ export class OffersService {
         }
       };
 
-      this.logger.log(`Emitting offer.accepted event for offer ${offer.id}`);
-      this.eventEmitter.emit('offer.accepted', offerAcceptedEvent);
-      this.logger.log(`Emitted offer.accepted event for offer ${offer.id}`);
+      this.logger.log(`[accept] Preparing to emit offer.accepted event for offer ${offer.id}`);
+      this.logger.log(`[accept] Event data: ${JSON.stringify(offerAcceptedEvent)}`);
+      
+      try {
+        this.eventEmitter.emit('offer.accepted', offerAcceptedEvent);
+        this.logger.log(`[accept] Successfully emitted offer.accepted event for offer ${offer.id}`);
+      } catch (error) {
+        this.logger.error(`[accept] Failed to emit offer.accepted event: ${error.message}`, error.stack);
+      }
 
       // Return transformed offer using transformation service
       return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
