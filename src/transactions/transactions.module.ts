@@ -17,10 +17,12 @@ import { FarmersModule } from "../farmers/farmers.module";
 import { User } from "../users/entities/user.entity";
 import { TransactionRecoveryService } from './services/transaction-recovery.service';
 import { SystemConfigModule } from '../system-config/system-config.module';
+import { Offer } from "../offers/entities/offer.entity";
+import { SystemConfig } from "../system-config/entities/system-config.entity";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Transaction, TransactionHistory, User]),
+    TypeOrmModule.forFeature([Transaction, TransactionHistory, User, Offer, SystemConfig]),
     OffersModule,
     NotificationsModule,
     ProduceModule,
