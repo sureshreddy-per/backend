@@ -21,7 +21,6 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OfferTransformationService } from './services/offer-transformation.service';
 import { AutoOfferGeneratorTask } from './tasks/auto-offer-generator.task';
 import { ProduceMaster } from '../produce/entities/produce-master.entity';
-import { AIAssessmentCompletedListener } from './listeners/ai-assessment-completed.listener';
 import { BuyerPreferencesUpdatedListener } from './listeners/buyer-preferences-updated.listener';
 import { BuyerPreferencesChangedListener } from './listeners/buyer-preferences-changed.listener';
 
@@ -50,7 +49,6 @@ import { BuyerPreferencesChangedListener } from './listeners/buyer-preferences-c
     DailyPriceCalculationService,
     OfferTransformationService,
     AutoOfferGeneratorTask,
-    AIAssessmentCompletedListener,
     BuyerPreferencesUpdatedListener,
     BuyerPreferencesChangedListener,
   ],

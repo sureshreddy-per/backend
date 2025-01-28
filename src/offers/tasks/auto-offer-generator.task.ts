@@ -14,7 +14,7 @@ export class AutoOfferGeneratorTask {
     private readonly produceService: ProduceService,
   ) {}
 
-  @OnEvent('quality.assessment.completed')
+  @OnEvent('quality.assessment.saved')
   async handleQualityAssessmentCompleted(event: QualityAssessmentCompletedEvent) {
     try {
       this.logger.log(`[AutoOfferGeneratorTask] Quality assessment completed event received for produce ${event.produce_id}`);

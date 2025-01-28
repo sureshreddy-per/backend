@@ -16,6 +16,7 @@ import { User } from '../../users/entities/user.entity';
 import { Farmer } from '../../farmers/entities/farmer.entity';
 import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
 import { QualityAssessmentService } from '../../quality/services/quality-assessment.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 interface TransformedFarmer {
   id: string;
@@ -40,7 +41,8 @@ export class ProduceService {
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly inspectorsService: InspectorsService,
     private readonly qualityAssessmentService: QualityAssessmentService,
-    private readonly dataSource: DataSource
+    private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2
   ) {}
 
   private parseLocation(location: string): { lat: number; lng: number } {
@@ -259,6 +261,18 @@ export class ProduceService {
 
       // Save the final status update within transaction
       await queryRunner.manager.save(produce);
+
+      await this.eventEmitter.emit('quality.assessment.saved', {
+        produce_id: produce.id,
+        quality_grade: produce.quality_grade,
+        confidence_level: event.confidence_level,
+        detected_name: event.detected_name,
+        description: event.description,
+        product_variety: event.product_variety,
+        produce_category: event.produce_category,
+        category_specific_attributes: event.category_specific_attributes,
+        assessment_details: event.assessment_details,
+      });
 
       // Commit the transaction
       await queryRunner.commitTransaction();

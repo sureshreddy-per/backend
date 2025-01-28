@@ -204,7 +204,7 @@ export class QualityController {
       await this.inspectionRequestService.complete(id);
 
       // Emit quality assessment completed event
-      await this.eventEmitter.emit('quality.assessment.completed', {
+      await this.eventEmitter.emit('quality.assessment.saved', {
         produce_id: request.produce_id,
         quality_grade: assessment.quality_grade,
         confidence_level: assessment.confidence_level,
