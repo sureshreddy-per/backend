@@ -11,7 +11,6 @@ import { CreateOfferDto } from '../dto/create-offer.dto';
 import { CreateAdminOfferDto } from '../dto/create-admin-offer.dto';
 import { ProduceService } from '../../produce/services/produce.service';
 import { BuyersService } from '../../buyers/buyers.service';
-import { NotificationService } from '../../notifications/services/notification.service';
 import { AutoOfferService } from './auto-offer.service';
 import { NotificationType } from '../../notifications/enums/notification-type.enum';
 import { OfferStatus } from '../enums/offer-status.enum';
@@ -42,18 +41,14 @@ const CACHE_PREFIX = 'offers:';
 const CACHE_TTL = 300; // 5 minutes
 
 // Add new event type
-export class TransactionExpiredEvent {
+export interface TransactionExpiredEvent {
   transaction_id: string;
-  metadata: {
-    reason: string;
-    reactivated_at: Date;
-    reactivated_by: string;
-  };
 }
 
 // Add new event type
-export class GetLatestTransactionEvent {
-  produce_id: string;
+export interface GetLatestTransactionEvent {
+  user_id: string;
+  role: 'BUYER' | 'FARMER';
 }
 
 @Injectable()
@@ -65,7 +60,6 @@ export class OffersService {
     private readonly offerRepository: Repository<Offer>,
     @InjectRepository(Produce)
     private readonly produceRepository: Repository<Produce>,
-    private readonly notificationService: NotificationService,
     private readonly buyersService: BuyersService,
     private readonly farmersService: FarmersService,
     private readonly usersService: UsersService,
@@ -88,6 +82,22 @@ export class OffersService {
       this.getCacheKey('stats'),
     ];
     await Promise.all(keys.map(key => this.cacheManager.del(key)));
+  }
+
+  private async notifyUser(userId: string, type: NotificationType, data: Record<string, any>) {
+    try {
+      this.eventEmitter.emit('notification.create', {
+        user_id: userId,
+        type,
+        data,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to emit notification event for user ${userId}, type ${type}: ${error.message}`,
+        error.stack
+      );
+      // Don't throw error as notifications are non-critical
+    }
   }
 
   async create(createOfferDto: CreateOfferDto): Promise<Offer> {
@@ -129,16 +139,14 @@ export class OffersService {
       const buyer = await this.buyersService.findOne(createOfferDto.buyer_id);
 
       // Notify the farmer about the new offer
-      await this.notificationService.create({
-        user_id: farmer.user_id,
-        type: NotificationType.NEW_OFFER,
-        data: {
-          offer_id: savedOffer.id,
-          produce_id: savedOffer.produce_id,
-          price_per_unit: savedOffer.price_per_unit,
-          quantity: savedOffer.quantity,
-          buyer_name: buyer.business_name
-        },
+      await this.notifyUser(farmer.user_id, NotificationType.NEW_OFFER, {
+        offer_id: savedOffer.id,
+        produce_id: savedOffer.produce_id,
+        price_per_unit: savedOffer.price_per_unit,
+        quantity: savedOffer.quantity,
+        buyer_name: buyer.business_name,
+        message: 'New offer received',
+        status: OfferStatus.PENDING
       });
 
       // Return transformed offer
@@ -247,15 +255,11 @@ export class OffersService {
           try {
             const otherBuyer = await this.buyersService.findOne(otherOffer.buyer_id);
             if (otherBuyer) {
-              await this.notificationService.create({
-                user_id: otherBuyer.user_id,
-                type: NotificationType.OFFER_STATUS_UPDATE,
-                data: {
-                  offer_id: otherOffer.id,
-                  produce_id: otherOffer.produce_id,
-                  status: OfferStatus.CANCELLED,
-                  reason: 'Another offer was accepted',
-                },
+              await this.notifyUser(otherBuyer.user_id, NotificationType.OFFER_STATUS_UPDATE, {
+                offer_id: otherOffer.id,
+                produce_id: otherOffer.produce_id,
+                status: OfferStatus.CANCELLED,
+                reason: 'Another offer was accepted',
               });
             }
           } catch (error) {
@@ -267,7 +271,7 @@ export class OffersService {
         throw new ConflictException("Failed to process offer acceptance");
       }
 
-      // 6. Update offer and produce status
+      // 6. Update offer status
       offer.status = OfferStatus.ACCEPTED;
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
 
@@ -280,21 +284,28 @@ export class OffersService {
       produce.status = ProduceStatus.IN_PROGRESS;
       await transactionalEntityManager.save(Produce, produce);
 
+      // Get farmer details
+      const farmer = await this.farmersService.findOne(offer.farmer_id);
+      if (!farmer) {
+        throw new NotFoundException(`Farmer with ID ${offer.farmer_id} not found`);
+      }
+
       // 7. Emit offer accepted event
-      const offerAcceptedEvent = new OfferAcceptedEvent();
-      offerAcceptedEvent.offer_id = String(offer.id);
-      offerAcceptedEvent.produce_id = String(offer.produce_id);
-      offerAcceptedEvent.buyer_id = String(offer.buyer_id);
-      offerAcceptedEvent.farmer_id = String(offer.farmer_id);
-      offerAcceptedEvent.price_per_unit = Number(offer.price_per_unit);
-      offerAcceptedEvent.quantity = Number(offer.quantity);
-      offerAcceptedEvent.quality_grade = String(offer.quality_grade);
-      offerAcceptedEvent.distance_km = offer.distance_km;
-      offerAcceptedEvent.inspection_fee = offer.inspection_fee;
-      offerAcceptedEvent.buyer_user_id = buyer.user_id;
-      offerAcceptedEvent.metadata = {
-        accepted_at: new Date(),
-        accepted_by: offer.farmer_id
+      const offerAcceptedEvent: OfferAcceptedEvent = {
+        offer: {
+          id: String(offer.id),
+          produce_id: String(offer.produce_id),
+          price_per_unit: Number(offer.price_per_unit),
+          quantity: Number(offer.quantity)
+        },
+        buyer: {
+          id: String(offer.buyer_id),
+          user_id: buyer.user_id
+        },
+        farmer: {
+          id: String(offer.farmer_id),
+          user_id: farmer.user_id
+        }
       };
 
       this.logger.log(`Emitting offer.accepted event for offer ${offer.id}`);
@@ -358,18 +369,17 @@ export class OffersService {
       // 6. Notify the buyer about the rejected offer
       try {
         this.logger.log(`Sending rejection notification to buyer user ${buyer.user_id}`);
-        await this.notificationService.create({
-          user_id: buyer.user_id,
-          type: NotificationType.OFFER_REJECTED,
-          data: {
-            offer_id: offer.id,
-            produce_id: offer.produce_id,
-            reason,
-          },
+        await this.notifyUser(buyer.user_id, NotificationType.OFFER_STATUS_UPDATE, {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          previous_status: OfferStatus.PENDING,
+          status: OfferStatus.REJECTED,
+          reason,
+          message: 'Offer has been rejected',
+          updated_at: new Date()
         });
       } catch (error) {
         this.logger.error(`Failed to send rejection notification to buyer ${buyer.user_id}`, error);
-        // Don't throw error as this is a non-critical operation
       }
 
       // 7. Trigger auto-offer recalculation
@@ -437,31 +447,22 @@ export class OffersService {
 
       // 6. Notify both parties about the cancelled offer
       try {
+        const notificationData = {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          previous_status: offer.status,
+          status: OfferStatus.CANCELLED,
+          reason,
+          message: 'Offer has been cancelled',
+          updated_at: new Date()
+        };
+
         await Promise.all([
-          this.notificationService.create({
-            user_id: buyer.user_id,
-            type: NotificationType.OFFER_STATUS_UPDATE,
-            data: {
-              offer_id: offer.id,
-              produce_id: offer.produce_id,
-              status: OfferStatus.CANCELLED,
-              reason,
-            },
-          }),
-          this.notificationService.create({
-            user_id: farmer.user_id,
-            type: NotificationType.OFFER_STATUS_UPDATE,
-            data: {
-              offer_id: offer.id,
-              produce_id: offer.produce_id,
-              status: OfferStatus.CANCELLED,
-              reason,
-            },
-          }),
+          this.notifyUser(buyer.user_id, NotificationType.OFFER_STATUS_UPDATE, notificationData),
+          this.notifyUser(farmer.user_id, NotificationType.OFFER_STATUS_UPDATE, notificationData)
         ]);
       } catch (error) {
         this.logger.error(`Failed to send cancellation notifications for offer ${offer.id}`, error);
-        // Don't throw error as this is a non-critical operation
       }
 
       // 7. Trigger auto-offer recalculation
@@ -722,33 +723,23 @@ export class OffersService {
 
       // Notify both parties about the price update
       try {
+        const notificationData = {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          price_per_unit: newPrice,
+          previous_price: offer.price_per_unit,
+          previous_status: OfferStatus.ACCEPTED,
+          status: OfferStatus.PRICE_MODIFIED,
+          message: 'Offer price has been updated',
+          updated_at: new Date()
+        };
+
         await Promise.all([
-          this.notificationService.create({
-            user_id: buyer.user_id,
-            type: NotificationType.OFFER_PRICE_UPDATE,
-            data: {
-              offer_id: offer.id,
-              produce_id: offer.produce_id,
-              new_price: newPrice,
-              previous_status: OfferStatus.ACCEPTED,
-              new_status: OfferStatus.PRICE_MODIFIED
-            },
-          }),
-          this.notificationService.create({
-            user_id: farmer.user_id,
-            type: NotificationType.OFFER_PRICE_UPDATE,
-            data: {
-              offer_id: offer.id,
-              produce_id: offer.produce_id,
-              new_price: newPrice,
-              previous_status: OfferStatus.ACCEPTED,
-              new_status: OfferStatus.PRICE_MODIFIED
-            },
-          }),
+          this.notifyUser(buyer.user_id, NotificationType.OFFER_PRICE_UPDATE, notificationData),
+          this.notifyUser(farmer.user_id, NotificationType.OFFER_PRICE_UPDATE, notificationData),
         ]);
       } catch (error) {
         this.logger.error(`Failed to send price update notifications for offer ${offer.id}`, error);
-        // Don't throw error as this is a non-critical operation
       }
 
       return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
@@ -842,27 +833,23 @@ export class OffersService {
 
       // Notify both buyer and farmer about the admin-created offer
       await Promise.all([
-        this.notificationService.create({
-          user_id: buyer.id,
-          type: NotificationType.NEW_OFFER,
-          data: {
-            offer_id: savedOffer.id,
-            produce_id: savedOffer.produce_id,
-            price_per_unit: savedOffer.price_per_unit,
-            quantity: savedOffer.quantity,
-            message: 'An administrator has created this offer on your behalf'
-          },
+        this.notifyUser(buyer.id, NotificationType.NEW_OFFER, {
+          offer_id: savedOffer.id,
+          produce_id: savedOffer.produce_id,
+          price_per_unit: savedOffer.price_per_unit,
+          quantity: savedOffer.quantity,
+          message: 'An administrator has created this offer on your behalf',
+          status: OfferStatus.PENDING,
+          created_by: 'admin'
         }),
-        this.notificationService.create({
-          user_id: farmer.id,
-          type: NotificationType.NEW_OFFER,
-          data: {
-            offer_id: savedOffer.id,
-            produce_id: savedOffer.produce_id,
-            price_per_unit: savedOffer.price_per_unit,
-            quantity: savedOffer.quantity,
-            message: 'An administrator has created this offer'
-          },
+        this.notifyUser(farmer.id, NotificationType.NEW_OFFER, {
+          offer_id: savedOffer.id,
+          produce_id: savedOffer.produce_id,
+          price_per_unit: savedOffer.price_per_unit,
+          quantity: savedOffer.quantity,
+          message: 'An administrator has created this offer',
+          status: OfferStatus.PENDING,
+          created_by: 'admin'
         }),
       ]);
 
@@ -913,9 +900,9 @@ export class OffersService {
     }
   ): Promise<void> {
     // Emit event instead of direct transaction update
-    const event = new TransactionExpiredEvent();
-    event.transaction_id = transactionId;
-    event.metadata = metadata;
+    const event: TransactionExpiredEvent = {
+      transaction_id: transactionId
+    };
 
     this.eventEmitter.emit('transaction.expired', event);
   }
@@ -938,15 +925,11 @@ export class OffersService {
       const buyer = await this.buyersService.findOne(offer.buyer_id);
       if (buyer) {
         // Notify the buyer about the cancelled offer
-        await this.notificationService.create({
-          user_id: buyer.user_id,
-          type: NotificationType.OFFER_STATUS_UPDATE,
-          data: {
-            offer_id: offer.id,
-            produce_id: offer.produce_id,
-            status: OfferStatus.CANCELLED,
-            reason
-          }
+        await this.notifyUser(buyer.user_id, NotificationType.OFFER_STATUS_UPDATE, {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          status: OfferStatus.CANCELLED,
+          reason
         });
       }
     }));

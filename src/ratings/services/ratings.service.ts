@@ -6,25 +6,28 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { Rating } from "../entities/rating.entity";
 import { CreateRatingDto, RatingType } from "../dto/create-rating.dto";
 import { TransactionService } from "../../transactions/services/transaction.service";
-import { NotificationService } from "../../notifications/services/notification.service";
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
 import { TransactionStatus } from "../../transactions/entities/transaction.entity";
 import { User } from "../../users/entities/user.entity";
 import { BuyersService } from "../../buyers/buyers.service";
 import { FarmersService } from "../../farmers/farmers.service";
+import { Logger } from "@nestjs/common";
 
 @Injectable()
 export class RatingsService {
+  private readonly logger = new Logger(RatingsService.name);
+
   constructor(
     @InjectRepository(Rating)
     private readonly ratingRepository: Repository<Rating>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly transactionService: TransactionService,
-    private readonly notificationService: NotificationService,
+    private readonly eventEmitter: EventEmitter2,
     private readonly buyersService: BuyersService,
     private readonly farmersService: FarmersService,
   ) {}
@@ -43,6 +46,22 @@ export class RatingsService {
     await this.userRepository.update(userId, {
       rating: Number(averageRating.toFixed(2)), // Round to 2 decimal places
     });
+  }
+
+  private async notifyUser(userId: string, type: NotificationType, data: Record<string, any>) {
+    try {
+      this.eventEmitter.emit('notification.create', {
+        user_id: userId,
+        type,
+        data,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to emit notification event for user ${userId}, type ${type}: ${error.message}`,
+        error.stack
+      );
+      // Don't throw error as notifications are non-critical
+    }
   }
 
   async create(createRatingDto: CreateRatingDto, user: User): Promise<Rating> {
@@ -108,19 +127,27 @@ export class RatingsService {
     // Update the rated user's average rating
     await this.updateUserRating(rated_user_id);
 
-    // Send notification
-    await this.notificationService.create({
-      user_id: rated_user_id,
-      type: NotificationType.RATING_RECEIVED,
-      data: {
-        rating_id: savedRating.id,
-        transaction_id: transaction.id,
-        rating: rating.rating,
-        from_user_id: rating_user_id
-      },
+    // Send notification through event
+    await this.notifyUser(rated_user_id, NotificationType.RATING_RECEIVED, {
+      rating_id: savedRating.id,
+      transaction_id: transaction.id,
+      rating: rating.rating,
+      from_user_id: rating_user_id,
+      message: 'You have received a new rating',
+      created_at: new Date(),
+      review: rating.review || undefined,
+      average_rating: await this.getUserAverageRating(rated_user_id)
     });
 
     return savedRating;
+  }
+
+  private async getUserAverageRating(userId: string): Promise<number> {
+    const ratings = await this.ratingRepository.find({
+      where: { rated_user_id: userId },
+    });
+    const totalRating = ratings.reduce((sum, rating) => sum + rating.rating, 0);
+    return ratings.length > 0 ? Number((totalRating / ratings.length).toFixed(2)) : 0;
   }
 
   async findReceivedRatings(userId: string): Promise<Rating[]> {

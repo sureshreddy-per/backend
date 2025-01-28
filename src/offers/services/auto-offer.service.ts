@@ -9,7 +9,6 @@ import { Offer } from "../entities/offer.entity";
 import { Buyer } from "../../buyers/entities/buyer.entity";
 import { Produce } from "../../produce/entities/produce.entity";
 import { QualityAssessment } from "../../quality/entities/quality-assessment.entity";
-import { NotificationService } from "../../notifications/services/notification.service";
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
 import { OfferStatus } from "../enums/offer-status.enum";
 import { InspectionDistanceFeeService } from "../../config/services/fee-config.service";
@@ -20,12 +19,35 @@ import { OffersService } from "../services/offers.service";
 import { OfferTransformationService } from './offer-transformation.service';
 import { ProduceMaster } from "../../produce/entities/produce-master.entity";
 import { ProduceSynonymService } from "../../produce/services/synonym.service";
+import { ProduceStatus } from "../../produce/enums/produce-status.enum";
 
 interface QualityAssessmentMetadata {
   grade: number;
   defects: string[];
   recommendations: string[];
-  category_specific_assessment: CategorySpecificAssessment;
+  category_specific_assessment?: CategorySpecificAssessment;
+}
+
+interface OfferMetadata {
+  quality_assessment?: QualityAssessmentMetadata;
+  price_history?: Array<{
+    price: number;
+    timestamp: Date;
+    reason: string;
+  }>;
+  cancellation_reason?: string;
+  cancelled_at?: Date;
+  auto_generated?: boolean;
+  quality_assessment_id?: string;
+  price?: number;
+  quality_grade?: number;
+  inspection_fee_details?: {
+    total_fee: number;
+    distance_km: number;
+  };
+  valid_until?: Date;
+  price_source?: string;
+  last_price_updated?: Date;
 }
 
 const CACHE_TTL = parseInt(process.env.AUTO_OFFER_CACHE_TTL || '3600'); // 1 hour
@@ -46,7 +68,6 @@ export class AutoOfferService {
     private readonly qualityAssessmentRepository: Repository<QualityAssessment>,
     @InjectRepository(ProduceMaster)
     private readonly produceMasterRepository: Repository<ProduceMaster>,
-    private readonly notificationService: NotificationService,
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
@@ -55,7 +76,50 @@ export class AutoOfferService {
     private readonly offersService: OffersService,
     private readonly offerTransformationService: OfferTransformationService,
     private readonly produceSynonymService: ProduceSynonymService,
-  ) {}
+  ) {
+    this.setupEventListeners();
+  }
+
+  private setupEventListeners(): void {
+    // Handle preference updates for new offer generation
+    this.eventEmitter.on('buyer.preferences.updated', async (payload: {
+      buyer: Buyer;
+      oldPreferences: string[];
+      newPreferences: string[];
+      pricePreferences?: Array<{ produce_name: string; min_price: number; max_price: number; }>;
+    }) => {
+      try {
+        await this.generateOffersForBuyerPreferences(payload.buyer);
+      } catch (error) {
+        this.logger.error(
+          `Failed to generate offers for buyer ${payload.buyer.id} after preferences update: ${error.message}`,
+          error.stack
+        );
+      }
+    });
+
+    // Handle preference changes for existing offers
+    this.eventEmitter.on('buyer.preferences.changed', async (payload: {
+      buyer: Buyer;
+      oldPreferences: string[];
+      newPreferences: string[];
+      pricePreferences?: Array<{ produce_name: string; min_price: number; max_price: number; }>;
+    }) => {
+      try {
+        await this.handleExistingOffers(
+          payload.buyer.id,
+          payload.oldPreferences,
+          payload.newPreferences,
+          payload.pricePreferences
+        );
+      } catch (error) {
+        this.logger.error(
+          `Failed to handle existing offers for buyer ${payload.buyer.id}: ${error.message}`,
+          error.stack
+        );
+      }
+    });
+  }
 
   private getCacheKey(key: string): string {
     return `${CACHE_PREFIX}${key}`;
@@ -96,25 +160,26 @@ export class AutoOfferService {
     minPrice: number,
     maxPrice: number,
     qualityGrade: number,
-    attributes?: any,
-    buyerPreferences?: { min_price: number; max_price: number } | null,
+    categoryAssessment: CategorySpecificAssessment | undefined,
+    pricePreference: { min_price: number; max_price: number }
   ): number {
-    // Use buyer preferences if available, otherwise use daily price
-    const effectiveMinPrice = buyerPreferences?.min_price ?? minPrice;
-    const effectiveMaxPrice = buyerPreferences?.max_price ?? maxPrice;
+    // Base calculation using quality grade
+    const qualityFactor = qualityGrade / 100;
+    let price = minPrice + (maxPrice - minPrice) * qualityFactor;
 
-    // Base price calculation based on quality grade
-    const qualityPercentage = qualityGrade / 10;
-    let basePrice = effectiveMinPrice + (effectiveMaxPrice - effectiveMinPrice) * qualityPercentage;
-
-    // Apply attribute-based adjustments if available
-    if (attributes) {
-      const attributeMultiplier = this.calculateAttributeMultiplier(attributes);
-      basePrice *= attributeMultiplier;
+    // Apply category-specific adjustments if available
+    if (categoryAssessment) {
+      // Add your category-specific price adjustments here
+      // This is just an example - adjust based on your business logic
+      if (categoryAssessment.ripeness) {
+        price *= (1 + categoryAssessment.ripeness / 100);
+      }
     }
 
-    // Ensure price stays within min-max range
-    return Math.min(Math.max(basePrice, effectiveMinPrice), effectiveMaxPrice);
+    // Ensure price stays within buyer's preferred range
+    price = Math.max(pricePreference.min_price, Math.min(price, pricePreference.max_price));
+
+    return Math.round(price * 100) / 100; // Round to 2 decimal places
   }
 
   private calculateAttributeMultiplier(attributes: any): number {
@@ -245,18 +310,14 @@ export class AutoOfferService {
         });
 
         // Notify buyer
-        await this.notificationService.create({
-          user_id: buyer.user_id,
-          type: NotificationType.NEW_AUTO_OFFER,
-          data: {
-            offer_id: offer.id,
-            produce_id: produce.id,
-            price: offerPrice,
-            quality_grade: latestAssessment.quality_grade,
-            inspection_fee: inspectionFee,
-            valid_until: offer.valid_until,
-            distance_km: distance,
-          },
+        await this.notifyUser(buyer.user_id, NotificationType.NEW_AUTO_OFFER, {
+          offer_id: offer.id,
+          produce_id: produce.id,
+          price: offerPrice,
+          quality_grade: latestAssessment.quality_grade,
+          inspection_fee: inspectionFee,
+          valid_until: offer.valid_until,
+          distance_km: distance,
         });
         this.logger.debug(`[AutoOfferService] Sent notification to buyer ${buyer.id}`);
       } catch (error) {
@@ -315,17 +376,13 @@ export class AutoOfferService {
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
 
       // Notify farmer of offer approval/modification
-      await this.notificationService.create({
-        user_id: offer.farmer_id,
-        type: data?.price_per_unit ? NotificationType.OFFER_PRICE_MODIFIED : NotificationType.OFFER_APPROVED,
-        data: {
-          offer_id: offer.id,
-          produce_id: offer.produce_id,
-          price: offer.price_per_unit,
-          modified: !!data?.price_per_unit,
-          modification_reason: data?.price_modification_reason,
-          inspection_fee: offer.inspection_fee
-        },
+      await this.notifyUser(offer.farmer_id, data?.price_per_unit ? NotificationType.OFFER_PRICE_MODIFIED : NotificationType.OFFER_APPROVED, {
+        offer_id: offer.id,
+        produce_id: offer.produce_id,
+        price: offer.price_per_unit,
+        modified: !!data?.price_per_unit,
+        modification_reason: data?.price_modification_reason,
+        inspection_fee: offer.inspection_fee
       });
 
       return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
@@ -358,14 +415,10 @@ export class AutoOfferService {
 
     // Notify farmer of rejection using their user_id
     try {
-      await this.notificationService.create({
-        user_id: farmer.user_id,
-        type: NotificationType.OFFER_REJECTED,
-        data: {
-          offer_id: offer.id,
-          produce_id: offer.produce_id,
-          reason
-        },
+      await this.notifyUser(farmer.user_id, NotificationType.OFFER_REJECTED, {
+        offer_id: offer.id,
+        produce_id: offer.produce_id,
+        reason
       });
     } catch (error) {
       this.logger.error(`Failed to send rejection notification to farmer ${farmer.user_id}`, error);
@@ -437,14 +490,10 @@ export class AutoOfferService {
         await this.offerRepository.save(offer);
 
         // Notify using buyer's user_id
-        await this.notificationService.create({
-          user_id: buyer.user.id,
-          type: NotificationType.OFFER_EXPIRED,
-          data: {
-            offer_id: offer.id,
-            produce_id: offer.produce_id,
-            expired_at: offer.metadata.expired_at
-          }
+        await this.notifyUser(buyer.user.id, NotificationType.OFFER_EXPIRED, {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          expired_at: offer.metadata.expired_at
         });
 
         this.logger.debug(`Successfully processed expired offer ${offer.id} for buyer ${buyer.id}`);
@@ -531,16 +580,12 @@ export class AutoOfferService {
             await this.offerRepository.save(offer);
 
             // Notify buyer of price update
-            await this.notificationService.create({
-              user_id: buyerWithPrefs.user_id,
-              type: NotificationType.OFFER_PRICE_UPDATE,
-              data: {
-                offer_id: offer.id,
-                produce_id: offer.produce_id,
-                old_price: offer.price_per_unit,
-                new_price: newPrice,
-                price_source: 'buyer_preference'
-              }
+            await this.notifyUser(buyerWithPrefs.user_id, NotificationType.OFFER_PRICE_UPDATE, {
+              offer_id: offer.id,
+              produce_id: offer.produce_id,
+              old_price: offer.price_per_unit,
+              new_price: newPrice,
+              price_source: 'buyer_preference'
             });
           }
         } catch (error) {
@@ -708,6 +753,183 @@ export class AutoOfferService {
       });
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
       return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
+    });
+  }
+
+  async generateOffersForBuyerPreferences(buyer: Buyer): Promise<void> {
+    this.logger.debug(`[AutoOfferService] Starting offer generation for buyer ${buyer.id}`);
+
+    if (!buyer.location) {
+      this.logger.debug(`[AutoOfferService] No location found for buyer ${buyer.id}`);
+      return;
+    }
+
+    // Get all available produce within 100km
+    const [lat, lng] = buyer.location.split(',').map(Number);
+    const produces = await this.produceRepository.find({
+      where: {
+        status: ProduceStatus.ASSESSED,
+      },
+      relations: ['quality_assessments'],
+      order: {
+        quality_assessments: {
+          created_at: 'DESC'
+        }
+      }
+    });
+
+    // Filter produces by distance and buyer preferences
+    const validProduces = produces.filter(produce => {
+      // Skip if no location
+      if (!produce.location) return false;
+
+      // Check distance
+      const produceLoc = this.parseLatLng(produce.location);
+      if (!produceLoc) return false;
+
+      const distance = this.calculateDistance(
+        lat,
+        lng,
+        produceLoc.lat,
+        produceLoc.lng
+      );
+
+      if (distance > 100) return false;
+
+      // Check if produce name matches buyer preferences
+      const produceName = produce.name.toLowerCase().trim();
+      const hasMatchingPreference = 
+        buyer.preferences?.produce_names?.some(name => 
+          name.toLowerCase().trim() === produceName
+        ) ||
+        buyer.preferences?.produce_price_preferences?.some(pref => 
+          pref.produce_name.toLowerCase().trim() === produceName
+        );
+
+      return hasMatchingPreference;
+    });
+
+    if (validProduces.length === 0) {
+      this.logger.debug(`[AutoOfferService] No valid produces found for buyer ${buyer.id}`);
+      return;
+    }
+
+    // Generate offers for each valid produce
+    for (const produce of validProduces) {
+      const latestAssessment = produce.quality_assessments?.[0];
+      if (!latestAssessment) {
+        this.logger.debug(`[AutoOfferService] No quality assessment found for produce ${produce.id}`);
+        continue;
+      }
+
+      await this.generateAutoOffers(produce, latestAssessment, [buyer]);
+    }
+  }
+
+  private async handleExistingOffers(
+    buyerId: string,
+    oldPreferences: string[],
+    newPreferences: string[],
+    pricePreferences?: Array<{ produce_name: string; min_price: number; max_price: number; }>
+  ): Promise<void> {
+    // Get all pending offers for this buyer
+    const activeOffers = await this.offerRepository.find({
+      where: {
+        buyer_id: buyerId,
+        status: OfferStatus.PENDING,
+      },
+      relations: ['produce'],
+      order: {
+        created_at: 'DESC'
+      }
+    });
+
+    for (const offer of activeOffers) {
+      try {
+        const produceName = offer.produce.name;
+        const isProduceInNewPreferences = newPreferences.includes(produceName);
+        const pricePreference = pricePreferences?.find(p => p.produce_name === produceName);
+
+        if (!isProduceInNewPreferences) {
+          // Cancel offer if produce is removed from preferences
+          offer.status = OfferStatus.CANCELLED;
+          offer.metadata = {
+            ...offer.metadata,
+            cancellation_reason: 'Produce removed from buyer preferences',
+            cancelled_at: new Date()
+          };
+          await this.offerRepository.save(offer);
+
+          // Notify farmer
+          const farmer = await this.farmerService.findOne(offer.farmer_id);
+          if (farmer?.user_id) {
+            await this.notifyUser(farmer.user_id, NotificationType.OFFER_STATUS_UPDATE, {
+              offer_id: offer.id,
+              produce_id: offer.produce_id,
+              old_status: OfferStatus.PENDING,
+              new_status: OfferStatus.CANCELLED,
+              reason: 'Buyer removed produce from preferences'
+            });
+          }
+        } else if (pricePreference) {
+          // Update offer if price preferences changed
+          const newPrice = this.calculateOfferPrice(
+            pricePreference.min_price,
+            pricePreference.max_price,
+            offer.quality_grade,
+            (offer.metadata?.quality_assessment as QualityAssessmentMetadata)?.category_specific_assessment,
+            pricePreference
+          );
+
+          if (newPrice !== offer.price_per_unit) {
+            offer.price_per_unit = newPrice;
+            offer.buyer_min_price = pricePreference.min_price;
+            offer.buyer_max_price = pricePreference.max_price;
+            offer.status = OfferStatus.PENDING;
+
+            // Add to price history
+            if (!offer.metadata) {
+              offer.metadata = { price_history: [] };
+            } else if (!offer.metadata.price_history) {
+              offer.metadata.price_history = [];
+            }
+
+            offer.metadata.price_history.push({
+              price: newPrice,
+              timestamp: new Date(),
+              reason: 'Buyer updated price preferences'
+            });
+
+            await this.offerRepository.save(offer);
+
+            // Notify farmer
+            const farmer = await this.farmerService.findOne(offer.farmer_id);
+            if (farmer?.user_id) {
+              await this.notifyUser(farmer.user_id, NotificationType.OFFER_PRICE_UPDATE, {
+                offer_id: offer.id,
+                produce_id: offer.produce_id,
+                old_price: offer.price_per_unit,
+                new_price: newPrice,
+                reason: 'Buyer updated price preferences'
+              });
+            }
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          `Failed to handle offer ${offer.id} for buyer ${buyerId}: ${error.message}`,
+          error.stack
+        );
+        continue;
+      }
+    }
+  }
+
+  private async notifyUser(userId: string, type: NotificationType, data: Record<string, any>) {
+    this.eventEmitter.emit('notification.create', {
+      user_id: userId,
+      type,
+      data,
     });
   }
 }

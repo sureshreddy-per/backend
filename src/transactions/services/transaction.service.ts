@@ -9,7 +9,6 @@ import { Buyer } from "../../buyers/entities/buyer.entity";
 import { Farmer } from "../../farmers/entities/farmer.entity";
 import { TransactionHistoryService } from "./transaction-history.service";
 import { TransactionEvent } from "../entities/transaction-history.entity";
-import { NotificationService } from '../../notifications/services/notification.service';
 import { NotificationType } from '../../notifications/enums/notification-type.enum';
 import { OfferAcceptedEvent } from '../../offers/events/offer-accepted.event';
 import { OnEvent } from '@nestjs/event-emitter';
@@ -78,7 +77,6 @@ export class TransactionService extends BaseService<Transaction> {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly transactionHistoryService: TransactionHistoryService,
-    private readonly notificationService: NotificationService,
     private readonly eventEmitter: EventEmitter2,
     private readonly buyersService: BuyersService,
     private readonly farmersService: FarmersService,
@@ -597,89 +595,55 @@ export class TransactionService extends BaseService<Transaction> {
 
   @OnEvent('offer.accepted')
   async handleOfferAccepted(event: OfferAcceptedEvent) {
-    this.logger.log(`Received offer.accepted event for offer ${event.offer_id}`);
     try {
-      // 1. Create transaction with validated metadata
-      const metadata = {
-        quality_grade: event.quality_grade || 'N/A',
-        inspection_notes: `Distance: ${event.distance_km || 'unknown'}km, Inspection Fee: ${event.inspection_fee || 0}`,
-        ...event.metadata
-      };
-
-      this.logger.log(`Creating transaction for offer ${event.offer_id}`);
-      const newTransaction = this.transactionRepository.create({
-        offer_id: event.offer_id,
-        produce_id: event.produce_id,
-        buyer_id: event.buyer_id,
-        farmer_id: event.farmer_id,
-        final_price: event.price_per_unit,
-        final_quantity: event.quantity,
+      const { offer, buyer, farmer } = event;
+      
+      // Create transaction
+      const transaction = await this.transactionRepository.save({
+        offer_id: offer.id,
+        produce_id: offer.produce_id,
+        buyer_id: buyer.id,
+        farmer_id: farmer.id,
+        final_price: offer.price_per_unit,
+        final_quantity: offer.quantity,
         status: TransactionStatus.PENDING,
-        requires_rating: true,
-        rating_completed: false,
-        inspection_fee_paid: false,
-        metadata
       });
 
-      const savedTransaction = await this.transactionRepository.save(newTransaction);
-      this.logger.log(`Created transaction ${savedTransaction.id} for offer ${event.offer_id}`);
+      // Record creation in history
+      await this.transactionHistoryService.createHistoryEntry(
+        transaction.id,
+        TransactionEvent.CREATED,
+        buyer.user_id,
+        null,
+        TransactionStatus.PENDING,
+        {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          final_price: offer.price_per_unit,
+          final_quantity: offer.quantity
+        }
+      );
 
-      // 2. Create transaction history
-      try {
-        await this.transactionHistoryService.createHistoryEntry(
-          String(savedTransaction.id),
-          TransactionEvent.CREATED,
-          event.farmer_id,
-          null,
-          TransactionStatus.PENDING,
-          {
-            offer_id: event.offer_id,
-            accepted_at: event.metadata.accepted_at,
-            accepted_by: event.metadata.accepted_by
-          }
-        );
-      } catch (error) {
-        this.logger.error(`Failed to create history entry for transaction ${savedTransaction.id}`, error);
-        // Retry through event
-        this.eventEmitter.emit('transaction.history.retry', {
-          transactionId: savedTransaction.id,
-          event: TransactionEvent.CREATED,
-          actorId: event.farmer_id,
-          status: TransactionStatus.PENDING,
-          metadata: {
-            offer_id: event.offer_id,
-            accepted_at: event.metadata.accepted_at,
-            accepted_by: event.metadata.accepted_by
-          }
-        });
-      }
+      const notificationData = {
+        transaction_id: transaction.id,
+        offer_id: offer.id,
+        produce_id: offer.produce_id,
+        price_per_unit: offer.price_per_unit,
+        quantity: offer.quantity,
+        status: TransactionStatus.PENDING,
+        created_at: new Date(),
+        message: 'A new transaction has been created from your accepted offer'
+      };
 
-      // 3. Send notification
-      try {
-        await this.notificationService.create({
-          user_id: event.buyer_user_id,
-          type: NotificationType.OFFER_ACCEPTED,
-          data: {
-            offer_id: event.offer_id,
-            produce_id: event.produce_id,
-            transaction_id: String(savedTransaction.id)
-          },
-        });
-      } catch (error) {
-        this.logger.error(`Failed to send acceptance notification to buyer ${event.buyer_user_id}`, error);
-        // Retry through event
-        this.eventEmitter.emit('notification.retry', {
-          userId: event.buyer_user_id,
-          type: NotificationType.OFFER_ACCEPTED,
-          data: {
-            offer_id: event.offer_id,
-            produce_id: event.produce_id,
-            transaction_id: savedTransaction.id
-          }
-        });
-      }
+      // Notify both parties
+      await Promise.all([
+        this.notifyUser(buyer.user_id, NotificationType.TRANSACTION_CREATED, notificationData),
+        this.notifyUser(farmer.user_id, NotificationType.TRANSACTION_CREATED, notificationData)
+      ]);
+
+      return transaction;
     } catch (error) {
-      this.logger.error('Failed to process offer.accepted event', error);
+      this.logger.error(`Failed to handle offer accepted event: ${error.message}`, error.stack);
       throw error;
     }
   }
@@ -689,83 +653,145 @@ export class TransactionService extends BaseService<Transaction> {
     try {
       const transaction = await this.findOne(event.transaction_id);
       if (!transaction) {
-        throw new NotFoundException(`Transaction ${event.transaction_id} not found`);
+        this.logger.warn(`Transaction ${event.transaction_id} not found for expiration`);
+        return;
       }
 
+      // Get buyer and farmer user IDs
+      const buyer = await this.buyersService.findOne(transaction.buyer_id);
+      const farmer = await this.farmersService.findOne(transaction.farmer_id);
+
+      if (!buyer?.user_id || !farmer?.user_id) {
+        this.logger.warn(`Could not find user IDs for transaction ${transaction.id}`);
+        return;
+      }
+
+      const now = new Date();
+      const oldStatus = transaction.status;
       transaction.status = TransactionStatus.CANCELLED;
       transaction.metadata = {
         ...transaction.metadata,
-        ...event.metadata,
-        cancellation_reason: event.metadata.reason
+        cancellation_reason: 'Transaction expired',
+        cancelled_at: now,
       };
 
-      const savedTransaction = await this.transactionRepository.save(transaction);
+      await this.transactionRepository.save(transaction);
 
-      // Create history entry
+      // Record status change in history
       await this.transactionHistoryService.createHistoryEntry(
-        savedTransaction.id,
+        transaction.id,
         TransactionEvent.STATUS_CHANGED,
-        event.metadata.reactivated_by,
-        TransactionStatus.PENDING,
+        'system', // System-initiated change
+        oldStatus,
         TransactionStatus.CANCELLED,
-        event.metadata
+        {
+          reason: 'Transaction expired',
+          cancelled_at: now
+        }
       );
 
-      // Send notifications
-      const [buyer, farmer] = await Promise.all([
-        this.buyersService.findOne(transaction.buyer_id),
-        this.farmersService.findOne(transaction.farmer_id)
-      ]);
+      const notificationData = {
+        transaction_id: transaction.id,
+        offer_id: transaction.offer_id,
+        produce_id: transaction.produce_id,
+        previous_status: oldStatus,
+        status: TransactionStatus.CANCELLED,
+        reason: 'Transaction expired and been automatically cancelled',
+        message: 'Transaction has expired and been automatically cancelled',
+        cancelled_at: now,
+        updated_at: now
+      };
 
-      if (buyer && farmer) {
-        await Promise.all([
-          this.notificationService.create({
-            user_id: buyer.user_id,
-            type: NotificationType.TRANSACTION_CANCELLED,
-            data: {
-              transaction_id: transaction.id,
-              produce_id: transaction.produce_id,
-              status: TransactionStatus.CANCELLED,
-              reason: event.metadata.reason
-            }
-          }),
-          this.notificationService.create({
-            user_id: farmer.user_id,
-            type: NotificationType.TRANSACTION_CANCELLED,
-            data: {
-              transaction_id: transaction.id,
-              produce_id: transaction.produce_id,
-              status: TransactionStatus.CANCELLED,
-              reason: event.metadata.reason
-            }
-          })
-        ]);
-      }
+      // Notify both parties
+      await Promise.all([
+        this.notifyUser(buyer.user_id, NotificationType.TRANSACTION_CANCELLED, notificationData),
+        this.notifyUser(farmer.user_id, NotificationType.TRANSACTION_CANCELLED, notificationData)
+      ]);
     } catch (error) {
-      this.logger.error(`Failed to handle transaction.expired event for ${event.transaction_id}`, error);
-      throw error;
+      this.logger.error(`Failed to handle transaction expired event: ${error.message}`, error.stack);
     }
   }
 
-  @OnEvent('produce.transaction.latest.requested')
+  @OnEvent('transaction.latest.request')
   async handleLatestTransactionRequest(event: GetLatestTransactionEvent) {
     try {
-      const transaction = await this.transactionRepository.findOne({
-        where: {
-          produce_id: event.produce_id,
-          status: In([TransactionStatus.IN_PROGRESS, TransactionStatus.PENDING])
-        },
-        order: { created_at: 'DESC' }
-      });
+      const { user_id, role } = event;
+      const query: any = {
+        where: {},
+        order: { created_at: 'DESC' },
+        take: 1,
+      };
 
-      // Emit response event
-      this.eventEmitter.emit('produce.transaction.latest.response', {
-        produce_id: event.produce_id,
-        transaction: transaction
+      if (role === 'BUYER') {
+        const buyer = await this.buyersService.findByUserId(user_id);
+        if (!buyer) return;
+        query.where.buyer_id = buyer.id;
+      } else if (role === 'FARMER') {
+        const farmer = await this.farmersService.findByUserId(user_id);
+        if (!farmer) return;
+        query.where.farmer_id = farmer.id;
+      }
+
+      const [transaction] = await this.transactionRepository.find(query);
+      
+      if (transaction) {
+        this.eventEmitter.emit('transaction.latest.response', {
+          user_id,
+          transaction: this.transformTransactionResponse(transaction, role),
+        });
+      }
+    } catch (error) {
+      this.logger.error(`Failed to handle latest transaction request: ${error.message}`, error.stack);
+    }
+  }
+
+  private async notifyUser(userId: string, type: NotificationType, data: Record<string, any>) {
+    try {
+      await this.eventEmitter.emit('notification.create', {
+        user_id: userId,
+        type,
+        data: {
+          ...data,
+          created_at: data.created_at || new Date(),
+          message: data.message || this.getDefaultMessage(type)
+        }
       });
     } catch (error) {
-      this.logger.error(`Failed to get latest transaction for produce ${event.produce_id}`, error);
-      throw error;
+      this.logger.error(
+        `Failed to emit notification event for user ${userId}, type ${type}: ${error.message}`,
+        error.stack
+      );
+      // Don't throw error as notifications are non-critical
     }
+  }
+
+  private getDefaultMessage(type: NotificationType): string {
+    switch (type) {
+      case NotificationType.TRANSACTION_CREATED:
+        return 'A new transaction has been created';
+      case NotificationType.TRANSACTION_CANCELLED:
+        return 'Transaction has been cancelled';
+      case NotificationType.TRANSACTION_COMPLETED:
+        return 'Transaction has been completed';
+      case NotificationType.TRANSACTION_UPDATE:
+        return 'Transaction has been updated';
+      default:
+        return 'Transaction notification';
+    }
+  }
+
+  async findUnratedTransactions(): Promise<Transaction[]> {
+    const transactions = await this.transactionRepository
+      .createQueryBuilder("transaction")
+      .where("transaction.status = :status", { status: TransactionStatus.COMPLETED })
+      .andWhere(
+        "(transaction.metadata->>'buyer_rating' IS NULL OR transaction.metadata->>'farmer_rating' IS NULL)"
+      )
+      .andWhere("transaction.requires_rating = :requires_rating", { requires_rating: true })
+      .andWhere("transaction.rating_completed = :rating_completed", { rating_completed: false })
+      .orderBy("transaction.created_at", "DESC")
+      .getMany();
+
+    return transactions;
   }
 }

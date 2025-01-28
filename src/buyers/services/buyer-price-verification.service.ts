@@ -2,9 +2,9 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Buyer } from '../entities/buyer.entity';
 import { BuyerPreferences } from '../entities/buyer-preferences.entity';
-import { NotificationService } from '../../notifications/services/notification.service';
 import { NotificationType } from '../../notifications/enums/notification-type.enum';
 
 @Injectable()
@@ -16,7 +16,7 @@ export class BuyerPriceVerificationService {
     private readonly buyerRepository: Repository<Buyer>,
     @InjectRepository(BuyerPreferences)
     private readonly buyerPreferencesRepository: Repository<BuyerPreferences>,
-    private readonly notificationService: NotificationService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
@@ -85,7 +85,7 @@ export class BuyerPriceVerificationService {
     await this.buyerRepository.save(buyer);
 
     // Notify buyer about account deactivation
-    await this.notificationService.create({
+    this.eventEmitter.emit('notification.create', {
       user_id: buyer.user_id,
       type: NotificationType.ACCOUNT_STATUS_UPDATE,
       data: {
@@ -104,7 +104,7 @@ export class BuyerPriceVerificationService {
     await this.buyerRepository.save(buyer);
 
     // Notify buyer about account reactivation
-    await this.notificationService.create({
+    this.eventEmitter.emit('notification.create', {
       user_id: buyer.user_id,
       type: NotificationType.ACCOUNT_STATUS_UPDATE,
       data: {

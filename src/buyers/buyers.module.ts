@@ -9,13 +9,15 @@ import { BuyerPreferences } from './entities/buyer-preferences.entity';
 import { OffersModule } from '../offers/offers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ProduceModule } from '../produce/produce.module';
+import { FarmersModule } from '../farmers/farmers.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Buyer, BuyerPreferences]),
     OffersModule,
     NotificationsModule,
-    ProduceModule
+    ProduceModule,
+    FarmersModule
   ],
   controllers: [BuyersController, BuyerPreferencesController],
   providers: [BuyersService, BuyerPreferencesService],

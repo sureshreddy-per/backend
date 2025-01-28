@@ -2,12 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { OnEvent } from '@nestjs/event-emitter';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Inspector } from '../../inspectors/entities/inspector.entity';
 import { InspectionRequest, InspectionRequestStatus } from '../entities/inspection-request.entity';
 import { SystemConfigService } from '../../config/services/system-config.service';
 import { SystemConfigKey } from '../../config/enums/system-config-key.enum';
 import { InspectionRequestService } from './inspection-request.service';
-import { NotificationService } from '../../notifications/services/notification.service';
 import { NotificationType } from '../../notifications/enums/notification-type.enum';
 
 @Injectable()
@@ -21,7 +21,7 @@ export class AutoInspectorAssignmentService {
     private readonly inspectionRequestRepository: Repository<InspectionRequest>,
     private readonly systemConfigService: SystemConfigService,
     private readonly inspectionRequestService: InspectionRequestService,
-    private readonly notificationService: NotificationService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   @OnEvent('inspector.location.updated')
@@ -112,7 +112,7 @@ export class AutoInspectorAssignmentService {
 
           await this.inspectionRequestService.assignInspector(request.id, event.inspector_id);
           
-          await this.notificationService.create({
+          await this.eventEmitter.emit('notification.create', {
             user_id: event.user_id,
             type: NotificationType.INSPECTION_ASSIGNED,
             data: {
@@ -175,8 +175,8 @@ export class AutoInspectorAssignmentService {
       // Assign the inspector
       await this.inspectionRequestService.assignInspector(event.request_id, nearestInspector.user_id);
       
-      // Notify the inspector
-      await this.notificationService.create({
+      // Notify the inspector using event
+      this.eventEmitter.emit('notification.create', {
         user_id: nearestInspector.user_id,
         type: NotificationType.INSPECTION_ASSIGNED,
         data: {

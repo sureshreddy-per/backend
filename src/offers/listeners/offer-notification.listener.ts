@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
-import { NotificationService } from '../../notifications/services/notification.service';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { 
   OfferNotificationEvent, 
   OfferCreatedEvent,
@@ -11,11 +11,11 @@ import { NotificationType } from '../../notifications/enums/notification-type.en
 
 @Injectable()
 export class OfferNotificationListener {
-  constructor(private readonly notificationService: NotificationService) {}
+  constructor(private readonly eventEmitter: EventEmitter2) {}
 
   @OnEvent('offer.notification')
   async handleNotification(event: OfferNotificationEvent) {
-    await this.notificationService.create({
+    this.eventEmitter.emit('notification.create', {
       user_id: event.user_id,
       type: event.type,
       data: event.data,
@@ -25,7 +25,7 @@ export class OfferNotificationListener {
   @OnEvent('offer.created')
   async handleOfferCreated(event: OfferCreatedEvent) {
     // Notify buyer
-    await this.notificationService.create({
+    this.eventEmitter.emit('notification.create', {
       user_id: event.buyer_id,
       type: NotificationType.NEW_AUTO_OFFER,
       data: {
@@ -39,7 +39,7 @@ export class OfferNotificationListener {
     });
 
     // Notify farmer
-    await this.notificationService.create({
+    this.eventEmitter.emit('notification.create', {
       user_id: event.farmer_id,
       type: NotificationType.NEW_OFFER,
       data: {
@@ -52,7 +52,7 @@ export class OfferNotificationListener {
 
   @OnEvent('offer.status.changed')
   async handleStatusChanged(event: OfferStatusChangedEvent) {
-    await this.notificationService.create({
+    this.eventEmitter.emit('notification.create', {
       user_id: event.user_id,
       type: NotificationType.OFFER_STATUS_UPDATE,
       data: {
@@ -66,7 +66,7 @@ export class OfferNotificationListener {
 
   @OnEvent('offer.price.modified')
   async handlePriceModified(event: OfferPriceModifiedEvent) {
-    await this.notificationService.create({
+    this.eventEmitter.emit('notification.create', {
       user_id: event.user_id,
       type: NotificationType.OFFER_PRICE_UPDATE,
       data: {

@@ -1,51 +1,67 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { Cron } from "@nestjs/schedule";
+import { EventEmitter2 } from "@nestjs/event-emitter";
 import { TransactionService } from "../services/transaction.service";
 import { RatingsService } from "../../ratings/services/ratings.service";
-import { NotificationService } from "../../notifications/services/notification.service";
 import { NotificationType } from "../../notifications/enums/notification-type.enum";
 import { TransactionStatus } from "../entities/transaction.entity";
 
 @Injectable()
 export class TransactionTasksService {
+  private readonly logger = new Logger(TransactionTasksService.name);
+
   constructor(
     private readonly transactionService: TransactionService,
     private readonly ratingsService: RatingsService,
-    private readonly notificationService: NotificationService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
-  @Cron("0 0 * * *") // Run daily at midnight
+  @Cron('0 0 * * *') // Run daily at midnight
   async checkUnratedTransactions() {
-    const response = await this.transactionService.findAll({
-      where: {
-        status: TransactionStatus.COMPLETED,
-      },
-    });
+    const transactions = await this.transactionService.findUnratedTransactions();
 
-    for (const transaction of response.items) {
-      // Check if buyer has rated
-      const buyerRatings = await this.ratingsService.findGivenRatings(transaction.buyer_id);
-      if (buyerRatings.length === 0) {
-        await this.notificationService.create({
-          user_id: transaction.buyer_id,
-          type: NotificationType.RATING_REQUIRED,
-          data: {
-            transaction_id: transaction.id,
-          },
+    for (const transaction of transactions) {
+      const { buyer_id, farmer_id, id: transaction_id, metadata } = transaction;
+
+      // Check if buyer hasn't rated yet
+      if (!metadata?.buyer_rating) {
+        await this.notifyUser(buyer_id, NotificationType.RATING_REQUIRED, {
+          transaction_id,
+          message: 'Please rate your transaction with the farmer',
+          created_at: new Date(),
+          target_user_id: farmer_id,
+          days_since_transaction: this.getDaysSinceTransaction(transaction.created_at)
         });
       }
 
-      // Check if farmer has rated
-      const farmerRatings = await this.ratingsService.findGivenRatings(transaction.farmer_id);
-      if (farmerRatings.length === 0) {
-        await this.notificationService.create({
-          user_id: transaction.farmer_id,
-          type: NotificationType.RATING_REQUIRED,
-          data: {
-            transaction_id: transaction.id,
-          },
+      // Check if farmer hasn't rated yet
+      if (!metadata?.farmer_rating) {
+        await this.notifyUser(farmer_id, NotificationType.RATING_REQUIRED, {
+          transaction_id,
+          message: 'Please rate your transaction with the buyer',
+          created_at: new Date(),
+          target_user_id: buyer_id,
+          days_since_transaction: this.getDaysSinceTransaction(transaction.created_at)
         });
       }
+    }
+  }
+
+  private getDaysSinceTransaction(transactionDate: Date): number {
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - transactionDate.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  private async notifyUser(userId: string, type: NotificationType, data: any) {
+    try {
+      await this.eventEmitter.emit('notification.create', {
+        user_id: userId,
+        type,
+        data
+      });
+    } catch (error) {
+      this.logger.error(`Failed to send notification to user ${userId}: ${error.message}`, error.stack);
     }
   }
 }
