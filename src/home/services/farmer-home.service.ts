@@ -167,6 +167,21 @@ export class FarmerHomeService {
       .cache(this.CACHE_TTL)
       .getRawMany();
 
+    // Transform my offers to match the NearbyOffer interface
+    const transformedMyOffers = myOffers.map(offer => ({
+      produce_id: offer.produce_id,
+      name: offer.name,
+      quantity: parseFloat(offer.quantity),
+      unit: offer.unit,
+      quality_grade: parseFloat(offer.quality_grade),
+      distance_km: 0, // 0 for my own offers
+      is_manually_inspected: offer.is_manually_inspected,
+      produce_images: offer.images,
+      buyer: null, // No buyer for my offers yet
+      offer_price: 0, // No offer price yet
+      offer_status: 'PENDING' // Default status for my offers
+    }));
+
     // Get nearby offers
     const nearbyOffers = await this.produceRepository
       .createQueryBuilder('p')
@@ -206,9 +221,24 @@ export class FarmerHomeService {
       .cache(this.CACHE_TTL)
       .getRawMany();
 
+    // Transform nearby offers to match the NearbyOffer interface
+    const transformedNearbyOffers = nearbyOffers.map(offer => ({
+      produce_id: offer.produce_id,
+      name: offer.name,
+      quantity: parseFloat(offer.quantity),
+      unit: offer.unit,
+      quality_grade: parseFloat(offer.quality_grade),
+      distance_km: parseFloat(offer.distance_km),
+      is_manually_inspected: offer.is_manually_inspected,
+      produce_images: offer.images,
+      buyer: null, // No buyer info for nearby offers
+      offer_price: 0, // No offer price yet
+      offer_status: 'PENDING' // Default status for nearby offers
+    }));
+
     const result = {
-      my_offers: myOffers,
-      nearby_offers: nearbyOffers
+      my_offers: transformedMyOffers,
+      nearby_offers: transformedNearbyOffers
     };
 
     await this.cacheManager.set(cacheKey, result, this.CACHE_TTL);
