@@ -367,10 +367,14 @@ export class OffersService {
       // 1. Get and validate offer
       const offer = await this.findOne(id);
 
-      // 2. Get and validate buyer
+      // 2. Get and validate buyer with user relation
       const buyer = await this.buyersService.findOne(offer.buyer_id);
       if (!buyer) {
         throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+      }
+
+      if (!buyer.user_id) {
+        throw new BadRequestException(`Buyer ${buyer.id} has no associated user ID`);
       }
 
       // 3. Get and update produce status
@@ -394,6 +398,7 @@ export class OffersService {
 
       // 6. Notify the buyer about the rejected offer
       try {
+        this.logger.log(`Sending rejection notification to buyer user ${buyer.user_id}`);
         await this.notificationService.create({
           user_id: buyer.user_id,
           type: NotificationType.OFFER_REJECTED,
@@ -405,6 +410,7 @@ export class OffersService {
         });
       } catch (error) {
         this.logger.error(`Failed to send rejection notification to buyer ${buyer.user_id}`, error);
+        // Don't throw error as this is a non-critical operation
       }
 
       // 7. Trigger auto-offer recalculation
@@ -432,52 +438,94 @@ export class OffersService {
   }
 
   async cancel(id: string, reason: string): Promise<Offer> {
-    const offer = await this.findOne(id);
+    return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
+      // 1. Get and validate offer
+      const offer = await this.findOne(id);
 
-    // Get the buyer and farmer details to get their user_ids
-    const [buyer, farmer] = await Promise.all([
-      this.buyersService.findOne(offer.buyer_id),
-      this.farmersService.findOne(offer.farmer_id)
-    ]);
+      // 2. Get and validate buyer and farmer
+      const [buyer, farmer] = await Promise.all([
+        this.buyersService.findOne(offer.buyer_id),
+        this.farmersService.findOne(offer.farmer_id)
+      ]);
 
-    if (!buyer) {
-      throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
-    }
+      if (!buyer) {
+        throw new NotFoundException(`Buyer with ID ${offer.buyer_id} not found`);
+      }
 
-    if (!farmer) {
-      throw new NotFoundException(`Farmer with ID ${offer.farmer_id} not found`);
-    }
+      if (!farmer) {
+        throw new NotFoundException(`Farmer with ID ${offer.farmer_id} not found`);
+      }
 
-    offer.status = OfferStatus.CANCELLED;
-    offer.cancellation_reason = reason;
-    const updatedOffer = await this.offerRepository.save(offer);
-    await this.clearOfferCache(id);
+      // 3. Get and update produce status
+      const produce = await this.produceRepository.findOne({
+        where: { id: offer.produce_id }
+      });
 
-    // Notify both parties about the cancelled offer
-    await Promise.all([
-      this.notificationService.create({
-        user_id: buyer.user_id,
-        type: NotificationType.OFFER_STATUS_UPDATE,
-        data: {
+      if (!produce) {
+        throw new NotFoundException(`Produce with ID ${offer.produce_id} not found`);
+      }
+
+      // 4. Update offer status
+      offer.status = OfferStatus.CANCELLED;
+      offer.cancellation_reason = reason;
+      const updatedOffer = await transactionalEntityManager.save(Offer, offer);
+      await this.clearOfferCache(id);
+
+      // 5. Update produce status back to AVAILABLE
+      produce.status = ProduceStatus.AVAILABLE;
+      await transactionalEntityManager.save(Produce, produce);
+
+      // 6. Notify both parties about the cancelled offer
+      try {
+        await Promise.all([
+          this.notificationService.create({
+            user_id: buyer.user_id,
+            type: NotificationType.OFFER_STATUS_UPDATE,
+            data: {
+              offer_id: offer.id,
+              produce_id: offer.produce_id,
+              status: OfferStatus.CANCELLED,
+              reason,
+            },
+          }),
+          this.notificationService.create({
+            user_id: farmer.user_id,
+            type: NotificationType.OFFER_STATUS_UPDATE,
+            data: {
+              offer_id: offer.id,
+              produce_id: offer.produce_id,
+              status: OfferStatus.CANCELLED,
+              reason,
+            },
+          }),
+        ]);
+      } catch (error) {
+        this.logger.error(`Failed to send cancellation notifications for offer ${offer.id}`, error);
+        // Don't throw error as this is a non-critical operation
+      }
+
+      // 7. Trigger auto-offer recalculation
+      try {
+        this.eventEmitter.emit('offer.cancelled', {
           offer_id: offer.id,
           produce_id: offer.produce_id,
-          status: OfferStatus.CANCELLED,
-          reason,
-        },
-      }),
-      this.notificationService.create({
-        user_id: farmer.user_id,
-        type: NotificationType.OFFER_STATUS_UPDATE,
-        data: {
-          offer_id: offer.id,
-          produce_id: offer.produce_id,
-          status: OfferStatus.CANCELLED,
-          reason,
-        },
-      }),
-    ]);
+          cancelled_at: new Date(),
+          reason: reason
+        });
 
-    return this.transformOfferResponse(updatedOffer);
+        // Emit event for auto-offer recalculation
+        this.eventEmitter.emit('produce.available', {
+          produce_id: produce.id,
+          event_type: 'offer_cancelled',
+          timestamp: new Date()
+        });
+      } catch (error) {
+        this.logger.error(`Failed to trigger auto-offers recalculation for produce ${offer.produce_id}`, error);
+        // Don't throw error as this is a non-critical operation
+      }
+
+      return this.transformOfferResponse(updatedOffer);
+    });
   }
 
   private createBaseQuery(): SelectQueryBuilder<Offer> {
