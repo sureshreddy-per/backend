@@ -556,7 +556,7 @@ export class ProduceSynonymService {
     return this.synonymRepository.createQueryBuilder(alias);
   }
 
-  private async findExistingProduceNameFromSynonyms(name: string): Promise<string | null> {
+  async findExistingProduceNameFromSynonyms(name: string): Promise<string | null> {
     try {
       // Clean and normalize the input name
       const normalizedName = name.toLowerCase().trim();

@@ -18,6 +18,8 @@ import { Farmer } from "../../farmers/entities/farmer.entity";
 import { FarmersService } from "../../farmers/farmers.service";
 import { OffersService } from "../services/offers.service";
 import { OfferTransformationService } from './offer-transformation.service';
+import { ProduceMaster } from "../../produce/entities/produce-master.entity";
+import { ProduceSynonymService } from "../../produce/services/synonym.service";
 
 interface QualityAssessmentMetadata {
   grade: number;
@@ -42,6 +44,8 @@ export class AutoOfferService {
     private readonly produceRepository: Repository<Produce>,
     @InjectRepository(QualityAssessment)
     private readonly qualityAssessmentRepository: Repository<QualityAssessment>,
+    @InjectRepository(ProduceMaster)
+    private readonly produceMasterRepository: Repository<ProduceMaster>,
     private readonly notificationService: NotificationService,
     private readonly inspectionDistanceFeeService: InspectionDistanceFeeService,
     private readonly eventEmitter: EventEmitter2,
@@ -50,6 +54,7 @@ export class AutoOfferService {
     @Inject(forwardRef(() => OffersService))
     private readonly offersService: OffersService,
     private readonly offerTransformationService: OfferTransformationService,
+    private readonly produceSynonymService: ProduceSynonymService,
   ) {}
 
   private getCacheKey(key: string): string {
@@ -579,10 +584,33 @@ export class AutoOfferService {
 
     // Filter buyers based on preferences and price update time
     const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const buyersWithMatchingPreferences = buyers.filter(buyer => {
-      // Check if buyer has matching produce name
-      if (!buyer.preferences?.produce_names?.includes(produce.name)) {
-        this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: No matching produce name in preferences`);
+    const buyersWithMatchingPreferences = await Promise.all(buyers.map(async buyer => {
+      const produceName = produce.name.toLowerCase().trim();
+      const canonicalName = await this.validateAndNormalizeProduce(produceName);
+      
+      if (!canonicalName) {
+        this.logger.debug(`[AutoOfferService] Produce name ${produceName} not found in master list or synonyms`);
+        return false;
+      }
+
+      // Check if buyer has matching produce name in either produce_names or produce_price_preferences
+      const hasMatchingProduceName = 
+        buyer.preferences?.produce_names?.some(name => {
+          const normalizedBuyerName = name.toLowerCase().trim();
+          return normalizedBuyerName === canonicalName.toLowerCase() ||
+                 normalizedBuyerName === produceName;
+        }) ||
+        buyer.preferences?.produce_price_preferences?.some(pref => {
+          const normalizedPrefName = pref.produce_name.toLowerCase().trim();
+          return normalizedPrefName === canonicalName.toLowerCase() ||
+                 normalizedPrefName === produceName;
+        });
+
+      if (!hasMatchingProduceName) {
+        this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: No matching produce name in preferences. Produce name: ${produceName}, Canonical name: ${canonicalName}, Buyer preferences: ${JSON.stringify({
+          produce_names: buyer.preferences?.produce_names,
+          price_preferences: buyer.preferences?.produce_price_preferences?.map(p => p.produce_name)
+        })}`);
         return false;
       }
 
@@ -600,25 +628,31 @@ export class AutoOfferService {
       }
 
       return true;
-    });
+    }));
 
-    if (buyersWithMatchingPreferences.length === 0) {
-      this.logger.warn(`[AutoOfferService] No active buyers found for produce ${produce.name}`);
+    const filteredBuyers = buyers.filter((_, index) => buyersWithMatchingPreferences[index]);
+
+    if (filteredBuyers.length === 0) {
+      this.logger.warn(`[AutoOfferService] No active buyers found for produce ${produce.name}. All buyers: ${JSON.stringify(buyers.map(b => ({
+        id: b.id,
+        produce_names: b.preferences?.produce_names,
+        price_preferences: b.preferences?.produce_price_preferences?.map(p => p.produce_name)
+      })))}`);
       return;
     }
 
-    this.logger.log(`[AutoOfferService] Found ${buyersWithMatchingPreferences.length} potential buyers for produce ${produce.id}`);
+    this.logger.log(`[AutoOfferService] Found ${filteredBuyers.length} potential buyers for produce ${produce.id}`);
 
     // Filter buyers by distance and validate location
-    const validBuyers = buyersWithMatchingPreferences.filter((buyer) => {
+    const validBuyers = filteredBuyers.map(buyer => {
       if (!buyer.location) {
         this.logger.warn(`[AutoOfferService] Buyer ${buyer.id} skipped: No location information`);
-        return false;
+        return null;
       }
 
       if (!buyer.is_active) {
         this.logger.warn(`[AutoOfferService] Buyer ${buyer.id} skipped: Account inactive`);
-        return false;
+        return null;
       }
 
       const buyerLoc = this.parseLatLng(buyer.location);
@@ -633,11 +667,11 @@ export class AutoOfferService {
 
       if (distance > 100) {
         this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: Distance ${distance}km exceeds 100km limit`);
-        return false;
+        return null;
       }
 
-      return true;
-    });
+      return buyer;
+    }).filter(buyer => buyer !== null);
 
     if (validBuyers.length === 0) {
       this.logger.warn(`[AutoOfferService] No valid buyers found within 100km radius for produce ${produce.id}`);
@@ -646,6 +680,25 @@ export class AutoOfferService {
 
     this.logger.log(`[AutoOfferService] Generating offers for ${validBuyers.length} valid buyers`);
     await this.generateAutoOffers(produce, latestAssessment, validBuyers);
+  }
+
+  private async validateAndNormalizeProduce(produceName: string): Promise<string | null> {
+    // First check if the name exists in ProduceMaster
+    const masterProduce = await this.produceMasterRepository.findOne({
+      where: { name: produceName.toLowerCase().trim(), isActive: true }
+    });
+
+    if (masterProduce) {
+      return masterProduce.name;
+    }
+
+    // If not found in master, check synonyms
+    const canonicalName = await this.produceSynonymService.findExistingProduceNameFromSynonyms(produceName);
+    if (canonicalName) {
+      return canonicalName;
+    }
+
+    return null;
   }
 
   async getAutoOffer(offerId: string, buyerId: string): Promise<Offer> {
