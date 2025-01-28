@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder } from 'typeorm';
+import { Repository, SelectQueryBuilder, Not, In, LessThan, IsNull, Between } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -17,6 +17,10 @@ import { OfferStatus } from '../enums/offer-status.enum';
 import { PaginatedResponse } from '../../common/interfaces/paginated-response.interface';
 import { UsersService } from '../../users/services/users.service';
 import { ListOffersDto, OfferSortBy } from '../dto/list-offers.dto';
+import { Produce } from '../../produce/entities/produce.entity';
+import { ProduceStatus } from '../../produce/enums/produce-status.enum';
+import { Transaction } from '../../transactions/entities/transaction.entity';
+import { TransactionStatus } from '../../transactions/entities/transaction.entity';
 
 interface TransformedBuyer {
   id: string;
@@ -39,6 +43,10 @@ export class OffersService {
   constructor(
     @InjectRepository(Offer)
     private readonly offerRepository: Repository<Offer>,
+    @InjectRepository(Produce)
+    private readonly produceRepository: Repository<Produce>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
     private readonly produceService: ProduceService,
     private readonly buyersService: BuyersService,
     private readonly notificationService: NotificationService,
@@ -197,9 +205,46 @@ export class OffersService {
 
   async accept(id: string): Promise<Offer> {
     const offer = await this.findOne(id);
+    
+    // First, cancel all other offers for this produce
+    const otherOffers = await this.offerRepository.find({
+      where: {
+        produce_id: offer.produce_id,
+        id: Not(id),
+        status: In([OfferStatus.PENDING, OfferStatus.ACTIVE, OfferStatus.PRICE_MODIFIED])
+      }
+    });
+
+    // Cancel other offers in parallel
+    await Promise.all(otherOffers.map(async (otherOffer) => {
+      otherOffer.status = OfferStatus.CANCELLED;
+      otherOffer.cancellation_reason = 'Another offer was accepted';
+      await this.offerRepository.save(otherOffer);
+      await this.clearOfferCache(otherOffer.id);
+
+      // Notify the buyer about the cancelled offer
+      await this.notificationService.create({
+        user_id: otherOffer.buyer_id,
+        type: NotificationType.OFFER_STATUS_UPDATE,
+        data: {
+          offer_id: otherOffer.id,
+          produce_id: otherOffer.produce_id,
+          status: OfferStatus.CANCELLED,
+          reason: 'Another offer was accepted',
+        },
+      });
+    }));
+
+    // Now accept the chosen offer
     offer.status = OfferStatus.ACCEPTED;
     const updatedOffer = await this.offerRepository.save(offer);
     await this.clearOfferCache(id);
+
+    // Update produce status to IN_PROGRESS
+    await this.produceRepository.update(
+      { id: offer.produce_id },
+      { status: ProduceStatus.IN_PROGRESS }
+    );
 
     // Notify the buyer about the accepted offer
     await this.notificationService.create({
@@ -599,5 +644,93 @@ export class OffersService {
       }
       throw new BadRequestException('Failed to create admin offer: ' + error.message);
     }
+  }
+
+  async findLatestTransactionForProduce(produceId: string): Promise<Transaction> {
+    return this.transactionRepository.findOne({
+      where: { 
+        produce_id: produceId,
+        status: In([TransactionStatus.IN_PROGRESS, TransactionStatus.PENDING])
+      },
+      order: { created_at: 'DESC' }
+    });
+  }
+
+  async markTransactionAsExpired(
+    transactionId: string, 
+    metadata: { 
+      reason: string;
+      reactivated_at: Date;
+      reactivated_by: string;
+    }
+  ): Promise<void> {
+    const transaction = await this.transactionRepository.findOne({
+      where: { id: transactionId }
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(`Transaction ${transactionId} not found`);
+    }
+
+    transaction.status = TransactionStatus.CANCELLED;
+    transaction.metadata = {
+      ...transaction.metadata,
+      ...metadata,
+      cancellation_reason: metadata.reason
+    };
+
+    await this.transactionRepository.save(transaction);
+
+    // Notify relevant parties
+    await Promise.all([
+      this.notificationService.create({
+        user_id: transaction.buyer_id,
+        type: NotificationType.TRANSACTION_CANCELLED,
+        data: {
+          transaction_id: transaction.id,
+          produce_id: transaction.produce_id,
+          status: TransactionStatus.CANCELLED,
+          reason: metadata.reason
+        }
+      }),
+      this.notificationService.create({
+        user_id: transaction.farmer_id,
+        type: NotificationType.TRANSACTION_CANCELLED,
+        data: {
+          transaction_id: transaction.id,
+          produce_id: transaction.produce_id,
+          status: TransactionStatus.CANCELLED,
+          reason: metadata.reason
+        }
+      })
+    ]);
+  }
+
+  async cancelAllOffersForProduce(produceId: string, reason: string): Promise<void> {
+    const offers = await this.offerRepository.find({
+      where: {
+        produce_id: produceId,
+        status: In([OfferStatus.PENDING, OfferStatus.ACTIVE, OfferStatus.PRICE_MODIFIED])
+      }
+    });
+
+    await Promise.all(offers.map(async (offer) => {
+      offer.status = OfferStatus.CANCELLED;
+      offer.cancellation_reason = reason;
+      await this.offerRepository.save(offer);
+      await this.clearOfferCache(offer.id);
+
+      // Notify the buyer about the cancelled offer
+      await this.notificationService.create({
+        user_id: offer.buyer_id,
+        type: NotificationType.OFFER_STATUS_UPDATE,
+        data: {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          status: OfferStatus.CANCELLED,
+          reason
+        }
+      });
+    }));
   }
 }

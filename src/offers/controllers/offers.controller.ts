@@ -37,6 +37,7 @@ import { UpdateOfferDto } from "../dto/update-offer.dto";
 import { OfferStatus } from "../enums/offer-status.enum";
 import { CreateAdminOfferDto } from "../dto/create-admin-offer.dto";
 import { ListOffersDto } from "../dto/list-offers.dto";
+import { ProduceStatus } from "../../produce/enums/produce-status.enum";
 
 @ApiTags("Offers")
 @ApiBearerAuth()
@@ -196,5 +197,61 @@ export class OffersController {
   @ApiResponse({ status: 400, description: "Bad Request - Invalid input data" })
   async createAsAdmin(@Body() createAdminOfferDto: CreateAdminOfferDto) {
     return this.offersService.createAdminOffer(createAdminOfferDto);
+  }
+
+  @Post("reactivate-for-produce/:produceId")
+  @Roles(UserRole.FARMER)
+  @ApiOperation({ summary: "Reactivate offers for a produce after expired transaction" })
+  @ApiResponse({ status: 200, description: "Offers reactivated successfully" })
+  @ApiResponse({ status: 400, description: "Invalid produce status or ownership" })
+  @ApiResponse({ status: 404, description: "Produce not found" })
+  async reactivateOffersForProduce(
+    @GetUser() user: User,
+    @Param("produceId") produceId: string,
+  ) {
+    // Get the produce
+    const produce = await this.produceService.findOne(produceId);
+    if (!produce) {
+      throw new NotFoundException("Produce not found");
+    }
+
+    // Verify ownership
+    const farmer = await this.produceService.getFarmerDetails(user.id);
+    if (!farmer || produce.farmer_id !== farmer.id) {
+      throw new UnauthorizedException("You can only reactivate offers for your own produce");
+    }
+
+    // Verify produce status is from an expired transaction
+    if (produce.status !== ProduceStatus.IN_PROGRESS) {
+      throw new BadRequestException("Can only reactivate offers for produce with expired transactions");
+    }
+
+    // Find and update the existing transaction to mark it as expired
+    const existingTransaction = await this.offersService.findLatestTransactionForProduce(produceId);
+    if (existingTransaction) {
+      await this.offersService.markTransactionAsExpired(existingTransaction.id, {
+        reason: "Transaction expired and produce reactivated by farmer",
+        reactivated_at: new Date(),
+        reactivated_by: user.id
+      });
+    }
+
+    // Cancel any existing active offers for this produce
+    await this.offersService.cancelAllOffersForProduce(produceId, "Produce reactivated by farmer");
+
+    // Update produce status back to ASSESSED
+    await this.produceService.update(produceId, {
+      status: ProduceStatus.ASSESSED
+    });
+
+    // Generate new auto offers
+    await this.autoOfferService.generateOffersForProduce(produce);
+
+    return {
+      message: "Produce reactivated and new offers generated successfully",
+      produce_id: produceId,
+      status: ProduceStatus.ASSESSED,
+      previous_transaction_id: existingTransaction?.id
+    };
   }
 }

@@ -15,6 +15,7 @@ import { DailyPriceCalculationService } from './services/daily-price-calculation
 import { QualityAssessment } from '../quality/entities/quality-assessment.entity';
 import { Produce } from '../produce/entities/produce.entity';
 import { Buyer } from '../buyers/entities/buyer.entity';
+import { Transaction } from '../transactions/entities/transaction.entity';
 
 @Module({
   imports: [
@@ -23,7 +24,8 @@ import { Buyer } from '../buyers/entities/buyer.entity';
       DailyPrice, 
       QualityAssessment,
       Produce,
-      Buyer
+      Buyer,
+      Transaction
     ]),
     CacheModule.register(),
     NotificationsModule,
