@@ -36,14 +36,18 @@ export class FarmerHomeService {
   async getFarmerHomeData(farmerId: string, location: string): Promise<FarmerHomeResponse> {
     try {
       const cacheKey = `${this.CACHE_PREFIX}${farmerId}:${location}`;
+      this.logger.debug(`Getting farmer home data for farmer ${farmerId} at location ${location}`);
+      
       const cachedData = await this.cacheManager.get<FarmerHomeResponse>(cacheKey);
       
       if (cachedData) {
+        this.logger.debug('Returning cached data');
         return cachedData;
       }
 
       const [lat, lng] = location.split(',').map(Number);
 
+      this.logger.debug(`Fetching all data components in parallel`);
       const [
         marketTrends,
         activeOffers,
@@ -57,6 +61,14 @@ export class FarmerHomeService {
         this.getTopBuyers(farmerId),
         this.getInspections(farmerId, location)
       ]);
+
+      this.logger.debug(`Data fetched:
+        Market Trends: ${marketTrends?.length ?? 0} items
+        Active Offers: ${activeOffers?.my_offers?.length ?? 0} my offers, ${activeOffers?.nearby_offers?.length ?? 0} nearby
+        Recent Produces: ${recentProduces?.length ?? 0} items
+        Top Buyers: ${topBuyers?.length ?? 0} items
+        Inspections: ${inspections?.recent?.length ?? 0} recent, ${inspections?.nearby?.length ?? 0} nearby
+      `);
 
       const response = {
         market_trends: marketTrends,
@@ -178,8 +190,8 @@ export class FarmerHomeService {
   private async getRecentProduces(farmerId: string, location: string): Promise<RecentProduce[]> {
     const cacheKey = `${this.CACHE_PREFIX}recent_produces:${farmerId}:${location}`;
     
-    // Clear cache to ensure fresh data
-    await this.cacheManager.del(cacheKey);
+    // Remove cache clearing to improve performance
+    // await this.cacheManager.del(cacheKey);
     
     this.logger.debug(`Getting recent produces for farmer ${farmerId} at location ${location}`);
 
@@ -211,11 +223,12 @@ export class FarmerHomeService {
     // Log the generated SQL
     const sql = queryBuilder.getSql();
     const params = queryBuilder.getParameters();
-    this.logger.debug('Generated SQL:', sql);
-    this.logger.debug('Query parameters:', params);
+    this.logger.debug('Recent produces SQL:', sql);
+    this.logger.debug('Recent produces parameters:', params);
 
     const produces = await queryBuilder.getRawMany();
-    this.logger.debug(`Found ${produces.length} recent produces`);
+    this.logger.debug(`Found ${produces.length} recent produces with statuses: ${produces.map(p => p.status).join(', ')}`);
+    
     if (produces.length === 0) {
       // Log a sample direct query to check if data exists
       const checkData = await this.produceRepository
