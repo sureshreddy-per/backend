@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException, ConflictException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, SelectQueryBuilder, Not, In, LessThan, IsNull, Between } from 'typeorm';
+import { Repository, SelectQueryBuilder, Not, In, LessThan, IsNull, Between, EntityManager } from 'typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -25,6 +25,7 @@ import { TransactionStatus } from '../../transactions/entities/transaction.entit
 import { FarmersService } from '../../farmers/farmers.service';
 import { TransactionHistoryService } from '../../transactions/services/transaction-history.service';
 import { TransactionEvent } from '../../transactions/entities/transaction-history.entity';
+import { OfferTransformationService } from './offer-transformation.service';
 
 interface TransformedBuyer {
   id: string;
@@ -74,6 +75,7 @@ export class OffersService {
     private readonly cacheManager: Cache,
     @Inject(forwardRef(() => AutoOfferService))
     private readonly autoOfferService: AutoOfferService,
+    private readonly offerTransformationService: OfferTransformationService,
   ) {}
 
   private getCacheKey(key: string): string {
@@ -86,50 +88,6 @@ export class OffersService {
       this.getCacheKey('stats'),
     ];
     await Promise.all(keys.map(key => this.cacheManager.del(key)));
-  }
-
-  private transformBuyerData(offer: Offer): TransformedBuyer {
-    if (!offer.buyer || !offer.buyer.user) {
-      return null;
-    }
-
-    return {
-      id: offer.buyer.id,
-      business_name: offer.buyer.business_name,
-      address: offer.buyer.address || '',
-      location: offer.buyer.location || '',
-      name: offer.buyer.user.name,
-      avatar_url: offer.buyer.user.avatar_url,
-      rating: offer.buyer.user.rating || 0,
-      total_completed_transactions: offer.buyer.user.total_completed_transactions || 0
-    };
-  }
-
-  private async transformOfferResponse(offer: Offer): Promise<Offer> {
-    // Load full offer with relations if not already loaded
-    if (!offer.buyer?.user || !offer.produce) {
-      offer = await this.offerRepository.findOne({
-        where: { id: offer.id },
-        relations: [
-          "produce",
-          "produce.farmer",
-          "produce.farmer.user",
-          "produce.quality_assessments",
-          "buyer",
-          "buyer.user"
-        ],
-      });
-    }
-
-    // Transform produce data
-    if (offer.produce) {
-      offer.produce = this.produceService.transformProduceForResponse(offer.produce);
-    }
-
-    // Transform buyer data to match required structure
-    (offer.buyer as any) = this.transformBuyerData(offer);
-
-    return offer;
   }
 
   async create(createOfferDto: CreateOfferDto): Promise<Offer> {
@@ -184,7 +142,7 @@ export class OffersService {
       });
 
       // Return transformed offer
-      return this.transformOfferResponse(completeOffer);
+      return this.offerTransformationService.transformOffer(completeOffer);
     } catch (error) {
       this.logger.error(`Error creating offer: ${error.message}`);
       if (error.code === '23505') {
@@ -215,33 +173,9 @@ export class OffersService {
       throw new NotFoundException(`Offer with ID ${id} not found`);
     }
 
-    const transformedOffer = await this.transformOfferResponse(offer);
+    const transformedOffer = this.offerTransformationService.transformOffer(offer);
     await this.cacheManager.set(cacheKey, transformedOffer, CACHE_TTL);
     return transformedOffer;
-  }
-
-  private async clearAllRelatedCaches(offer: Offer): Promise<void> {
-    try {
-      // Clear offer cache
-      await this.clearOfferCache(offer.id);
-
-      // Clear produce cache
-      await this.produceService.clearProduceCache(offer.produce_id);
-
-      // Clear home page caches
-      const keys = [
-        'farmer_home:*',
-        'buyer_home:*',
-        'offers:stats',
-        'offers:*',
-      ];
-      await Promise.all(keys.map(key => this.cacheManager.del(key)));
-
-      this.logger.debug(`Cleared all related caches for offer ${offer.id}`);
-    } catch (error) {
-      this.logger.error(`Failed to clear related caches for offer ${offer.id}`, error);
-      // Don't throw error as this is a non-critical operation
-    }
   }
 
   async accept(id: string): Promise<Offer> {
@@ -338,9 +272,9 @@ export class OffersService {
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
 
       try {
-        await this.clearAllRelatedCaches(offer);
+        await this.clearOfferCacheWithRetry(id);
       } catch (error) {
-        this.logger.error(`Failed to clear caches for accepted offer ${id}`, error);
+        this.logger.error(`Failed to clear cache for accepted offer ${id}`, error);
       }
 
       produce.status = ProduceStatus.IN_PROGRESS;
@@ -367,7 +301,8 @@ export class OffersService {
       this.eventEmitter.emit('offer.accepted', offerAcceptedEvent);
       this.logger.log(`Emitted offer.accepted event for offer ${offer.id}`);
 
-      return this.transformOfferResponse(updatedOffer);
+      // Return transformed offer using transformation service
+      return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
     });
   }
 
@@ -414,7 +349,7 @@ export class OffersService {
       offer.status = OfferStatus.REJECTED;
       offer.rejection_reason = reason;
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
-      await this.clearAllRelatedCaches(offer);
+      await this.clearOfferCache(id);
 
       // 5. Update produce status back to AVAILABLE
       produce.status = ProduceStatus.AVAILABLE;
@@ -457,7 +392,8 @@ export class OffersService {
         // Don't throw error as this is a non-critical operation
       }
 
-      return this.transformOfferResponse(updatedOffer);
+      // Return transformed offer using transformation service
+      return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
     });
   }
 
@@ -493,7 +429,7 @@ export class OffersService {
       offer.status = OfferStatus.CANCELLED;
       offer.cancellation_reason = reason;
       const updatedOffer = await transactionalEntityManager.save(Offer, offer);
-      await this.clearAllRelatedCaches(offer);
+      await this.clearOfferCache(id);
 
       // 5. Update produce status back to AVAILABLE
       produce.status = ProduceStatus.AVAILABLE;
@@ -548,7 +484,8 @@ export class OffersService {
         // Don't throw error as this is a non-critical operation
       }
 
-      return this.transformOfferResponse(updatedOffer);
+      // Return transformed offer using transformation service
+      return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
     });
   }
 
@@ -631,7 +568,7 @@ export class OffersService {
       .getManyAndCount();
 
     const transformedItems = await Promise.all(
-      items.map(offer => this.transformOfferResponse(offer))
+      items.map(offer => this.offerTransformationService.transformOffer(offer))
     );
 
     return {
@@ -651,7 +588,7 @@ export class OffersService {
       const offers = await queryBuilder
         .orderBy('offer.created_at', 'DESC')
         .getMany();
-      return Promise.all(offers.map(offer => this.transformOfferResponse(offer)));
+      return Promise.all(offers.map(offer => this.offerTransformationService.transformOffer(offer)));
     }
 
     // Return paginated response with filters and sorting
@@ -675,7 +612,7 @@ export class OffersService {
     offer.status = status;
     const updatedOffer = await this.offerRepository.save(offer);
     await this.clearOfferCache(id);
-    return this.transformOfferResponse(updatedOffer);
+    return this.offerTransformationService.transformOffer(updatedOffer);
   }
 
   async getStats() {
@@ -814,7 +751,7 @@ export class OffersService {
         // Don't throw error as this is a non-critical operation
       }
 
-      return this.transformOfferResponse(updatedOffer);
+      return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
     });
   }
 
@@ -936,7 +873,7 @@ export class OffersService {
         timestamp: new Date(),
       });
 
-      return this.transformOfferResponse(savedOffer);
+      return this.offerTransformationService.transformOffer(savedOffer);
     } catch (error) {
       this.logger.error(`Error in createAdminOffer: ${error.message}`, error.stack);
       if (error instanceof BadRequestException) {

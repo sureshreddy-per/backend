@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, Inject, BadRequestException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException, Inject, BadRequestException, forwardRef } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository, In, LessThan, ArrayContains } from "typeorm";
 import { EventEmitter2 } from "@nestjs/event-emitter";
@@ -16,6 +16,8 @@ import { InspectionDistanceFeeService } from "../../config/services/fee-config.s
 import { CategorySpecificAssessment } from "../../quality/interfaces/category-assessments.interface";
 import { Farmer } from "../../farmers/entities/farmer.entity";
 import { FarmersService } from "../../farmers/farmers.service";
+import { OffersService } from "../services/offers.service";
+import { OfferTransformationService } from './offer-transformation.service';
 
 interface QualityAssessmentMetadata {
   grade: number;
@@ -45,6 +47,9 @@ export class AutoOfferService {
     private readonly eventEmitter: EventEmitter2,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
     private readonly farmerService: FarmersService,
+    @Inject(forwardRef(() => OffersService))
+    private readonly offersService: OffersService,
+    private readonly offerTransformationService: OfferTransformationService,
   ) {}
 
   private getCacheKey(key: string): string {
@@ -248,60 +253,62 @@ export class AutoOfferService {
     buyerId: string,
     data?: { price_per_unit?: number; price_modification_reason?: string },
   ): Promise<Offer> {
-    const offer = await this.offerRepository.findOne({
-      where: { id: offerId, buyer_id: buyerId }
-    });
-
-    if (!offer) {
-      throw new NotFoundException(`Offer ${offerId} not found for buyer ${buyerId}`);
-    }
-
-    if (offer.status !== OfferStatus.PENDING) {
-      throw new Error(`Offer ${offerId} is not in PENDING state`);
-    }
-
-    if (data?.price_per_unit) {
-      // Validate price is within allowed range
-      if (data.price_per_unit < offer.buyer_min_price || data.price_per_unit > offer.buyer_max_price) {
-        throw new Error(`Price must be between ${offer.buyer_min_price} and ${offer.buyer_max_price}`);
-      }
-
-      offer.price_per_unit = data.price_per_unit;
-      offer.is_price_overridden = true;
-      offer.price_override_at = new Date();
-      offer.status = OfferStatus.PRICE_MODIFIED;
-      offer.price_override_reason = data.price_modification_reason || 'Price modified during approval';
-
-      // Add to price history
-      if (!offer.metadata.price_history) {
-        offer.metadata.price_history = [];
-      }
-      offer.metadata.price_history.push({
-        price: data.price_per_unit,
-        timestamp: new Date(),
-        reason: data.price_modification_reason || 'Price modified during approval'
+    return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
+      const offer = await transactionalEntityManager.findOne(Offer, {
+        where: { id: offerId, buyer_id: buyerId }
       });
-    } else {
-      offer.status = OfferStatus.ACTIVE;
-    }
 
-    const updatedOffer = await this.offerRepository.save(offer);
+      if (!offer) {
+        throw new NotFoundException(`Offer ${offerId} not found for buyer ${buyerId}`);
+      }
 
-    // Notify farmer of offer approval/modification
-    await this.notificationService.create({
-      user_id: offer.farmer_id,
-      type: data?.price_per_unit ? NotificationType.OFFER_PRICE_MODIFIED : NotificationType.OFFER_APPROVED,
-      data: {
-        offer_id: offer.id,
-        produce_id: offer.produce_id,
-        price: offer.price_per_unit,
-        modified: !!data?.price_per_unit,
-        modification_reason: data?.price_modification_reason,
-        inspection_fee: offer.inspection_fee
-      },
+      if (offer.status !== OfferStatus.PENDING) {
+        throw new Error(`Offer ${offerId} is not in PENDING state`);
+      }
+
+      if (data?.price_per_unit) {
+        // Validate price is within allowed range
+        if (data.price_per_unit < offer.buyer_min_price || data.price_per_unit > offer.buyer_max_price) {
+          throw new Error(`Price must be between ${offer.buyer_min_price} and ${offer.buyer_max_price}`);
+        }
+
+        offer.price_per_unit = data.price_per_unit;
+        offer.is_price_overridden = true;
+        offer.price_override_at = new Date();
+        offer.status = OfferStatus.PRICE_MODIFIED;
+        offer.price_override_reason = data.price_modification_reason || 'Price modified during approval';
+
+        // Add to price history
+        if (!offer.metadata.price_history) {
+          offer.metadata.price_history = [];
+        }
+        offer.metadata.price_history.push({
+          price: data.price_per_unit,
+          timestamp: new Date(),
+          reason: data.price_modification_reason || 'Price modified during approval'
+        });
+      } else {
+        offer.status = OfferStatus.ACTIVE;
+      }
+
+      const updatedOffer = await transactionalEntityManager.save(Offer, offer);
+
+      // Notify farmer of offer approval/modification
+      await this.notificationService.create({
+        user_id: offer.farmer_id,
+        type: data?.price_per_unit ? NotificationType.OFFER_PRICE_MODIFIED : NotificationType.OFFER_APPROVED,
+        data: {
+          offer_id: offer.id,
+          produce_id: offer.produce_id,
+          price: offer.price_per_unit,
+          modified: !!data?.price_per_unit,
+          modification_reason: data?.price_modification_reason,
+          inspection_fee: offer.inspection_fee
+        },
+      });
+
+      return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
     });
-
-    return updatedOffer;
   }
 
   async rejectOffer(offerId: string, buyerId: string, reason: string): Promise<Offer> {
@@ -621,5 +628,15 @@ export class AutoOfferService {
 
     this.logger.log(`Generating offers for ${validBuyers.length} valid buyers`);
     await this.generateAutoOffers(produce, latestAssessment, validBuyers);
+  }
+
+  async getAutoOffer(offerId: string, buyerId: string): Promise<Offer> {
+    return await this.offerRepository.manager.transaction(async transactionalEntityManager => {
+      const offer = await transactionalEntityManager.findOne(Offer, {
+        where: { id: offerId, buyer_id: buyerId }
+      });
+      const updatedOffer = await transactionalEntityManager.save(Offer, offer);
+      return this.offerTransformationService.transformOffer(updatedOffer, transactionalEntityManager);
+    });
   }
 }

@@ -18,6 +18,7 @@ import { Buyer } from '../buyers/entities/buyer.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
 import { FarmersModule } from '../farmers/farmers.module';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { OfferTransformationService } from './services/offer-transformation.service';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
     OffersService,
     AutoOfferService,
     DailyPriceCalculationService,
+    OfferTransformationService,
     {
       provide: EventEmitter2,
       useFactory: () => new EventEmitter2(),
