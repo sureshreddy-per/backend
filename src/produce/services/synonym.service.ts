@@ -22,6 +22,13 @@ interface ValidationResult {
   needsManualReview: boolean;
 }
 
+interface MatchScore {
+  score: number;
+  matchType: string;
+  originalTerm: string;
+  matchedTerm: string;
+}
+
 @Injectable()
 export class ProduceSynonymService {
   private readonly logger = new Logger(ProduceSynonymService.name);
@@ -30,6 +37,13 @@ export class ProduceSynonymService {
   private readonly SIMILARITY_THRESHOLD = 0.8; // Configurable threshold for fuzzy matching
   private readonly VALIDATION_THRESHOLD = 0.7;
   private readonly MIN_VALIDATIONS_REQUIRED = 3;
+  private readonly MATCH_WEIGHTS = {
+    exact: 1.0,
+    phonetic: 0.9,
+    token: 0.85,
+    levenshtein: 0.8,
+    partial: 0.75
+  };
 
   constructor(
     @InjectRepository(Synonym)
@@ -101,32 +115,185 @@ export class ProduceSynonymService {
     return 1 - distance / maxLength;
   }
 
-  private async findSimilarProduceNames(word: string): Promise<SynonymMatch[]> {
-    const lowercaseWord = word.toLowerCase();
-    const matches: SynonymMatch[] = [];
+  private normalizeText(text: string): string {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, '')
+      .trim()
+      .replace(/\s+/g, ' ');
+  }
+
+  private getTokens(text: string): string[] {
+    return this.normalizeText(text).split(' ');
+  }
+
+  private getSoundex(str: string): string {
+    const a = str.toLowerCase().split('');
+    const firstLetter = a.shift();
+    const codes = {
+      a: '', e: '', i: '', o: '', u: '',
+      b: 1, f: 1, p: 1, v: 1,
+      c: 2, g: 2, j: 2, k: 2, q: 2, s: 2, x: 2, z: 2,
+      d: 3, t: 3,
+      l: 4,
+      m: 5, n: 5,
+      r: 6
+    };
+
+    const result = a
+      .map(v => codes[v])
+      .filter((v, i, a) => i === 0 || v !== a[i - 1]);
+
+    return (firstLetter + result.join('')).padEnd(4, '0').slice(0, 4);
+  }
+
+  private calculateTokenBasedSimilarity(str1: string, str2: string): number {
+    const tokens1 = new Set(this.getTokens(str1));
+    const tokens2 = new Set(this.getTokens(str2));
+    
+    const intersection = new Set([...tokens1].filter(x => tokens2.has(x)));
+    const union = new Set([...tokens1, ...tokens2]);
+    
+    return intersection.size / union.size;
+  }
+
+  private isPhoneticMatch(str1: string, str2: string): boolean {
+    const soundex1 = this.getSoundex(str1);
+    const soundex2 = this.getSoundex(str2);
+    return soundex1 === soundex2;
+  }
+
+  private calculateMatchScore(term1: string, term2: string): MatchScore {
+    const normalized1 = this.normalizeText(term1);
+    const normalized2 = this.normalizeText(term2);
+
+    // Exact match
+    if (normalized1 === normalized2) {
+      return {
+        score: this.MATCH_WEIGHTS.exact,
+        matchType: 'exact',
+        originalTerm: term1,
+        matchedTerm: term2
+      };
+    }
+
+    // Phonetic match
+    if (this.isPhoneticMatch(normalized1, normalized2)) {
+      return {
+        score: this.MATCH_WEIGHTS.phonetic,
+        matchType: 'phonetic',
+        originalTerm: term1,
+        matchedTerm: term2
+      };
+    }
+
+    // Token-based similarity
+    const tokenScore = this.calculateTokenBasedSimilarity(normalized1, normalized2);
+    if (tokenScore > 0.7) {
+      return {
+        score: tokenScore * this.MATCH_WEIGHTS.token,
+        matchType: 'token',
+        originalTerm: term1,
+        matchedTerm: term2
+      };
+    }
+
+    // Levenshtein distance similarity
+    const levenshteinScore = this.calculateSimilarity(normalized1, normalized2);
+    if (levenshteinScore > 0.7) {
+      return {
+        score: levenshteinScore * this.MATCH_WEIGHTS.levenshtein,
+        matchType: 'levenshtein',
+        originalTerm: term1,
+        matchedTerm: term2
+      };
+    }
+
+    // Partial match
+    if (normalized1.includes(normalized2) || normalized2.includes(normalized1)) {
+      return {
+        score: this.MATCH_WEIGHTS.partial,
+        matchType: 'partial',
+        originalTerm: term1,
+        matchedTerm: term2
+      };
+    }
+
+    return {
+      score: 0,
+      matchType: 'none',
+      originalTerm: term1,
+      matchedTerm: term2
+    };
+  }
+
+  private async findBestMatch(word: string, context?: SynonymContext): Promise<MatchScore> {
+    const normalizedWord = this.normalizeText(word);
+    let bestMatch: MatchScore = {
+      score: 0,
+      matchType: 'none',
+      originalTerm: word,
+      matchedTerm: ''
+    };
 
     // Check cache first
-    this.produceNameCache.forEach((produceName, synonym) => {
-      const similarity = this.calculateSimilarity(lowercaseWord, synonym);
-      if (similarity >= this.SIMILARITY_THRESHOLD) {
-        matches.push({ produce_name: produceName, similarity });
+    for (const [synonym, produceName] of this.produceNameCache.entries()) {
+      const matchScore = this.calculateMatchScore(normalizedWord, synonym);
+      
+      // Apply context boost if available
+      if (context && matchScore.score > 0) {
+        const contextBoost = await this.calculateContextBoost(produceName, context);
+        matchScore.score = Math.min(1, matchScore.score + contextBoost);
+      }
+
+      if (matchScore.score > bestMatch.score) {
+        bestMatch = matchScore;
+      }
+    }
+
+    // Check database if no good match found in cache
+    if (bestMatch.score < 0.8) {
+      const dbSynonyms = await this.synonymRepository.find({
+        where: { is_active: true }
+      });
+
+      for (const dbSynonym of dbSynonyms) {
+        const matchScore = this.calculateMatchScore(normalizedWord, dbSynonym.synonym);
+        
+        // Apply context boost if available
+        if (context && matchScore.score > 0) {
+          const contextBoost = await this.calculateContextBoost(dbSynonym.produce_name, context);
+          matchScore.score = Math.min(1, matchScore.score + contextBoost);
+        }
+
+        if (matchScore.score > bestMatch.score) {
+          bestMatch = {
+            ...matchScore,
+            matchedTerm: dbSynonym.produce_name
+          };
+        }
+      }
+    }
+
+    return bestMatch;
+  }
+
+  private async calculateContextBoost(produceName: string, context: SynonymContext): Promise<number> {
+    let boost = 0;
+    const synonym = await this.synonymRepository.findOne({
+      where: {
+        produce_name: produceName,
+        is_active: true
       }
     });
 
-    // Check database for additional matches
-    const allSynonyms = await this.synonymRepository.find({
-      where: { is_active: true },
-    });
+    if (synonym) {
+      if (context.region && synonym.region === context.region) boost += 0.1;
+      if (context.season && synonym.season === context.season) boost += 0.1;
+      if (context.market_context && synonym.market_context === context.market_context) boost += 0.1;
+    }
 
-    allSynonyms.forEach((synonym) => {
-      const similarity = this.calculateSimilarity(lowercaseWord, synonym.synonym.toLowerCase());
-      if (similarity >= this.SIMILARITY_THRESHOLD) {
-        matches.push({ produce_name: synonym.produce_name, similarity });
-      }
-    });
-
-    // Sort by similarity score in descending order
-    return matches.sort((a, b) => b.similarity - a.similarity);
+    return boost;
   }
 
   private async validateSynonym(synonym: Synonym): Promise<ValidationResult> {
@@ -188,79 +355,16 @@ export class ProduceSynonymService {
     await this.initializeSynonymCache(); // Refresh cache
   }
 
-  private async findContextualMatches(
-    word: string,
-    context?: SynonymContext
-  ): Promise<SynonymMatch[]> {
-    const baseMatches = await this.findSimilarProduceNames(word);
+  async findProduceName(word: string, context?: SynonymContext): Promise<string> {
+    const bestMatch = await this.findBestMatch(word, context);
     
-    if (!context) {
-      return baseMatches;
-    }
-
-    // Boost similarity scores based on context matches
-    const matchesWithContext = await Promise.all(baseMatches.map(async match => {
-      let contextBoost = 0;
-      const synonym = await this.synonymRepository.findOne({
-        where: {
-          produce_name: match.produce_name,
-          synonym: word,
-          is_active: true
-        }
-      });
-
-      if (synonym) {
-        if (context.region && synonym.region === context.region) contextBoost += 0.1;
-        if (context.season && synonym.season === context.season) contextBoost += 0.1;
-        if (context.market_context && synonym.market_context === context.market_context) contextBoost += 0.1;
-      }
-
-      return {
-        ...match,
-        similarity: Math.min(1, match.similarity + contextBoost)
-      };
-    }));
-
-    return matchesWithContext.sort((a, b) => b.similarity - a.similarity);
-  }
-
-  async findProduceName(
-    word: string,
-    context?: SynonymContext
-  ): Promise<string> {
-    const lowercaseWord = word.toLowerCase();
-    
-    // Try exact matches first (with language handling)
-    const exactMatch = await this.findExactMatch(lowercaseWord);
-    if (exactMatch) {
-      await this.incrementUsageCount(exactMatch);
-      return exactMatch;
-    }
-
-    // Try contextual fuzzy matching
-    const similarMatches = await this.findContextualMatches(word, context);
-    if (similarMatches.length > 0) {
-      const bestMatch = similarMatches[0];
-      
-      // Validate the match
-      const synonym = await this.synonymRepository.findOne({
-        where: {
-          produce_name: bestMatch.produce_name,
-          is_active: true
-        }
-      });
-
-      if (synonym) {
-        const validation = await this.validateSynonym(synonym);
-        if (validation.isValid) {
-          await this.incrementUsageCount(bestMatch.produce_name);
-          this.logger.log(
-            `Found contextual match for "${word}": "${bestMatch.produce_name}" ` +
-            `(similarity: ${bestMatch.similarity}, confidence: ${validation.confidence})`
-          );
-          return bestMatch.produce_name;
-        }
-      }
+    if (bestMatch.score >= 0.8) {
+      this.logger.debug(
+        `Found match for "${word}": "${bestMatch.matchedTerm}" ` +
+        `(score: ${bestMatch.score}, type: ${bestMatch.matchType})`
+      );
+      await this.incrementUsageCount(bestMatch.matchedTerm);
+      return bestMatch.matchedTerm;
     }
 
     return word;
@@ -561,14 +665,18 @@ export class ProduceSynonymService {
       // Clean and normalize the input name
       const normalizedName = name.toLowerCase().trim();
       
+      this.logger.debug(`[findExistingProduceNameFromSynonyms] Searching for: ${normalizedName}`);
+      
       // First check if the name itself matches any existing produce name
       const directMatch = await this.findProduceName(normalizedName);
       if (directMatch !== normalizedName) {
+        this.logger.debug(`[findExistingProduceNameFromSynonyms] Found direct match: ${directMatch}`);
         return directMatch;
       }
 
       // Get all existing synonyms that partially match the name
       const possibleMatches = await this.searchSynonyms(normalizedName);
+      this.logger.debug(`[findExistingProduceNameFromSynonyms] Found possible matches: ${JSON.stringify(possibleMatches)}`);
       
       // If we found any possible matches, check each one
       for (const matchedName of possibleMatches) {
@@ -583,16 +691,23 @@ export class ProduceSynonymService {
             ...this.generateBasicVariations(normalizedName)
           ];
 
+          this.logger.debug(`[findExistingProduceNameFromSynonyms] Checking variations: ${JSON.stringify(namesToCheck)}`);
+
           for (const nameVariation of namesToCheck) {
-            if (synonyms.some(synonym => 
-              this.isSimilarName(nameVariation.toLowerCase(), synonym.toLowerCase())
-            )) {
-              return matchedName;
+            for (const synonym of synonyms) {
+              const similarity = this.calculateSimilarity(nameVariation.toLowerCase(), synonym.toLowerCase());
+              this.logger.debug(`[findExistingProduceNameFromSynonyms] Comparing "${nameVariation}" with "${synonym}" - similarity: ${similarity}`);
+              
+              if (this.isSimilarName(nameVariation.toLowerCase(), synonym.toLowerCase())) {
+                this.logger.debug(`[findExistingProduceNameFromSynonyms] Found similar match: ${matchedName}`);
+                return matchedName;
+              }
             }
           }
         }
       }
 
+      this.logger.debug(`[findExistingProduceNameFromSynonyms] No match found for: ${normalizedName}`);
       return null;
     } catch (error) {
       this.logger.error(`Error checking existing synonyms: ${error.message}`);
@@ -613,36 +728,45 @@ export class ProduceSynonymService {
       variations.add(words.join(''));
       
       // Add variations with word order changes
-      if (words.includes('rice')) {
-        const nonRiceWords = words.filter(w => w !== 'rice');
-        variations.add(`rice ${nonRiceWords.join(' ')}`);
-        variations.add(`${nonRiceWords.join(' ')} rice`);
+      if (words.includes('rice') || words.includes('paddy')) {
+        const nonRiceWords = words.filter(w => w !== 'rice' && w !== 'paddy');
+        // Add rice variations
+        if (words.includes('rice')) {
+          variations.add(`rice ${nonRiceWords.join(' ')}`);
+          variations.add(`${nonRiceWords.join(' ')} rice`);
+        }
+        // Add paddy variations
+        if (words.includes('paddy')) {
+          variations.add(`paddy ${nonRiceWords.join(' ')}`);
+          variations.add(`${nonRiceWords.join(' ')} paddy`);
+          // Add combined paddy rice variations
+          variations.add(`paddy rice`);
+          variations.add(`rice paddy`);
+        }
       }
     }
 
-    // Add common prefixes/suffixes for rice
-    if (name.includes('rice')) {
-      variations.add(name.replace('rice', '').trim());
-      if (!name.startsWith('rice')) variations.add(`rice ${name}`);
-      if (!name.endsWith('rice')) variations.add(`${name} rice`);
+    // Add common prefixes/suffixes for rice and paddy
+    if (name.includes('rice') || name.includes('paddy')) {
+      const baseName = name.replace(/rice|paddy/gi, '').trim();
+      if (baseName) {
+        variations.add(`rice ${baseName}`);
+        variations.add(`${baseName} rice`);
+        variations.add(`paddy ${baseName}`);
+        variations.add(`${baseName} paddy`);
+        variations.add(`paddy rice ${baseName}`);
+        variations.add(`${baseName} paddy rice`);
+      }
     }
 
     return Array.from(variations);
   }
 
   private isSimilarName(name1: string, name2: string): boolean {
-    // Remove special characters and extra spaces
-    const cleanName1 = name1.replace(/[^a-z0-9]/g, '');
-    const cleanName2 = name2.replace(/[^a-z0-9]/g, '');
+    const matchScore = this.calculateMatchScore(name1, name2);
+    const isRiceRelated = name1.includes('rice') || name1.includes('paddy') ||
+                         name2.includes('rice') || name2.includes('paddy');
     
-    // Check for exact match after cleaning
-    if (cleanName1 === cleanName2) return true;
-    
-    // Check if one is contained within the other
-    if (cleanName1.includes(cleanName2) || cleanName2.includes(cleanName1)) return true;
-    
-    // Calculate similarity
-    const similarity = this.calculateSimilarity(cleanName1, cleanName2);
-    return similarity >= 0.85; // Increased threshold for more precise matching
+    return matchScore.score >= (isRiceRelated ? 0.7 : 0.8);
   }
 }
