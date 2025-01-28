@@ -346,7 +346,9 @@ export class OffersService {
             queryBuilder[orderMethod]('offer.price_per_unit', order);
             break;
           case OfferSortBy.TOTAL_PRICE:
-            queryBuilder[orderMethod]('offer.price_per_unit * offer.quantity', order);
+            // Add total_price as a computed column in the SELECT
+            queryBuilder.addSelect('offer.price_per_unit * offer.quantity', 'total_price');
+            queryBuilder[orderMethod]('total_price', order);
             break;
           case OfferSortBy.QUANTITY:
             queryBuilder[orderMethod]('offer.quantity', order);
@@ -358,10 +360,16 @@ export class OffersService {
             queryBuilder[orderMethod]('offer.distance_km', order);
             break;
           case OfferSortBy.BUYER_RATING:
-            queryBuilder[orderMethod]('buyerUser.rating', order);
+            // Ensure buyer and user relations are joined
+            queryBuilder.leftJoinAndSelect('offer.buyer', 'buyer')
+                       .leftJoinAndSelect('buyer.user', 'buyer_user');
+            queryBuilder[orderMethod]('buyer_user.rating', order);
             break;
           case OfferSortBy.FARMER_RATING:
-            queryBuilder[orderMethod]('farmerUser.rating', order);
+            // Ensure farmer and user relations are joined
+            queryBuilder.leftJoinAndSelect('produce.farmer', 'farmer')
+                       .leftJoinAndSelect('farmer.user', 'farmer_user');
+            queryBuilder[orderMethod]('farmer_user.rating', order);
             break;
           default:
             queryBuilder[orderMethod]('offer.created_at', order);

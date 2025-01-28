@@ -239,9 +239,14 @@ export class OffersController {
       throw new NotFoundException("Produce not found");
     }
 
+    // Get farmer details using user ID
+    const farmer = await this.farmersService.findByUserId(user.id);
+    if (!farmer) {
+      throw new NotFoundException(`Farmer with user ID ${user.id} not found`);
+    }
+
     // Verify ownership
-    const farmer = await this.produceService.getFarmerDetails(user.id);
-    if (!farmer || produce.farmer_id !== farmer.id) {
+    if (produce.farmer_id !== farmer.id) {
       throw new UnauthorizedException("You can only reactivate offers for your own produce");
     }
 
@@ -295,9 +300,14 @@ export class OffersController {
       throw new NotFoundException("Offer not found");
     }
 
-    // Get farmer details and verify ownership
-    const farmer = await this.produceService.getFarmerDetails(user.id);
-    if (!farmer || offer.farmer_id !== farmer.id) {
+    // Get farmer details using user ID
+    const farmer = await this.farmersService.findByUserId(user.id);
+    if (!farmer) {
+      throw new NotFoundException(`Farmer with user ID ${user.id} not found`);
+    }
+
+    // Verify ownership
+    if (offer.farmer_id !== farmer.id) {
       throw new UnauthorizedException("You can only accept offers for your own produce");
     }
 
@@ -323,9 +333,14 @@ export class OffersController {
       throw new NotFoundException("Offer not found");
     }
 
-    // Get farmer details and verify ownership
-    const farmer = await this.produceService.getFarmerDetails(user.id);
-    if (!farmer || offer.farmer_id !== farmer.id) {
+    // Get farmer details using user ID
+    const farmer = await this.farmersService.findByUserId(user.id);
+    if (!farmer) {
+      throw new NotFoundException(`Farmer with user ID ${user.id} not found`);
+    }
+
+    // Verify ownership
+    if (offer.farmer_id !== farmer.id) {
       throw new UnauthorizedException("You can only reject offers for your own produce");
     }
 

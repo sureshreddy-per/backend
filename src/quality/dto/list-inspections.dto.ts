@@ -6,7 +6,8 @@ export enum InspectionSortBy {
   STATUS = 'status',
   QUALITY = 'quality',
   DISTANCE = 'distance',
-  CREATED_AT = 'created_at'
+  CREATED_AT = 'created_at',
+  UPDATED_AT = 'updated_at'
 }
 
 export enum SortOrder {
@@ -33,7 +34,7 @@ export class ListInspectionsDto {
 
   @IsOptional()
   @IsEnum(InspectionSortBy)
-  sortBy?: InspectionSortBy = InspectionSortBy.CREATED_AT;
+  sortBy?: InspectionSortBy = InspectionSortBy.UPDATED_AT;
 
   @IsOptional()
   @IsEnum(SortOrder)
@@ -46,4 +47,4 @@ export class ListInspectionsDto {
   @IsOptional()
   @Type(() => Number)
   lng?: number;
-} 
+}

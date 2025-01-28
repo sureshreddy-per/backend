@@ -194,7 +194,7 @@ export class InspectionRequestService {
           // Add distance calculation using PostGIS
           queryBuilder.addSelect(
             `ST_Distance(
-              ST_SetSRID(ST_MakePoint(CAST(split_part(inspection.location, ',', 2) AS FLOAT), 
+              ST_SetSRID(ST_MakePoint(CAST(split_part(inspection.location, ',', 2) AS FLOAT),
                                      CAST(split_part(inspection.location, ',', 1) AS FLOAT)), 4326),
               ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
             ) as distance`,
@@ -205,9 +205,17 @@ export class InspectionRequestService {
           this.logger.debug(`Sorting by distance ${sortOrder} with lat=${lat}, lng=${lng}`);
         }
         break;
-      default:
+      case InspectionSortBy.UPDATED_AT:
+        queryBuilder.orderBy('inspection.updated_at', sortOrder);
+        this.logger.debug(`Sorting by updated_at ${sortOrder}`);
+        break;
+      case InspectionSortBy.CREATED_AT:
         queryBuilder.orderBy('inspection.created_at', sortOrder);
         this.logger.debug(`Sorting by created_at ${sortOrder}`);
+        break;
+      default:
+        queryBuilder.orderBy('inspection.updated_at', SortOrder.DESC);
+        this.logger.debug('Using default sort: updated_at DESC');
     }
 
     // Log the final SQL query
@@ -254,4 +262,4 @@ export class InspectionRequestService {
       totalPages: Math.ceil(total / limit)
     };
   }
-} 
+}
