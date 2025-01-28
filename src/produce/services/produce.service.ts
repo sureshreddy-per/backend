@@ -544,7 +544,11 @@ export class ProduceService {
         throw new NotFoundException(`Produce with ID ${id} not found`);
       }
 
-      // First delete all inspection requests
+      // First delete all offers associated with this produce
+      await queryRunner.manager.delete('offers', { produce_id: id });
+      this.logger.debug(`Deleted offers for produce ${id}`);
+
+      // Then delete all inspection requests
       await queryRunner.manager.delete('inspection_requests', { produce_id: id });
       this.logger.debug(`Deleted inspection requests for produce ${id}`);
 
