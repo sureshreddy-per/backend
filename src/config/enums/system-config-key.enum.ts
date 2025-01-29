@@ -8,4 +8,10 @@ export enum SystemConfigKey {
   INSPECTION_FEE_PER_KM = "inspection_fee_per_km",
   USE_AUTO_INSPECTOR_ASSIGNMENT = "use_auto_inspector_assignment",
   AUTO_INSPECTOR_ASSIGNMENT_RADIUS_KM = "auto_inspector_assignment_radius_km",
+  DEFAULT_BUYER_RADIUS_KM = "default_buyer_radius_km",
+  MAX_BUYER_RADIUS_KM = "max_buyer_radius_km",
+  DEFAULT_PRODUCE_SEARCH_RADIUS_KM = "default_produce_search_radius_km",
+  MAX_PRODUCE_SEARCH_RADIUS_KM = "max_produce_search_radius_km",
+  DEFAULT_INSPECTOR_RADIUS_KM = "default_inspector_radius_km",
+  MAX_INSPECTOR_RADIUS_KM = "max_inspector_radius_km",
 } 

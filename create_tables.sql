@@ -1448,10 +1448,15 @@ INSERT INTO system_configs (key, value, description) VALUES
 ('maintenance_mode', '{"value": false}', 'System maintenance mode flag'),
 ('min_produce_images', '{"value": 1}', 'Minimum number of images required for produce listing'),
 ('max_produce_images', '{"value": 5}', 'Maximum number of images allowed for produce listing'),
-('inspection_radius_km', '{"value": 100}', 'Maximum radius in kilometers for inspection requests'),
 ('min_transaction_amount', '{"value": 100}', 'Minimum amount allowed for transactions'),
 ('platform_fee_percentage', '{"value": 2.5}', 'Platform fee as percentage of transaction amount'),
 ('use_auto_inspector_assignment', '{"value": true}', 'Enable automatic assignment of inspectors to inspection requests'),
 ('auto_inspector_assignment_radius_km', '{"value": 200}', 'Maximum radius in kilometers for automatic inspector assignment'),
-('transaction_recovery_cron_enabled', '{"value": true}', 'Enable automatic recovery of stuck transactions')
+('transaction_recovery_cron_enabled', '{"value": true}', 'Enable automatic recovery of stuck transactions'),
+('default_buyer_radius_km', '{"value": 100}', 'Default radius in kilometers for buyer search'),
+('max_buyer_radius_km', '{"value": 150}', 'Maximum allowed radius in kilometers for buyer search'),
+('default_produce_search_radius_km', '{"value": 100}', 'Default radius in kilometers for produce search'),
+('max_produce_search_radius_km', '{"value": 150}', 'Maximum allowed radius in kilometers for produce search'),
+('default_inspector_radius_km', '{"value": 100}', 'Default radius in kilometers for inspector search'),
+('max_inspector_radius_km', '{"value": 200}', 'Maximum allowed radius in kilometers for inspector search')
 ON CONFLICT (key) DO NOTHING; 

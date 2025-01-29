@@ -126,44 +126,58 @@ export class InspectorsService {
     lng: number,
     radiusKm?: number, // Made optional since we'll use system config as default
   ): Promise<{ inspector: Inspector; distance: number }[]> {
-    // Get max radius from system config, fallback to 50km if not set
-    const configRadius = await this.systemConfigService.getValue(SystemConfigKey.MAX_GEOSPATIAL_RADIUS_KM);
-    const maxRadius = radiusKm ?? (configRadius ? Number(configRadius) : 50);
-    
-    this.logger.debug(`Finding inspectors near (${lat},${lng}) within ${maxRadius}km`);
-    
-    const inspectors = await this.inspectorRepository.find({
-      relations: ["user"],
-    });
-    this.logger.debug(`Found ${inspectors.length} total inspectors`);
+    try {
+      // Get radius limits from system config
+      const maxRadius = Number(await this.systemConfigService.getValue(SystemConfigKey.MAX_INSPECTOR_RADIUS_KM));
+      const defaultRadius = Number(await this.systemConfigService.getValue(SystemConfigKey.DEFAULT_INSPECTOR_RADIUS_KM));
 
-    const inspectorsWithDistance = inspectors
-      .map(inspector => {
-        try {
-          const { lat: inspLat, lng: inspLng } = this.parseLocation(inspector.location);
-          const distance = this.calculateDistance(lat, lng, inspLat, inspLng);
-          return { inspector, distance };
-        } catch (error) {
-          this.logger.warn(`Skipping inspector ${inspector.id} due to invalid location: ${error.message}`);
-          return null;
-        }
-      })
-      .filter(result => result !== null)
-      .filter(({ distance }) => {
-        const withinRadius = distance <= maxRadius;
-        if (!withinRadius) {
-          this.logger.debug(`Inspector at distance ${distance}km excluded (exceeds ${maxRadius}km radius)`);
-        }
-        return withinRadius;
-      })
-      .sort((a, b) => a.distance - b.distance);
+      // Use default radius if none provided or if provided radius is too large
+      const effectiveRadius = !radiusKm ? defaultRadius : Math.min(radiusKm, maxRadius);
 
-    this.logger.debug(`Found ${inspectorsWithDistance.length} inspectors within ${maxRadius}km radius`);
-    if (inspectorsWithDistance.length > 0) {
-      this.logger.debug(`Nearest inspector is at ${inspectorsWithDistance[0].distance}km`);
+      if (effectiveRadius <= 0) {
+        throw new Error(`Radius must be greater than 0 kilometers`);
+      }
+      
+      this.logger.debug(`Finding inspectors near (${lat},${lng}) within ${effectiveRadius}km`);
+      
+      const inspectors = await this.inspectorRepository.find({
+        relations: ["user"],
+      });
+      this.logger.debug(`Found ${inspectors.length} total inspectors`);
+
+      const inspectorsWithDistance = inspectors
+        .map(inspector => {
+          try {
+            if (!inspector.location) return null;
+
+            const { lat: inspLat, lng: inspLng } = this.parseLocation(inspector.location);
+            const distance = this.calculateDistance(lat, lng, inspLat, inspLng);
+            return { inspector, distance };
+          } catch (error) {
+            this.logger.warn(`Skipping inspector ${inspector.id} due to invalid location: ${error.message}`);
+            return null;
+          }
+        })
+        .filter(result => result !== null)
+        .filter(({ distance }) => {
+          const withinRadius = distance <= effectiveRadius;
+          if (!withinRadius) {
+            this.logger.debug(`Inspector at distance ${distance}km excluded (exceeds ${effectiveRadius}km radius)`);
+          }
+          return withinRadius;
+        })
+        .sort((a, b) => a.distance - b.distance);
+
+      this.logger.debug(`Found ${inspectorsWithDistance.length} inspectors within ${effectiveRadius}km radius`);
+      if (inspectorsWithDistance.length > 0) {
+        this.logger.debug(`Nearest inspector is at ${inspectorsWithDistance[0].distance}km`);
+      }
+
+      return inspectorsWithDistance;
+    } catch (error) {
+      this.logger.error(`Error finding nearby inspectors: ${error.message}`, error.stack);
+      throw error;
     }
-
-    return inspectorsWithDistance;
   }
 
   async update(

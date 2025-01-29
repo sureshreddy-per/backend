@@ -7,6 +7,8 @@ import { User } from '../../users/entities/user.entity';
 import { UpdateUserDetailsDto } from '../dto/update-user-details.dto';
 import { CreateBuyerDto } from '../dto/create-buyer.dto';
 import { UpdateBuyerPreferencesDto } from '../dto/update-buyer-preferences.dto';
+import { SystemConfigService } from '../../config/services/system-config.service';
+import { SystemConfigKey } from '../../config/enums/system-config-key.enum';
 
 @Injectable()
 export class BuyersService {
@@ -19,6 +21,7 @@ export class BuyersService {
     private readonly buyerPreferencesRepository: Repository<BuyerPreferences>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly systemConfigService: SystemConfigService,
   ) {}
 
   async getBuyerWithUser(
@@ -283,8 +286,15 @@ export class BuyersService {
         throw new Error("Invalid parameters: latitude, longitude and radius are required");
       }
 
-      if (radiusKm <= 0 || radiusKm > 100) {
-        throw new Error("Radius must be between 0 and 100 kilometers");
+      // Get max radius from system config
+      const maxRadius = Number(await this.systemConfigService.getValue(SystemConfigKey.MAX_BUYER_RADIUS_KM));
+      const defaultRadius = Number(await this.systemConfigService.getValue(SystemConfigKey.DEFAULT_BUYER_RADIUS_KM));
+
+      // Use default radius if none provided or if provided radius is too large
+      const effectiveRadius = !radiusKm ? defaultRadius : Math.min(radiusKm, maxRadius);
+
+      if (effectiveRadius <= 0) {
+        throw new Error(`Radius must be greater than 0 kilometers`);
       }
 
       const buyers = await this.buyerRepository.find({
@@ -307,7 +317,7 @@ export class BuyersService {
           }
 
           const distance = this.calculateDistance(lat, lng, buyerLat, buyerLng);
-          return distance <= radiusKm;
+          return distance <= effectiveRadius;
         } catch (error) {
           this.logger.error(
             `Error calculating distance for buyer ${buyer.id}: ${error.message}`

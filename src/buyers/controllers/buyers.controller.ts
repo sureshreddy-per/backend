@@ -9,13 +9,18 @@ import { User } from '../../users/entities/user.entity';
 import { BuyersService } from '../services/buyers.service';
 import { CreateBuyerDto } from '../dto/create-buyer.dto';
 import { UpdateUserDetailsDto } from '../dto/update-user-details.dto';
+import { SystemConfigService } from '../../config/services/system-config.service';
+import { SystemConfigKey } from '../../config/enums/system-config-key.enum';
 
 @ApiTags('Buyers')
 @Controller('buyers')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @ApiBearerAuth()
 export class BuyersController {
-  constructor(private readonly buyersService: BuyersService) {}
+  constructor(
+    private readonly buyersService: BuyersService,
+    private readonly systemConfigService: SystemConfigService,
+  ) {}
 
   @Post()
   @Roles(UserRole.ADMIN)

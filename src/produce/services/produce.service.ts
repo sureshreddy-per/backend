@@ -17,6 +17,8 @@ import { Farmer } from '../../farmers/entities/farmer.entity';
 import { QualityAssessment } from '../../quality/entities/quality-assessment.entity';
 import { QualityAssessmentService } from '../../quality/services/quality-assessment.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { SystemConfigService } from "../../config/services/system-config.service";
+import { SystemConfigKey } from "../../config/enums/system-config-key.enum";
 
 interface TransformedFarmer {
   id: string;
@@ -42,7 +44,8 @@ export class ProduceService {
     private readonly inspectorsService: InspectorsService,
     private readonly qualityAssessmentService: QualityAssessmentService,
     private readonly dataSource: DataSource,
-    private readonly eventEmitter: EventEmitter2
+    private readonly eventEmitter: EventEmitter2,
+    private readonly systemConfigService: SystemConfigService,
   ) {}
 
   private parseLocation(location: string): { lat: number; lng: number } {
@@ -422,31 +425,65 @@ export class ProduceService {
   }
 
   async findAvailableInRadius(latitude: number, longitude: number, radiusInKm: number): Promise<Produce[]> {
-    const produces = await this.produceRepository.find({
-      where: { status: ProduceStatus.AVAILABLE },
-      relations: ['farmer', 'farmer.user', 'quality_assessments'],
-      order: {
-        quality_assessments: {
-          created_at: 'DESC'
-        }
-      }
-    });
+    try {
+      // Get radius limits from system config
+      const maxRadius = Number(await this.systemConfigService.getValue(SystemConfigKey.MAX_PRODUCE_SEARCH_RADIUS_KM));
+      const defaultRadius = Number(await this.systemConfigService.getValue(SystemConfigKey.DEFAULT_PRODUCE_SEARCH_RADIUS_KM));
 
-    return produces
-      .filter(produce => {
-        const [produceLat, produceLong] = produce.location.split(',').map(Number);
-        const R = 6371; // Earth's radius in kilometers
-        const dLat = this.toRad(produceLat - latitude);
-        const dLon = this.toRad(produceLong - longitude);
-        const a =
-          Math.sin(dLat/2) * Math.sin(dLat/2) +
-          Math.cos(this.toRad(latitude)) * Math.cos(this.toRad(produceLat)) *
-          Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
-        return distance <= radiusInKm;
-      })
-      .map(produce => this.transformProduceData(produce));
+      // Use default radius if none provided or if provided radius is too large
+      const effectiveRadius = !radiusInKm ? defaultRadius : Math.min(radiusInKm, maxRadius);
+
+      if (effectiveRadius <= 0) {
+        throw new Error(`Radius must be greater than 0 kilometers`);
+      }
+
+      const produces = await this.produceRepository.find({
+        where: { status: ProduceStatus.AVAILABLE },
+        relations: ['farmer', 'farmer.user', 'quality_assessments'],
+        order: {
+          quality_assessments: {
+            created_at: 'DESC'
+          }
+        }
+      });
+
+      return produces
+        .filter(produce => {
+          try {
+            if (!produce.location) return false;
+
+            const [produceLat, produceLong] = produce.location.split(',').map(Number);
+            
+            if (isNaN(produceLat) || isNaN(produceLong)) {
+              this.logger.warn(`Invalid location format for produce ${produce.id}: ${produce.location}`);
+              return false;
+            }
+
+            if (Math.abs(produceLat) > 90 || Math.abs(produceLong) > 180) {
+              this.logger.warn(`Invalid coordinates for produce ${produce.id}: ${produce.location}`);
+              return false;
+            }
+
+            const R = 6371; // Earth's radius in kilometers
+            const dLat = this.toRad(produceLat - latitude);
+            const dLon = this.toRad(produceLong - longitude);
+            const a =
+              Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(this.toRad(latitude)) * Math.cos(this.toRad(produceLat)) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R * c;
+            return distance <= effectiveRadius;
+          } catch (error) {
+            this.logger.error(`Error calculating distance for produce ${produce.id}: ${error.message}`);
+            return false;
+          }
+        })
+        .map(produce => this.transformProduceData(produce));
+    } catch (error) {
+      this.logger.error(`Error finding produce in radius: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   private toRad(degrees: number): number {

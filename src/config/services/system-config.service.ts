@@ -81,6 +81,47 @@ export class SystemConfigService implements OnModuleInit {
           value: process.env.INSPECTION_FEE_PER_KM || "5",
           description: "Inspection fee per kilometer in rupees",
         },
+        {
+          key: SystemConfigKey.USE_AUTO_INSPECTOR_ASSIGNMENT,
+          value: process.env.USE_AUTO_INSPECTOR_ASSIGNMENT || "true",
+          description: "Whether to use automatic inspector assignment",
+        },
+        {
+          key: SystemConfigKey.AUTO_INSPECTOR_ASSIGNMENT_RADIUS_KM,
+          value: process.env.AUTO_INSPECTOR_ASSIGNMENT_RADIUS_KM || "50",
+          description: "Maximum radius in kilometers for auto inspector assignment",
+        },
+        // New radius configurations
+        {
+          key: SystemConfigKey.DEFAULT_BUYER_RADIUS_KM,
+          value: process.env.DEFAULT_BUYER_RADIUS_KM || "50",
+          description: "Default radius in kilometers for buyer search",
+        },
+        {
+          key: SystemConfigKey.MAX_BUYER_RADIUS_KM,
+          value: process.env.MAX_BUYER_RADIUS_KM || "100",
+          description: "Maximum allowed radius in kilometers for buyer search",
+        },
+        {
+          key: SystemConfigKey.DEFAULT_PRODUCE_SEARCH_RADIUS_KM,
+          value: process.env.DEFAULT_PRODUCE_SEARCH_RADIUS_KM || "50",
+          description: "Default radius in kilometers for produce search",
+        },
+        {
+          key: SystemConfigKey.MAX_PRODUCE_SEARCH_RADIUS_KM,
+          value: process.env.MAX_PRODUCE_SEARCH_RADIUS_KM || "100",
+          description: "Maximum allowed radius in kilometers for produce search",
+        },
+        {
+          key: SystemConfigKey.DEFAULT_INSPECTOR_RADIUS_KM,
+          value: process.env.DEFAULT_INSPECTOR_RADIUS_KM || "50",
+          description: "Default radius in kilometers for inspector search",
+        },
+        {
+          key: SystemConfigKey.MAX_INSPECTOR_RADIUS_KM,
+          value: process.env.MAX_INSPECTOR_RADIUS_KM || "100",
+          description: "Maximum allowed radius in kilometers for inspector search",
+        },
       ];
 
       for (const config of defaultConfigs) {

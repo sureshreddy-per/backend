@@ -20,6 +20,8 @@ import { OfferTransformationService } from './offer-transformation.service';
 import { ProduceMaster } from "../../produce/entities/produce-master.entity";
 import { ProduceSynonymService } from "../../produce/services/synonym.service";
 import { ProduceStatus } from "../../produce/enums/produce-status.enum";
+import { SystemConfigService } from '../../config/services/system-config.service';
+import { SystemConfigKey } from '../../config/enums/system-config-key.enum';
 
 interface QualityAssessmentMetadata {
   grade: number;
@@ -76,6 +78,7 @@ export class AutoOfferService {
     private readonly offersService: OffersService,
     private readonly offerTransformationService: OfferTransformationService,
     private readonly produceSynonymService: ProduceSynonymService,
+    private readonly systemConfigService: SystemConfigService,
   ) {
     this.setupEventListeners();
   }
@@ -688,8 +691,9 @@ export class AutoOfferService {
 
     this.logger.log(`[AutoOfferService] Found ${filteredBuyers.length} potential buyers for produce ${produce.id}`);
 
-    // Filter buyers by distance and validate location
-    const validBuyers = filteredBuyers.map(buyer => {
+    const maxRadius = Number(await this.systemConfigService.getValue(SystemConfigKey.MAX_BUYER_RADIUS_KM));
+
+    const validBuyers = (await Promise.all(filteredBuyers.map(async (buyer) => {
       if (!buyer.location) {
         this.logger.warn(`[AutoOfferService] Buyer ${buyer.id} skipped: No location information`);
         return null;
@@ -710,16 +714,16 @@ export class AutoOfferService {
 
       this.logger.debug(`[AutoOfferService] Calculated distance for buyer ${buyer.id}: ${distance}km`);
 
-      if (distance > 100) {
-        this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: Distance ${distance}km exceeds 100km limit`);
+      if (distance > maxRadius) {
+        this.logger.debug(`[AutoOfferService] Buyer ${buyer.id} skipped: Distance ${distance}km exceeds ${maxRadius}km limit`);
         return null;
       }
 
       return buyer;
-    }).filter(buyer => buyer !== null);
+    }))).filter(buyer => buyer !== null);
 
     if (validBuyers.length === 0) {
-      this.logger.warn(`[AutoOfferService] No valid buyers found within 100km radius for produce ${produce.id}`);
+      this.logger.warn(`[AutoOfferService] No valid buyers found within ${maxRadius}km radius for produce ${produce.id}`);
       return;
     }
 
@@ -764,7 +768,9 @@ export class AutoOfferService {
       return;
     }
 
-    // Get all available produce within 100km
+    const maxRadius = Number(await this.systemConfigService.getValue(SystemConfigKey.MAX_BUYER_RADIUS_KM));
+
+    // Get all available produce within configured radius
     const [lat, lng] = buyer.location.split(',').map(Number);
     const produces = await this.produceRepository.find({
       where: {
@@ -794,7 +800,7 @@ export class AutoOfferService {
         produceLoc.lng
       );
 
-      if (distance > 100) return false;
+      if (distance > maxRadius) return false;
 
       // Check if produce name matches buyer preferences
       const produceName = produce.name.toLowerCase().trim();

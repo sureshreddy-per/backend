@@ -6,6 +6,8 @@ import { BuyerPreferences } from '../../buyers/entities/buyer-preferences.entity
 import { DailyPrice } from '../entities/daily-price.entity';
 import { Buyer } from '../../buyers/entities/buyer.entity';
 import { h3 } from 'h3-js';
+import { SystemConfigService } from '../../config/services/system-config.service';
+import { SystemConfigKey } from '../../config/enums/system-config-key.enum';
 
 interface LocationCluster {
   hexId: string;
@@ -29,13 +31,16 @@ interface PriceAggregation {
 @Injectable()
 export class DailyPriceCalculationService {
   private readonly logger = new Logger(DailyPriceCalculationService.name);
-  private readonly H3_RESOLUTION = 4; // ~100km hexagons
+  // H3 resolution 4 gives hexagons with average area matching our max search radius
+  // This ensures we capture price data within the maximum configured search radius
+  private readonly H3_RESOLUTION = 4;
 
   constructor(
     @InjectRepository(Buyer)
     private readonly buyerRepository: Repository<Buyer>,
     @InjectRepository(DailyPrice)
     private readonly dailyPriceRepository: Repository<DailyPrice>,
+    private readonly systemConfigService: SystemConfigService,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
