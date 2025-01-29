@@ -157,21 +157,31 @@ export class InspectionRequestService {
       queryBuilder.where('inspection.inspector_id = :userId', { userId });
       this.logger.debug('Applied INSPECTOR filter');
     } else if (role === 'BUYER') {
+      this.logger.debug(`Processing BUYER role filter for user ${userId}`);
+
       // First join with offers table
       queryBuilder
-        .leftJoin('produce.offers', 'offers', 'offers.produce_id = produce.id')
+        .leftJoin('produce.offers', 'offers')
         .where(new Brackets(qb => {
-          qb.where(new Brackets(subQb => {
-            // Case 1: Buyer has an active offer
-            subQb.where('offers.buyer_id = :userId', { userId })
-              .andWhere('offers.status NOT IN (:...excludedStatuses)', {
-                excludedStatuses: ['CANCELLED', 'REJECTED']
-              });
-          }))
-          // Case 2: Buyer is the requester
-          .orWhere('inspection.requester_id = :userId', { userId });
+          qb.where('inspection.requester_id = :userId', { userId })
+            .orWhere(new Brackets(subQb => {
+              subQb.where('offers.buyer_id = :userId', { userId })
+                .andWhere('offers.status NOT IN (:...excludedStatuses)', {
+                  excludedStatuses: ['CANCELLED', 'REJECTED']
+                });
+            }));
         }));
-      this.logger.debug('Applied BUYER filter (active offers and direct requests)');
+
+      // Log the generated SQL for debugging
+      const generatedSql = queryBuilder.getSql();
+      const parameters = queryBuilder.getParameters();
+      this.logger.debug('Generated SQL for BUYER:', generatedSql);
+      this.logger.debug('Query parameters:', parameters);
+
+      // Add distinct to prevent duplicates from the left join
+      queryBuilder.distinct(true);
+
+      this.logger.debug('Applied BUYER filter with distinct results');
     }
 
     // Apply status filter
