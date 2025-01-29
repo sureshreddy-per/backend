@@ -39,7 +39,7 @@ import { Buyer } from '../buyers/entities/buyer.entity';
     InspectorsModule,
     NotificationsModule,
     FarmersModule,
-    BuyersModule
+    forwardRef(() => BuyersModule)
   ],
   providers: [
     {

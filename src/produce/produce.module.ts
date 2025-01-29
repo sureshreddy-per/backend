@@ -34,7 +34,7 @@ import { ProduceMasterController } from './controllers/produce-master.controller
     FarmersModule,
     InspectorsModule,
     CommonModule,
-    QualityModule,
+    forwardRef(() => QualityModule),
   ],
   controllers: [ProduceController, ProduceSynonymController, ProduceMasterController],
   providers: [
