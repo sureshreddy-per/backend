@@ -13,6 +13,7 @@ import { BuyerHomeResponse, TopOffer, NearbyProduce, BuyerPreference } from '../
 import { NearbyInspection } from '../dto/farmer-home.dto';
 import { TransactionStatus } from '../../transactions/entities/transaction.entity';
 import { TransformedTransaction } from '../../transactions/services/transaction.service';
+import { ProduceStatus } from '../../produce/enums/produce-status.enum';
 
 @Injectable()
 export class BuyerHomeService {
@@ -39,7 +40,7 @@ export class BuyerHomeService {
     try {
       const cacheKey = `${this.CACHE_PREFIX}${userId}:${location}`;
       const cachedData = await this.cacheManager.get<BuyerHomeResponse>(cacheKey);
-      
+
       if (cachedData) {
         return cachedData;
       }
@@ -84,12 +85,12 @@ export class BuyerHomeService {
   private async getBuyerStatus(userId: string): Promise<Buyer> {
     const cacheKey = `${this.CACHE_PREFIX}buyer:${userId}`;
     const cachedBuyer = await this.cacheManager.get<Buyer>(cacheKey);
-    
+
     if (cachedBuyer) {
       return cachedBuyer;
     }
 
-    const buyer = await this.buyerRepository.findOne({ 
+    const buyer = await this.buyerRepository.findOne({
       where: { user_id: userId },
       select: ['id', 'is_active']
     });
@@ -105,7 +106,7 @@ export class BuyerHomeService {
   private async getBuyerPreferences(buyerId: string): Promise<BuyerPreference[]> {
     const cacheKey = `${this.CACHE_PREFIX}preferences:${buyerId}`;
     const cachedPreferences = await this.cacheManager.get<BuyerPreference[]>(cacheKey);
-    
+
     if (cachedPreferences) {
       return cachedPreferences;
     }
@@ -137,13 +138,13 @@ export class BuyerHomeService {
   private async getTopOffers(buyerId: string, location: string): Promise<TopOffer[]> {
     const cacheKey = `${this.CACHE_PREFIX}top_offers:${buyerId}:${location}`;
     const cachedOffers = await this.cacheManager.get<TopOffer[]>(cacheKey);
-    
+
     if (cachedOffers) {
       return cachedOffers;
     }
 
     const [lat, lng] = location.split(',').map(Number);
-    
+
     const offers = await this.produceRepository
       .createQueryBuilder('p')
       .innerJoinAndSelect('p.farmer', 'f')
@@ -151,7 +152,7 @@ export class BuyerHomeService {
       .where('p.status = :status', { status: 'ACTIVE' })
       .andWhere(
         `ST_DWithin(
-          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
+          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT),
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
           100000
@@ -165,7 +166,7 @@ export class BuyerHomeService {
         'p.unit',
         'p.quality_grade',
         `ST_Distance(
-          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
+          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT),
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
         ) / 1000 as distance_km`,
@@ -187,7 +188,7 @@ export class BuyerHomeService {
   private async getNearbyProduces(location: string): Promise<NearbyProduce[]> {
     const cacheKey = `${this.CACHE_PREFIX}nearby_produces:${location}`;
     const cachedProduces = await this.cacheManager.get<NearbyProduce[]>(cacheKey);
-    
+
     if (cachedProduces) {
       return cachedProduces;
     }
@@ -202,10 +203,10 @@ export class BuyerHomeService {
         'p.images'
       ])
       .distinctOn(['p.name'])
-      .where('p.status = :status', { status: 'ACTIVE' })
+      .where('p.status = :status', { status: ProduceStatus.AVAILABLE })
       .andWhere(
         `ST_DWithin(
-          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
+          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT),
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
           100000
@@ -229,13 +230,13 @@ export class BuyerHomeService {
   private async getHighValueTransactions(buyerId: string, location: string): Promise<TransformedTransaction[]> {
     const cacheKey = `${this.CACHE_PREFIX}transactions:${buyerId}:${location}`;
     const cachedTransactions = await this.cacheManager.get<TransformedTransaction[]>(cacheKey);
-    
+
     if (cachedTransactions) {
       return cachedTransactions;
     }
 
     const [lat, lng] = location.split(',').map(Number);
-    
+
     // First try to get IN_PROGRESS transactions
     let transactions = await this.transactionRepository
       .createQueryBuilder('t')
@@ -281,7 +282,7 @@ export class BuyerHomeService {
       recent: NearbyInspection[];
       nearby: NearbyInspection[];
     }>(cacheKey);
-    
+
     if (cachedInspections) {
       return cachedInspections;
     }
@@ -307,7 +308,7 @@ export class BuyerHomeService {
         .where('i.requester_id != :buyerId', { buyerId })
         .andWhere(
           `ST_DWithin(
-            ST_SetSRID(ST_MakePoint(CAST(split_part(i.location, ',', 2) AS FLOAT), 
+            ST_SetSRID(ST_MakePoint(CAST(split_part(i.location, ',', 2) AS FLOAT),
                                    CAST(split_part(i.location, ',', 1) AS FLOAT)), 4326),
             ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
             100000
@@ -334,7 +335,7 @@ export class BuyerHomeService {
       inspections.map(async i => {
         const cacheKey = `${this.CACHE_PREFIX}quality_assessment:${i.produce.id}`;
         let assessment = await this.cacheManager.get(cacheKey);
-        
+
         if (!assessment) {
           assessment = await this.qualityAssessmentService.findLatestByProduceId(i.produce.id);
           await this.cacheManager.set(cacheKey, assessment, this.CACHE_TTL);
@@ -366,4 +367,4 @@ export class BuyerHomeService {
   private deg2rad(deg: number): number {
     return deg * (Math.PI / 180);
   }
-} 
+}
