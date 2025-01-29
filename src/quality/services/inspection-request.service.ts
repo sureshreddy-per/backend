@@ -159,8 +159,9 @@ export class InspectionRequestService {
     } else if (role === 'BUYER') {
       this.logger.debug(`Processing BUYER role filter for user ${userId}`);
 
-      // Join with offers table
+      // Join with offers table and ensure distinct results
       queryBuilder
+        .distinctOn(['inspection.id'])
         .leftJoin(
           'produce.offers',
           'offers',
@@ -176,7 +177,6 @@ export class InspectionRequestService {
                 });
             }));
         }))
-        .distinct(true)
         .select([
           'inspection',
           'produce',

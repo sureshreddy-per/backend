@@ -12,6 +12,7 @@ import { BaseEntity } from "../../common/entities/base.entity";
 
 @Entity("offers")
 @Index("unique_offer_constraint", ["produce_id", "buyer_id", "farmer_id"], { unique: true })
+@Index("idx_offers_buyer_status", ["buyer_id", "status"])
 export class Offer extends BaseEntity {
   @Column({ name: "produce_id" })
   produce_id: string;
