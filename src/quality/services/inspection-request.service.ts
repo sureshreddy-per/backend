@@ -144,7 +144,13 @@ export class InspectionRequestService {
       .leftJoinAndSelect('inspection.produce', 'produce')
       .leftJoinAndSelect('produce.quality_assessments', 'quality_assessments')
       .leftJoinAndSelect('inspection.inspector', 'inspector')
-      .leftJoinAndSelect('inspector.user', 'inspector_user');
+      .leftJoinAndSelect('inspector.user', 'inspector_user')
+      .leftJoinAndSelect('produce.offers', 'offers', 'offers.status NOT IN (:...excludedStatuses)', 
+        { excludedStatuses: ['CANCELLED', 'REJECTED'] })
+      .leftJoin('offers.buyer', 'buyer')
+      .leftJoin('buyer.user', 'buyer_user');
+
+    this.logger.debug('Initial query builder setup complete with buyer joins');
 
     // Apply role-based filters
     if (role === 'FARMER') {
@@ -157,41 +163,14 @@ export class InspectionRequestService {
       queryBuilder.where('inspection.inspector_id = :userId', { userId });
       this.logger.debug('Applied INSPECTOR filter');
     } else if (role === 'BUYER') {
-      this.logger.debug(`Processing BUYER role filter for user ${userId}`);
-
-      // Join with offers table and ensure distinct results
-      queryBuilder
-        .distinctOn(['inspection.id'])
-        .leftJoin(
-          'produce.offers',
-          'offers',
-          'offers.produce_id = produce.id'
-        )
-        .where(new Brackets(qb => {
-          qb.where('inspection.requester_id = :userId', { userId })
-            .orWhere(new Brackets(subQb => {
-              subQb
-                .where('offers.buyer_id = :userId', { userId })
-                .andWhere('offers.status NOT IN (:...excludedStatuses)', {
-                  excludedStatuses: ['CANCELLED', 'REJECTED']
-                });
-            }));
-        }))
-        .select([
-          'inspection',
-          'produce',
-          'quality_assessments',
-          'inspector',
-          'inspector_user'
-        ]);
-
-      // Log the generated SQL for debugging
-      const generatedSql = queryBuilder.getSql();
-      const parameters = queryBuilder.getParameters();
-      this.logger.debug('Generated SQL for BUYER:', generatedSql);
-      this.logger.debug('Query parameters:', parameters);
-
-      this.logger.debug('Applied BUYER filter with distinct results');
+      this.logger.debug('Applying BUYER filter...');
+      queryBuilder.where(new Brackets(qb => {
+        qb.where('buyer_user.id = :userId', { userId })
+          .orWhere('inspection.requester_id = :userId', { userId });
+      }));
+      this.logger.debug('Applied BUYER filter with corrected conditions:');
+      this.logger.debug('- buyer_user.id = :userId OR inspection.requester_id = :userId');
+      this.logger.debug(`- userId value: ${userId}`);
     }
 
     // Apply status filter
@@ -220,7 +199,6 @@ export class InspectionRequestService {
         break;
       case InspectionSortBy.DISTANCE:
         if (lat && lng) {
-          // Add distance calculation using PostGIS
           queryBuilder.addSelect(
             `ST_Distance(
               ST_SetSRID(ST_MakePoint(CAST(split_part(inspection.location, ',', 2) AS FLOAT),
@@ -260,9 +238,28 @@ export class InspectionRequestService {
     // Apply pagination
     queryBuilder.skip(skip).take(limit);
 
-    // Execute query
+    // Execute query and log results
     const items = await queryBuilder.getMany();
     this.logger.debug(`Found ${items.length} items after pagination`);
+    if (items.length === 0) {
+      this.logger.debug('No items found. Checking if there are any inspection requests at all...');
+      const totalRequests = await this.inspectionRequestRepository.count();
+      this.logger.debug(`Total inspection requests in the system: ${totalRequests}`);
+      
+      if (role === 'BUYER') {
+        const buyerOffers = await this.inspectionRequestRepository
+          .createQueryBuilder('inspection')
+          .leftJoin('inspection.produce', 'produce')
+          .leftJoin('produce.offers', 'offers')
+          .where('offers.buyer_id = :userId', { userId })
+          .getCount();
+        this.logger.debug(`Number of inspection requests with buyer offers: ${buyerOffers}`);
+        
+        const buyerRequests = await this.inspectionRequestRepository
+          .count({ where: { requester_id: userId } });
+        this.logger.debug(`Number of inspection requests made by buyer: ${buyerRequests}`);
+      }
+    }
 
     // Transform response
     const transformedItems = items.map(inspection => ({
