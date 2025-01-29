@@ -37,17 +37,17 @@ export class FarmersService {
       where: { id: farmer.user_id },
       select: [
         "id",
-        "email",
-        "avatar_url",
         "name",
-        "status",
+        "email",
         "mobile_number",
         "role",
+        "status",
+        "fcm_token",
+        "avatar_url",
         "rating",
         "total_completed_transactions",
         "last_login_at",
-        "app_version",
-        "fcm_token"
+        "app_version"
       ],
     });
 
@@ -78,7 +78,7 @@ export class FarmersService {
     const total_transactions_completed_count = await this.transactionRepository.count({
       where: { 
         farmer_id: farmer.id,
-        status: "COMPLETED" as TransactionStatus
+        status: TransactionStatus.COMPLETED
       },
     });
 
