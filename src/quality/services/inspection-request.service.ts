@@ -11,6 +11,8 @@ import { TransformedInspection } from '../interfaces/transformed-inspection.inte
 import { Logger } from "@nestjs/common";
 import { Brackets, Not } from "typeorm";
 import { In } from "typeorm";
+import { Farmer } from "../../farmers/entities/farmer.entity";
+import { Buyer } from "../../buyers/entities/buyer.entity";
 
 @Injectable()
 export class InspectionRequestService {
@@ -23,6 +25,10 @@ export class InspectionRequestService {
     private readonly produceRepository: Repository<Produce>,
     @InjectRepository(Inspector)
     private readonly inspectorRepository: Repository<Inspector>,
+    @InjectRepository(Farmer)
+    private readonly farmerRepository: Repository<Farmer>,
+    @InjectRepository(Buyer)
+    private readonly buyerRepository: Repository<Buyer>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
@@ -294,14 +300,40 @@ export class InspectionRequestService {
 
     // Check if user has permission to cancel
     if (role === 'FARMER') {
-      const produce = await this.produceRepository.findOne({
-        where: { id: request.produce_id }
+      // First get the farmer record for this user
+      const farmer = await this.farmerRepository.findOne({
+        where: { user_id: userId }
       });
-      if (!produce || produce.farmer_id !== userId) {
+      
+      if (!farmer) {
+        throw new BadRequestException("Farmer record not found for this user");
+      }
+
+      // Then check if this farmer owns the produce
+      const produce = await this.produceRepository.findOne({
+        where: { 
+          id: request.produce_id,
+          farmer_id: farmer.id
+        }
+      });
+
+      if (!produce) {
         throw new BadRequestException("Only the produce owner can cancel this inspection request");
       }
-    } else if (role === 'BUYER' && request.requester_id !== userId) {
-      throw new BadRequestException("Only the requester can cancel this inspection request");
+    } else if (role === 'BUYER') {
+      // First get the buyer record for this user
+      const buyer = await this.buyerRepository.findOne({
+        where: { user_id: userId }
+      });
+
+      if (!buyer) {
+        throw new BadRequestException("Buyer record not found for this user");
+      }
+
+      // Check if this buyer is the requester
+      if (request.requester_id !== buyer.id) {
+        throw new BadRequestException("Only the requester can cancel this inspection request");
+      }
     }
 
     // Can only cancel if not already COMPLETED or CANCELLED
