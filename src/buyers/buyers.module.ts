@@ -11,6 +11,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { ProduceModule } from '../produce/produce.module';
 import { FarmersModule } from '../farmers/farmers.module';
 import { User } from '../users/entities/user.entity';
+import { SystemConfigModule } from '../system-config/system-config.module';
 
 @Module({
   imports: [
@@ -18,7 +19,8 @@ import { User } from '../users/entities/user.entity';
     OffersModule,
     NotificationsModule,
     ProduceModule,
-    FarmersModule
+    FarmersModule,
+    SystemConfigModule
   ],
   controllers: [BuyersController, BuyerPreferencesController],
   providers: [BuyersService, BuyerPreferencesService],
