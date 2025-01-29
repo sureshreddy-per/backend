@@ -22,7 +22,7 @@ import { AdminModule } from "../admin/admin.module";
     UsersModule,
     RedisModule,
     FarmersModule,
-    BuyersModule,
+    forwardRef(() => BuyersModule),
     InspectorsModule,
     forwardRef(() => AdminModule),
     JwtModule.registerAsync({
