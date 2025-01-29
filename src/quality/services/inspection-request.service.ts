@@ -288,4 +288,54 @@ export class InspectionRequestService {
       totalPages: Math.ceil(total / limit)
     };
   }
+
+  async cancel(id: string, userId: string, role: string): Promise<InspectionRequest> {
+    const request = await this.findOne(id);
+
+    // Check if user has permission to cancel
+    if (role === 'FARMER') {
+      const produce = await this.produceRepository.findOne({
+        where: { id: request.produce_id }
+      });
+      if (!produce || produce.farmer_id !== userId) {
+        throw new BadRequestException("Only the produce owner can cancel this inspection request");
+      }
+    } else if (role === 'BUYER' && request.requester_id !== userId) {
+      throw new BadRequestException("Only the requester can cancel this inspection request");
+    }
+
+    // Can only cancel if not already COMPLETED or CANCELLED
+    if ([InspectionRequestStatus.COMPLETED, InspectionRequestStatus.CANCELLED].includes(request.status)) {
+      throw new BadRequestException(`Cannot cancel inspection request in ${request.status.toLowerCase()} status`);
+    }
+
+    const previousStatus = request.status;
+    request.status = InspectionRequestStatus.CANCELLED;
+    const updatedRequest = await this.inspectionRequestRepository.save(request);
+
+    // Emit cancellation event
+    await this.eventEmitter.emit('inspection.request.cancelled', {
+      request_id: updatedRequest.id,
+      produce_id: updatedRequest.produce_id,
+      cancelled_by: userId,
+      role: role,
+      previous_status: previousStatus
+    });
+
+    // If the request was IN_PROGRESS, notify the assigned inspector
+    if (previousStatus === InspectionRequestStatus.IN_PROGRESS && request.inspector_id) {
+      await this.eventEmitter.emit('notification.create', {
+        user_id: request.inspector_id,
+        type: 'INSPECTION_CANCELLED',
+        data: {
+          request_id: request.id,
+          produce_id: request.produce_id,
+          cancelled_by_role: role,
+          location: request.location
+        }
+      });
+    }
+
+    return updatedRequest;
+  }
 }

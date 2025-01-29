@@ -233,4 +233,15 @@ export class QualityController {
   async findOne(@Param("id") id: string): Promise<QualityAssessment> {
     return this.qualityAssessmentService.findOne(id);
   }
+
+  @Post("inspections/:id/cancel")
+  @Roles(UserRole.FARMER, UserRole.BUYER)
+  @ApiOperation({ summary: 'Cancel an inspection request' })
+  @ApiResponse({ status: 200, description: 'Inspection request cancelled successfully', type: InspectionRequest })
+  async cancelInspection(
+    @GetUser() user: User,
+    @Param("id") id: string,
+  ): Promise<InspectionRequest> {
+    return this.inspectionRequestService.cancel(id, user.id, user.role);
+  }
 }
