@@ -11,8 +11,6 @@ import { TransformedInspection } from '../interfaces/transformed-inspection.inte
 import { Logger } from "@nestjs/common";
 import { Brackets, Not } from "typeorm";
 import { In } from "typeorm";
-import { Farmer } from "../../farmers/entities/farmer.entity";
-import { Buyer } from "../../buyers/entities/buyer.entity";
 
 @Injectable()
 export class InspectionRequestService {
@@ -25,10 +23,6 @@ export class InspectionRequestService {
     private readonly produceRepository: Repository<Produce>,
     @InjectRepository(Inspector)
     private readonly inspectorRepository: Repository<Inspector>,
-    @InjectRepository(Farmer)
-    private readonly farmerRepository: Repository<Farmer>,
-    @InjectRepository(Buyer)
-    private readonly buyerRepository: Repository<Buyer>,
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
