@@ -24,7 +24,7 @@ export class Rating {
   @Column({ name: "rated_user_id" })
   rated_user_id: string;
 
-  @Column({ type: "decimal", precision: 3, scale: 1 })
+  @Column({ type: "integer" })
   rating: number;
 
   @Column({ name: "review", type: "text", nullable: true })
