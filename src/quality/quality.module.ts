@@ -18,10 +18,6 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { InspectorsModule } from '../inspectors/inspectors.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ConfigModule } from '../config/config.module';
-import { FarmersModule } from '../farmers/farmers.module';
-import { BuyersModule } from '../buyers/buyers.module';
-import { Farmer } from '../farmers/entities/farmer.entity';
-import { Buyer } from '../buyers/entities/buyer.entity';
 
 @Module({
   imports: [
@@ -31,15 +27,11 @@ import { Buyer } from '../buyers/entities/buyer.entity';
       QualityAssessment,
       InspectionRequest,
       Produce,
-      Inspector,
-      Farmer,
-      Buyer
+      Inspector
     ]),
     forwardRef(() => ProduceModule),
     InspectorsModule,
     NotificationsModule,
-    FarmersModule,
-    forwardRef(() => BuyersModule)
   ],
   providers: [
     {

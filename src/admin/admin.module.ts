@@ -11,16 +11,14 @@ import { TransactionsModule } from "../transactions/transactions.module";
 import { AppVersionControl } from './entities/app-version-control.entity';
 import { AppVersionService } from './services/app-version.service';
 import { AppVersionController } from './controllers/app-version.controller';
-import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([AdminAuditLog, SystemConfig, AppVersionControl]),
     UsersModule,
-    forwardRef(() => ProduceModule),
-    forwardRef(() => OffersModule),
+    ProduceModule,
+    OffersModule,
     forwardRef(() => TransactionsModule),
-    forwardRef(() => AuthModule),
   ],
   controllers: [AdminController, AppVersionController],
   providers: [AdminService, AppVersionService],

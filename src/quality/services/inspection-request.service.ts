@@ -151,17 +151,19 @@ export class InspectionRequestService {
       .leftJoinAndSelect('produce.quality_assessments', 'quality_assessments')
       .leftJoinAndSelect('inspection.inspector', 'inspector')
       .leftJoinAndSelect('inspector.user', 'inspector_user')
+      .leftJoinAndSelect('produce.farmer', 'farmer')
+      .leftJoinAndSelect('farmer.user', 'farmer_user')
       .leftJoinAndSelect('produce.offers', 'offers', 'offers.status NOT IN (:...excludedStatuses)', 
         { excludedStatuses: ['CANCELLED', 'REJECTED'] })
-      .leftJoin('offers.buyer', 'buyer')
-      .leftJoin('buyer.user', 'buyer_user');
+      .leftJoinAndSelect('offers.buyer', 'buyer')
+      .leftJoinAndSelect('buyer.user', 'buyer_user');
 
-    this.logger.debug('Initial query builder setup complete with buyer joins');
+    this.logger.debug('Initial query builder setup complete with all joins');
 
     // Apply role-based filters
     if (role === 'FARMER') {
       queryBuilder.where(new Brackets(qb => {
-        qb.where('produce.farmer_id = :userId', { userId })
+        qb.where('farmer_user.id = :userId', { userId })
           .orWhere('inspection.requester_id = :userId', { userId });
       }));
       this.logger.debug('Applied FARMER filter (produce and requests)');
@@ -174,7 +176,7 @@ export class InspectionRequestService {
         qb.where('buyer_user.id = :userId', { userId })
           .orWhere('inspection.requester_id = :userId', { userId });
       }));
-      this.logger.debug('Applied BUYER filter with corrected conditions:');
+      this.logger.debug('Applied BUYER filter with conditions:');
       this.logger.debug('- buyer_user.id = :userId OR inspection.requester_id = :userId');
       this.logger.debug(`- userId value: ${userId}`);
     }
@@ -300,38 +302,31 @@ export class InspectionRequestService {
 
     // Check if user has permission to cancel
     if (role === 'FARMER') {
-      // First get the farmer record for this user
-      const farmer = await this.farmerRepository.findOne({
-        where: { user_id: userId }
-      });
-      
-      if (!farmer) {
-        throw new BadRequestException("Farmer record not found for this user");
-      }
-
-      // Then check if this farmer owns the produce
-      const produce = await this.produceRepository.findOne({
-        where: { 
-          id: request.produce_id,
-          farmer_id: farmer.id
-        }
-      });
+      // Get the produce with its farmer relationship
+      const produce = await this.produceRepository
+        .createQueryBuilder('produce')
+        .innerJoin('produce.farmer', 'farmer')
+        .innerJoin('farmer.user', 'user')
+        .where('produce.id = :produceId', { produceId: request.produce_id })
+        .andWhere('user.id = :userId', { userId })
+        .getOne();
 
       if (!produce) {
         throw new BadRequestException("Only the produce owner can cancel this inspection request");
       }
     } else if (role === 'BUYER') {
-      // First get the buyer record for this user
-      const buyer = await this.buyerRepository.findOne({
-        where: { user_id: userId }
-      });
+      // Check if this buyer is the requester through the buyer relationship
+      const isValidBuyer = await this.inspectionRequestRepository
+        .createQueryBuilder('inspection')
+        .innerJoin('inspection.produce', 'produce')
+        .innerJoin('produce.offers', 'offers')
+        .innerJoin('offers.buyer', 'buyer')
+        .innerJoin('buyer.user', 'user')
+        .where('inspection.id = :requestId', { requestId: id })
+        .andWhere('user.id = :userId', { userId })
+        .getOne();
 
-      if (!buyer) {
-        throw new BadRequestException("Buyer record not found for this user");
-      }
-
-      // Check if this buyer is the requester
-      if (request.requester_id !== buyer.id) {
+      if (!isValidBuyer && request.requester_id !== userId) {
         throw new BadRequestException("Only the requester can cancel this inspection request");
       }
     }
