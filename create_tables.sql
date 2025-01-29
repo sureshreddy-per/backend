@@ -695,7 +695,7 @@ id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   transaction_id UUID NOT NULL REFERENCES transactions(id),
   rating_user_id UUID NOT NULL REFERENCES users(id),
   rated_user_id UUID NOT NULL REFERENCES users(id),
-  rating INTEGER NOT NULL,
+  rating DECIMAL(3,1) NOT NULL,
   review TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -1289,7 +1289,7 @@ CREATE TABLE IF NOT EXISTS request_metrics (
 
 -- Create a view for transformed inspection requests
 CREATE OR REPLACE VIEW inspection_requests_view AS
-SELECT 
+SELECT
   ir.id,
   ir.produce_id,
   ir.requester_id,
@@ -1454,4 +1454,4 @@ INSERT INTO system_configs (key, value, description) VALUES
 ('use_auto_inspector_assignment', '{"value": true}', 'Enable automatic assignment of inspectors to inspection requests'),
 ('auto_inspector_assignment_radius_km', '{"value": 200}', 'Maximum radius in kilometers for automatic inspector assignment'),
 ('transaction_recovery_cron_enabled', '{"value": true}', 'Enable automatic recovery of stuck transactions')
-ON CONFLICT (key) DO NOTHING; 
+ON CONFLICT (key) DO NOTHING;
