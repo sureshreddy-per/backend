@@ -234,7 +234,7 @@ export class QualityController {
     return this.qualityAssessmentService.findOne(id);
   }
 
-  @Post("inspections/:id/cancel")
+  @Post("inspections/cancel/:id")
   @Roles(UserRole.FARMER, UserRole.BUYER)
   @ApiOperation({ summary: 'Cancel an inspection request' })
   @ApiResponse({ status: 200, description: 'Inspection request cancelled successfully', type: InspectionRequest })
