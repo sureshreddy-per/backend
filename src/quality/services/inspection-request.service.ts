@@ -144,8 +144,7 @@ export class InspectionRequestService {
       .leftJoinAndSelect('inspection.produce', 'produce')
       .leftJoinAndSelect('produce.quality_assessments', 'quality_assessments')
       .leftJoinAndSelect('inspection.inspector', 'inspector')
-      .leftJoinAndSelect('inspector.user', 'inspector_user')
-      .leftJoin('produce.offers', 'offers');
+      .leftJoinAndSelect('inspector.user', 'inspector_user');
 
     // Apply role-based filters
     if (role === 'FARMER') {
@@ -158,11 +157,21 @@ export class InspectionRequestService {
       queryBuilder.where('inspection.inspector_id = :userId', { userId });
       this.logger.debug('Applied INSPECTOR filter');
     } else if (role === 'BUYER') {
-      queryBuilder.where(new Brackets(qb => {
-        qb.where('offers.buyer_id = :userId', { userId })
+      // First join with offers table
+      queryBuilder
+        .leftJoin('produce.offers', 'offers', 'offers.produce_id = produce.id')
+        .where(new Brackets(qb => {
+          qb.where(new Brackets(subQb => {
+            // Case 1: Buyer has an active offer
+            subQb.where('offers.buyer_id = :userId', { userId })
+              .andWhere('offers.status NOT IN (:...excludedStatuses)', {
+                excludedStatuses: ['CANCELLED', 'REJECTED']
+              });
+          }))
+          // Case 2: Buyer is the requester
           .orWhere('inspection.requester_id = :userId', { userId });
-      }));
-      this.logger.debug('Applied BUYER filter (offers and requests)');
+        }));
+      this.logger.debug('Applied BUYER filter (active offers and direct requests)');
     }
 
     // Apply status filter
