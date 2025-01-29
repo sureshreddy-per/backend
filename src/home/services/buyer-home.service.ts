@@ -149,7 +149,7 @@ export class BuyerHomeService {
       .createQueryBuilder('p')
       .innerJoinAndSelect('p.farmer', 'f')
       .innerJoinAndSelect('f.user', 'u')
-      .where('p.status = :status', { status: 'ACTIVE' })
+      .where('p.status = :status', { status: ProduceStatus.AVAILABLE })
       .andWhere(
         `ST_DWithin(
           ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT),
