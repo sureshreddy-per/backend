@@ -174,7 +174,7 @@ export class FarmerHomeResponse {
 }
 
 export class GetFarmerHomeQueryDto {
-  @ApiProperty({ 
+  @ApiProperty({
     description: 'Location in format "latitude,longitude" (e.g. "12.34,56.78")',
     example: '12.34,56.78'
   })
@@ -183,4 +183,4 @@ export class GetFarmerHomeQueryDto {
     message: 'Location must be in format "latitude,longitude" (e.g. "12.34,56.78")'
   })
   location: string;
-} 
+}

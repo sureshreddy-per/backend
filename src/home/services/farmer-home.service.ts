@@ -37,9 +37,9 @@ export class FarmerHomeService {
     try {
       const cacheKey = `${this.CACHE_PREFIX}${userId}:${location}`;
       this.logger.debug(`Getting farmer home data for user ${userId} at location ${location}`);
-      
+
       const cachedData = await this.cacheManager.get<FarmerHomeResponse>(cacheKey);
-      
+
       if (cachedData) {
         this.logger.debug('Returning cached data');
         return cachedData;
@@ -108,7 +108,7 @@ export class FarmerHomeService {
   private async getMarketTrends(farmerId: string): Promise<MarketTrend[]> {
     const cacheKey = `${this.CACHE_PREFIX}market_trends:${farmerId}`;
     const cachedTrends = await this.cacheManager.get<MarketTrend[]>(cacheKey);
-    
+
     if (cachedTrends) {
       return cachedTrends;
     }
@@ -127,7 +127,7 @@ export class FarmerHomeService {
       my_offers: NearbyOffer[];
       nearby_offers: NearbyOffer[];
     }>(cacheKey);
-    
+
     if (cachedOffers) {
       return cachedOffers;
     }
@@ -155,13 +155,13 @@ export class FarmerHomeService {
       .andWhere('o.status = :offerStatus', { offerStatus: 'ACCEPTED' })
       .select([
         'p.id as produce_id',
-        'p.name',
+        'p.name as produce_name',
         'p.quantity',
         'p.unit',
         'p.quality_grade',
         'p.status',
         'p.is_inspection_requested as is_manually_inspected',
-        'p.images',
+        'p.images as produce_images',
         'o.price_per_unit as offer_price',
         'o.status as offer_status',
         'b.id as buyer_id',
@@ -171,28 +171,38 @@ export class FarmerHomeService {
       ])
       .orderBy('p.created_at', 'DESC')
       .limit(7)
-      .cache(this.CACHE_TTL)
       .getRawMany();
 
+    this.logger.debug('Raw my offers data:', myOffers);
+
     // Transform my offers to match the NearbyOffer interface
-    const transformedMyOffers = myOffers.map(offer => ({
-      produce_id: offer.produce_id,
-      name: offer.name,
-      quantity: parseFloat(offer.quantity),
-      unit: offer.unit,
-      quality_grade: parseFloat(offer.quality_grade),
-      distance_km: 0, // 0 for my own offers
-      is_manually_inspected: offer.is_manually_inspected,
-      produce_images: offer.images,
-      buyer: {
-        id: offer.buyer_id,
-        name: offer.buyer_name,
-        business_name: offer.buyer_business_name,
-        avatar_url: offer.buyer_avatar_url
-      },
-      offer_price: parseFloat(offer.offer_price),
-      offer_status: offer.offer_status
-    }));
+    const transformedMyOffers = myOffers.map(offer => {
+      const transformed = {
+        produce_id: offer.produce_id,
+        name: offer.produce_name,
+        quantity: parseFloat(offer.quantity),
+        unit: offer.unit,
+        quality_grade: parseFloat(offer.quality_grade),
+        distance_km: 0,
+        is_manually_inspected: offer.is_manually_inspected,
+        produce_images: Array.isArray(offer.produce_images) ? offer.produce_images : JSON.parse(offer.produce_images || '[]'),
+        buyer: {
+          id: offer.buyer_id,
+          name: offer.buyer_name,
+          business_name: offer.buyer_business_name,
+          avatar_url: offer.buyer_avatar_url
+        },
+        offer_price: parseFloat(offer.offer_price),
+        offer_status: offer.offer_status
+      };
+      this.logger.debug(`Transformed offer ${offer.produce_id}:`, {
+        raw: offer,
+        transformed: transformed
+      });
+      return transformed;
+    });
+
+    this.logger.debug('Final transformed my offers:', transformedMyOffers);
 
     // Get nearby offers
     const nearbyOffers = await this.produceRepository
@@ -207,7 +217,7 @@ export class FarmerHomeService {
       .andWhere('o.status = :offerStatus', { offerStatus: 'ACCEPTED' })
       .andWhere(
         `ST_DWithin(
-          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
+          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT),
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
           100000
@@ -216,18 +226,18 @@ export class FarmerHomeService {
       )
       .select([
         'p.id as produce_id',
-        'p.name',
+        'p.name as produce_name',
         'p.quantity',
         'p.unit',
         'p.quality_grade',
         'p.status',
         `ST_Distance(
-          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
+          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT),
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
         ) / 1000 as distance_km`,
         'p.is_inspection_requested as is_manually_inspected',
-        'p.images',
+        'p.images as produce_images',
         'o.price_per_unit as offer_price',
         'o.status as offer_status',
         'b.id as buyer_id',
@@ -237,28 +247,38 @@ export class FarmerHomeService {
       ])
       .orderBy('p.created_at', 'DESC')
       .limit(7)
-      .cache(this.CACHE_TTL)
       .getRawMany();
 
+    this.logger.debug('Raw nearby offers data:', nearbyOffers);
+
     // Transform nearby offers to match the NearbyOffer interface
-    const transformedNearbyOffers = nearbyOffers.map(offer => ({
-      produce_id: offer.produce_id,
-      name: offer.name,
-      quantity: parseFloat(offer.quantity),
-      unit: offer.unit,
-      quality_grade: parseFloat(offer.quality_grade),
-      distance_km: parseFloat(offer.distance_km),
-      is_manually_inspected: offer.is_manually_inspected,
-      produce_images: offer.images,
-      buyer: {
-        id: offer.buyer_id,
-        name: offer.buyer_name,
-        business_name: offer.buyer_business_name,
-        avatar_url: offer.buyer_avatar_url
-      },
-      offer_price: parseFloat(offer.offer_price),
-      offer_status: offer.offer_status
-    }));
+    const transformedNearbyOffers = nearbyOffers.map(offer => {
+      const transformed = {
+        produce_id: offer.produce_id,
+        name: offer.produce_name,
+        quantity: parseFloat(offer.quantity),
+        unit: offer.unit,
+        quality_grade: parseFloat(offer.quality_grade),
+        distance_km: parseFloat(offer.distance_km),
+        is_manually_inspected: offer.is_manually_inspected,
+        produce_images: Array.isArray(offer.produce_images) ? offer.produce_images : JSON.parse(offer.produce_images || '[]'),
+        buyer: {
+          id: offer.buyer_id,
+          name: offer.buyer_name,
+          business_name: offer.buyer_business_name,
+          avatar_url: offer.buyer_avatar_url
+        },
+        offer_price: parseFloat(offer.offer_price),
+        offer_status: offer.offer_status
+      };
+      this.logger.debug(`Transformed nearby offer ${offer.produce_id}:`, {
+        raw: offer,
+        transformed: transformed
+      });
+      return transformed;
+    });
+
+    this.logger.debug('Final transformed nearby offers:', transformedNearbyOffers);
 
     const result = {
       my_offers: transformedMyOffers,
@@ -271,7 +291,7 @@ export class FarmerHomeService {
 
   private async getRecentProduces(farmerId: string, location: string): Promise<RecentProduce[]> {
     const cacheKey = `${this.CACHE_PREFIX}recent_produces:${farmerId}:${location}`;
-    
+
     this.logger.debug(`Getting recent produces for farmer ${farmerId} at location ${location}`);
 
     const [lat, lng] = location.split(',').map(Number);
@@ -299,7 +319,7 @@ export class FarmerHomeService {
         'p.is_inspection_requested as is_manually_inspected',
         'p.images as produce_images',
         `CAST(ST_Distance(
-          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT), 
+          ST_SetSRID(ST_MakePoint(CAST(split_part(p.location, ',', 2) AS FLOAT),
                                  CAST(split_part(p.location, ',', 1) AS FLOAT)), 4326),
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
         ) / 1000 as FLOAT) as distance_km`
@@ -316,7 +336,7 @@ export class FarmerHomeService {
 
     const produces = await queryBuilder.getRawMany();
     this.logger.debug(`Found ${produces.length} recent produces with statuses: ${produces.map(p => p.status).join(', ')}`);
-    
+
     if (produces.length === 0) {
       // Log a sample direct query to check if data exists
       const checkData = await this.produceRepository
@@ -343,13 +363,13 @@ export class FarmerHomeService {
         produce_images: Array.isArray(p.produce_images) ? p.produce_images : [],
         status: p.status
       };
-      
+
       // Add debug logging for transformation
       this.logger.debug(`Transforming produce ${p.produce_id}:`, {
         raw: p,
         transformed: transformed
       });
-      
+
       return transformed;
     });
 
@@ -362,7 +382,7 @@ export class FarmerHomeService {
   private async getTopBuyers(farmerId: string): Promise<TopBuyer[]> {
     const cacheKey = `${this.CACHE_PREFIX}top_buyers:${farmerId}`;
     const cachedBuyers = await this.cacheManager.get<TopBuyer[]>(cacheKey);
-    
+
     if (cachedBuyers) {
       return cachedBuyers;
     }
@@ -400,7 +420,7 @@ export class FarmerHomeService {
       recent: NearbyInspection[];
       nearby: NearbyInspection[];
     }>(cacheKey);
-    
+
     if (cachedInspections) {
       return cachedInspections;
     }
@@ -424,7 +444,7 @@ export class FarmerHomeService {
       .where('p.farmer_id != :farmerId', { farmerId })
       .andWhere(
         `ST_DWithin(
-          ST_SetSRID(ST_MakePoint(CAST(split_part(i.location, ',', 2) AS FLOAT), 
+          ST_SetSRID(ST_MakePoint(CAST(split_part(i.location, ',', 2) AS FLOAT),
                                  CAST(split_part(i.location, ',', 1) AS FLOAT)), 4326),
           ST_SetSRID(ST_MakePoint(:lng, :lat), 4326),
           100000
@@ -450,7 +470,7 @@ export class FarmerHomeService {
       inspections.map(async i => {
         const cacheKey = `${this.CACHE_PREFIX}quality_assessment:${i.produce.id}`;
         let assessment = await this.cacheManager.get(cacheKey);
-        
+
         if (!assessment) {
           assessment = await this.qualityAssessmentService.findLatestByProduceId(i.produce.id);
           await this.cacheManager.set(cacheKey, assessment, this.CACHE_TTL);
@@ -482,4 +502,4 @@ export class FarmerHomeService {
   private deg2rad(deg: number): number {
     return deg * (Math.PI / 180);
   }
-} 
+}
